@@ -413,7 +413,6 @@ function renderResult(address, data, elapsedMs) {
 
     ${raceSection}
     ${housingSection}
-
     <section class="section-block">
       <h3 class="section-header">Disadvantaged Community (DAC)</h3>
       <div class="callout" style="border-left-color:${
