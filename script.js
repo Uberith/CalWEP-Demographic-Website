@@ -8,7 +8,7 @@ let autocomplete = null;
 
 // ---------- Config ----------
 const API_BASE = "https://calwep-nft-api.onrender.com";
-const API_PATH = "/api/demographics"; // see section 2 for why '/api' is safest
+const API_PATH = "/demographics"; // see section 2 for why '/api' is safest
 
 function buildApiUrl(address) {
   const u = new URL(API_PATH.replace(/^\//, ""), API_BASE + "/");
