@@ -7,7 +7,7 @@
 let autocomplete = null;
 
 // ---------- Config ----------
-const API_BASE = "calwep-nft-api.onrender.com" || window.location.origin; // fallback to same-origin if meta not present
+const API_BASE = "https://calwep-nft-api.onrender.com" || window.location.origin; // fallback to same-origin if meta not present
 const API_PATH = "/demographics"; // router exposes this path with no prefix
 
 // ---------- Utilities ----------
