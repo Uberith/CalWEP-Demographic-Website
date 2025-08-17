@@ -25,7 +25,9 @@ function escapeHTML(str = "") {
     .replace(/"/g, "&quot;")
     .replace(/'/g, "&#39;");
 }
-function isMissing(n) { return n == null || Number(n) === -888888888; }
+function isMissing(n) {
+  return n == null || Number(n) === -888888888;
+}
 function fmtInt(n) {
   return !isMissing(n) && Number.isFinite(Number(n))
     ? Number(n).toLocaleString()
@@ -46,12 +48,33 @@ function fmtPct(n) {
     ? `${Number(n).toFixed(1)}%`
     : "—";
 }
-function nowStamp() { return new Date().toLocaleString(); }
+function titleCase(str = "") {
+  return str.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
+}
+const CES_LABELS = {
+  pm25: "PM2.5",
+  diesel: "Diesel PM",
+  toxic_releases: "Toxic releases",
+  drinking_water: "Drinking water",
+  cleanup_sites: "Cleanup sites",
+  groundwater_threats: "Groundwater threats",
+  hazardous_waste: "Hazardous waste",
+  impaired_waters: "Impaired waters",
+  solid_waste: "Solid waste",
+  low_birth_weight: "Low birth weight",
+  cardiovascular_disease: "Cardiovascular disease",
+  linguistic_isolation: "Linguistic isolation",
+  housing_burden: "Housing burden",
+};
+function nowStamp() {
+  return new Date().toLocaleString();
+}
 function buildApiUrl(path, params = {}) {
   const base = API_BASE.endsWith("/") ? API_BASE : API_BASE + "/";
   const url = new URL(path.replace(/^\//, ""), base);
   for (const [k, v] of Object.entries(params)) {
-    if (v !== undefined && v !== null && String(v).length) url.searchParams.set(k, v);
+    if (v !== undefined && v !== null && String(v).length)
+      url.searchParams.set(k, v);
   }
   return url.toString();
 }
@@ -62,15 +85,23 @@ async function fetchJsonWithDiagnostics(url) {
       method: "GET",
       mode: "cors",
       cache: "no-store",
-      headers: { Accept: "application/json" }
+      headers: { Accept: "application/json" },
     });
   } catch (e) {
     throw new Error(`Network error calling API: ${e?.message || e}`);
   }
   const txt = await res.text().catch(() => "");
-  if (!res.ok) throw new Error(`API ${res.status} ${res.statusText} for ${url} :: ${txt || "<no body>"}`);
-  try { return JSON.parse(txt); }
-  catch { throw new Error(`API 200 but response was not valid JSON for ${url} :: ${txt.slice(0, 200)}…`); }
+  if (!res.ok)
+    throw new Error(
+      `API ${res.status} ${res.statusText} for ${url} :: ${txt || "<no body>"}`,
+    );
+  try {
+    return JSON.parse(txt);
+  } catch {
+    throw new Error(
+      `API 200 but response was not valid JSON for ${url} :: ${txt.slice(0, 200)}…`,
+    );
+  }
 }
 
 // CalEnviroScreen color helper
@@ -87,7 +118,7 @@ function cesColor(percentile) {
     { max: 70, color: "#F46D43", fg: "#fff" },
     { max: 80, color: "#D73027", fg: "#fff" },
     { max: 90, color: "#A50026", fg: "#fff" },
-    { max: 100, color: "#6E0000", fg: "#fff" }
+    { max: 100, color: "#6E0000", fg: "#fff" },
   ];
   for (const r of scale) {
     if (p <= r.max) return { bg: r.color, fg: r.fg || "#000" };
@@ -108,13 +139,17 @@ function initAutocomplete() {
 
   autocomplete.addListener("place_changed", () => {
     const p = autocomplete.getPlace();
-    let street = "", city = "", state = "", zip = "";
+    let street = "",
+      city = "",
+      state = "",
+      zip = "";
     for (const comp of p.address_components || []) {
       const t = comp.types || [];
       if (t.includes("street_number")) street = comp.long_name + " ";
       else if (t.includes("route")) street += comp.long_name;
       else if (t.includes("locality")) city = comp.long_name;
-      else if (t.includes("administrative_area_level_1")) state = comp.short_name;
+      else if (t.includes("administrative_area_level_1"))
+        state = comp.short_name;
       else if (t.includes("postal_code")) zip = comp.long_name;
     }
     if (!zip && p.formatted_address) {
@@ -164,15 +199,45 @@ function renderError(message, address) {
 }
 function renderResult(address, data) {
   const {
-    city, zip, county, lat, lon,
-    primary_language, secondary_language,
-    median_household_income, per_capita_income,
-    median_age, poverty_rate, unemployment_rate,
-    population, dac_status, environmental_hardships,
-    enviroscreen
+    city,
+    zip,
+    county,
+    lat,
+    lon,
+    primary_language,
+    secondary_language,
+    median_household_income,
+    per_capita_income,
+    median_age,
+    poverty_rate,
+    unemployment_rate,
+    population,
+    people_below_poverty,
+    dac_status,
+    environmental_hardships,
+    white_pct,
+    black_pct,
+    native_pct,
+    asian_pct,
+    pacific_pct,
+    other_race_pct,
+    two_or_more_races_pct,
+    hispanic_pct,
+    not_hispanic_pct,
+    owner_occupied_pct,
+    renter_occupied_pct,
+    median_home_value,
+    high_school_or_higher_pct,
+    bachelors_or_higher_pct,
+    alerts,
+    enviroscreen,
+    surrounding_10_mile,
   } = data || {};
 
-  const alerts = Array.isArray(environmental_hardships) ? environmental_hardships : [];
+  const hardshipList = Array.isArray(environmental_hardships)
+    ? environmental_hardships
+    : [];
+  const alertList = Array.isArray(alerts) ? alerts : [];
   const cesSection = (() => {
     if (!enviroscreen || typeof enviroscreen !== "object") return "";
     const badge = (v) => {
@@ -183,6 +248,16 @@ function renderResult(address, data) {
     const overall = enviroscreen.percentile;
     const pb = enviroscreen.overall_percentiles?.pollution_burden;
     const pc = enviroscreen.overall_percentiles?.population_characteristics;
+    const renderGroup = (title, obj) => {
+      if (!obj || typeof obj !== "object") return "";
+      const kv = Object.entries(obj)
+        .map(
+          ([k, v]) =>
+            `<div class="key">${escapeHTML(CES_LABELS[k] || titleCase(k))}</div><div class="val">${fmtNumber(v)}</div>`,
+        )
+        .join("");
+      return `<h4 class="sub-section-header">${title}</h4><div class="kv">${kv}</div>`;
+    };
     return `
       <section class="section-block">
         <h3 class="section-header">CalEnviroScreen 4.0</h3>
@@ -191,10 +266,86 @@ function renderResult(address, data) {
           <div class="key">Pollution burden</div><div class="val">${badge(pb)}</div>
           <div class="key">Population characteristics</div><div class="val">${badge(pc)}</div>
         </div>
+        ${renderGroup("Exposures", enviroscreen.exposures)}
+        ${renderGroup("Environmental effects", enviroscreen.environmental_effects)}
+        ${renderGroup("Sensitive populations", enviroscreen.sensitive_populations)}
+        ${renderGroup("Socioeconomic factors", enviroscreen.socioeconomic_factors)}
       </section>
     `;
   })();
-  const coords = (lat != null && lon != null) ? `${Number(lat).toFixed(6)}, ${Number(lon).toFixed(6)}` : "—";
+  const coords =
+    lat != null && lon != null
+      ? `${Number(lat).toFixed(6)}, ${Number(lon).toFixed(6)}`
+      : "—";
+
+  const hardshipSection = `
+    <section class="section-block">
+      <h3 class="section-header">Environmental hardships</h3>
+      ${hardshipList.length ? `<div class="stats">${hardshipList.map((h) => `<span class="pill">${escapeHTML(h)}</span>`).join("")}</div>` : `<p class="note">No environmental hardships recorded.</p>`}
+    </section>
+  `;
+
+  const raceSection = `
+    <section class="section-block">
+      <h3 class="section-header">Race &amp; ethnicity (ACS)</h3>
+      <div class="kv">
+        <div class="key">White</div><div class="val">${fmtPct(white_pct)}</div>
+        <div class="key">Black or African American</div><div class="val">${fmtPct(black_pct)}</div>
+        <div class="key">American Indian / Alaska Native</div><div class="val">${fmtPct(native_pct)}</div>
+        <div class="key">Asian</div><div class="val">${fmtPct(asian_pct)}</div>
+        <div class="key">Native Hawaiian / Pacific Islander</div><div class="val">${fmtPct(pacific_pct)}</div>
+        <div class="key">Other race</div><div class="val">${fmtPct(other_race_pct)}</div>
+        <div class="key">Two or more races</div><div class="val">${fmtPct(two_or_more_races_pct)}</div>
+        <div class="key">Hispanic</div><div class="val">${fmtPct(hispanic_pct)}</div>
+        <div class="key">Not Hispanic</div><div class="val">${fmtPct(not_hispanic_pct)}</div>
+      </div>
+    </section>
+  `;
+
+  const housingSection = `
+    <section class="section-block">
+      <h3 class="section-header">Housing &amp; education (ACS)</h3>
+      <div class="kv">
+        <div class="key">Owner occupied</div><div class="val">${fmtPct(owner_occupied_pct)}</div>
+        <div class="key">Renter occupied</div><div class="val">${fmtPct(renter_occupied_pct)}</div>
+        <div class="key">Median home value</div><div class="val">${fmtCurrency(median_home_value)}</div>
+        <div class="key">High school or higher</div><div class="val">${fmtPct(high_school_or_higher_pct)}</div>
+        <div class="key">Bachelor's degree or higher</div><div class="val">${fmtPct(bachelors_or_higher_pct)}</div>
+      </div>
+    </section>
+  `;
+
+  const surroundingSection = (() => {
+    const s = surrounding_10_mile || {};
+    if (!s || typeof s !== "object" || Object.keys(s).length === 0) return "";
+    return `
+      <section class="section-block">
+        <h3 class="section-header">Surrounding 10‑mile area (ACS)</h3>
+        <div class="kv">
+          <div class="key">Population</div><div class="val">${fmtInt(s.population)}</div>
+          <div class="key">Median age</div><div class="val">${fmtNumber(s.median_age)}</div>
+          <div class="key">Median household income</div><div class="val">${fmtCurrency(s.median_household_income)}</div>
+          <div class="key">Per capita income</div><div class="val">${fmtCurrency(s.per_capita_income)}</div>
+          <div class="key">Poverty rate</div><div class="val">${fmtPct(s.poverty_rate)}</div>
+          <div class="key">Unemployment rate</div><div class="val">${fmtPct(s.unemployment_rate)}</div>
+          <div class="key">Owner occupied</div><div class="val">${fmtPct(s.owner_occupied_pct)}</div>
+          <div class="key">Renter occupied</div><div class="val">${fmtPct(s.renter_occupied_pct)}</div>
+          <div class="key">Median home value</div><div class="val">${fmtCurrency(s.median_home_value)}</div>
+          <div class="key">High school or higher</div><div class="val">${fmtPct(s.high_school_or_higher_pct)}</div>
+          <div class="key">Bachelor's degree or higher</div><div class="val">${fmtPct(s.bachelors_or_higher_pct)}</div>
+          <div class="key">White</div><div class="val">${fmtPct(s.white_pct)}</div>
+          <div class="key">Black or African American</div><div class="val">${fmtPct(s.black_pct)}</div>
+          <div class="key">American Indian / Alaska Native</div><div class="val">${fmtPct(s.native_pct)}</div>
+          <div class="key">Asian</div><div class="val">${fmtPct(s.asian_pct)}</div>
+          <div class="key">Native Hawaiian / Pacific Islander</div><div class="val">${fmtPct(s.pacific_pct)}</div>
+          <div class="key">Other race</div><div class="val">${fmtPct(s.other_race_pct)}</div>
+          <div class="key">Two or more races</div><div class="val">${fmtPct(s.two_or_more_races_pct)}</div>
+          <div class="key">Hispanic</div><div class="val">${fmtPct(s.hispanic_pct)}</div>
+          <div class="key">Not Hispanic</div><div class="val">${fmtPct(s.not_hispanic_pct)}</div>
+        </div>
+      </section>
+    `;
+  })();
 
   document.getElementById("result").innerHTML = `
     <article class="card">
@@ -220,6 +371,7 @@ function renderResult(address, data) {
           <div class="key">Median age</div><div class="val">${fmtNumber(median_age)}</div>
           <div class="key">Median household income</div><div class="val">${fmtCurrency(median_household_income)}</div>
           <div class="key">Per capita income</div><div class="val">${fmtCurrency(per_capita_income)}</div>
+          <div class="key">People below poverty</div><div class="val">${fmtInt(people_below_poverty)}</div>
           <div class="key">Poverty rate</div><div class="val">${fmtPct(poverty_rate)}</div>
           <div class="key">Unemployment rate</div><div class="val">${fmtPct(unemployment_rate)}</div>
         </div>
@@ -233,23 +385,33 @@ function renderResult(address, data) {
         </div>
       </section>
 
+      ${raceSection}
+      ${housingSection}
+
       <section class="section-block">
         <h3 class="section-header">Disadvantaged Community (DAC)</h3>
-        <div class="callout" style="border-left-color:${dac_status ? 'var(--success)' : 'var(--border-strong)'}">
+        <div class="callout" style="border-left-color:${dac_status ? "var(--success)" : "var(--border-strong)"}">
           Disadvantaged community: <strong>${dac_status ? "Yes" : "No"}</strong>
         </div>
       </section>
 
       ${cesSection}
+      ${hardshipSection}
 
       <section class="section-block">
         <h3 class="section-header">Active alerts (NWS)</h3>
-        ${alerts.length ? `
+        ${
+          alertList.length
+            ? `
           <div class="stats">
-            ${alerts.map(a => `<span class="pill">${escapeHTML(a)}</span>`).join("")}
+            ${alertList.map((a) => `<span class="pill">${escapeHTML(a)}</span>`).join("")}
           </div>
-        ` : `<p class="note">No active alerts found for this location.</p>`}
+        `
+            : `<p class="note">No active alerts found for this location.</p>`
+        }
       </section>
+
+      ${surroundingSection}
 
       <span class="updated--footer">
         Sources: FCC Block for county &amp; tract; US Census ACS 5‑year (languages, population, median income); CalEnviroScreen 4.0; NWS alerts.
@@ -265,7 +427,10 @@ async function lookup() {
   const address = (input?.value || "").trim();
 
   if (address.length < 4) {
-    renderError("Please enter a more complete address (at least 4 characters).", address);
+    renderError(
+      "Please enter a more complete address (at least 4 characters).",
+      address,
+    );
     return;
   }
 
@@ -275,7 +440,8 @@ async function lookup() {
   try {
     const url = buildApiUrl(API_PATH, { address });
     const data = await fetchJsonWithDiagnostics(url);
-    if (!data || typeof data !== "object") throw new Error("Malformed response.");
+    if (!data || typeof data !== "object")
+      throw new Error("Malformed response.");
     renderResult(address, data);
   } catch (err) {
     renderError(String(err), address);
@@ -295,4 +461,7 @@ function bindLookupTrigger() {
     lookup().catch(console.error);
   });
 }
-window.onload = () => { initAutocomplete(); bindLookupTrigger(); };
+window.onload = () => {
+  initAutocomplete();
+  bindLookupTrigger();
+};
