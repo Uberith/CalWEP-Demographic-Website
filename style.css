@@ -234,6 +234,14 @@ button:focus-visible {
   font-size: 0.9rem;
 }
 
+.ces-badge {
+  display: inline-block;
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-weight: 700;
+  font-size: 0.85rem;
+}
+
 /* Accessibility */
 .visually-hidden {
   position: absolute !important;

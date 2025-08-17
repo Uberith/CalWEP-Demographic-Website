@@ -58,6 +58,28 @@ async function fetchJsonWithDiagnostics(url) {
   catch { throw new Error(`API 200 but response was not valid JSON for ${url} :: ${txt.slice(0, 200)}…`); }
 }
 
+// CalEnviroScreen color helper
+function cesColor(percentile) {
+  const p = Number(percentile);
+  if (!Number.isFinite(p)) return { bg: "#fff", fg: "#000" };
+  const scale = [
+    { max: 10, color: "#006837", fg: "#fff" },
+    { max: 20, color: "#1A9850", fg: "#fff" },
+    { max: 30, color: "#66BD63" },
+    { max: 40, color: "#A6D96A" },
+    { max: 50, color: "#FEE08B" },
+    { max: 60, color: "#FDAE61" },
+    { max: 70, color: "#F46D43", fg: "#fff" },
+    { max: 80, color: "#D73027", fg: "#fff" },
+    { max: 90, color: "#A50026", fg: "#fff" },
+    { max: 100, color: "#6E0000", fg: "#fff" }
+  ];
+  for (const r of scale) {
+    if (p <= r.max) return { bg: r.color, fg: r.fg || "#000" };
+  }
+  return { bg: "#6E0000", fg: "#fff" };
+}
+
 // ---------- Places Autocomplete ----------
 function initAutocomplete() {
   const input = document.getElementById("autocomplete");
@@ -130,10 +152,32 @@ function renderResult(address, data) {
     city, zip, county, lat, lon,
     primary_language, secondary_language,
     median_household_income, population,
-    dac_status, environmental_hardships
+    dac_status, environmental_hardships,
+    enviroscreen
   } = data || {};
 
   const alerts = Array.isArray(environmental_hardships) ? environmental_hardships : [];
+  const cesSection = (() => {
+    if (!enviroscreen || typeof enviroscreen !== "object") return "";
+    const badge = (v) => {
+      const { bg, fg } = cesColor(v);
+      const val = Number.isFinite(Number(v)) ? Number(v).toFixed(1) : "—";
+      return `<span class="ces-badge" style="background:${bg};color:${fg};">${val}</span>`;
+    };
+    const overall = enviroscreen.percentile;
+    const pb = enviroscreen.overall_percentiles?.pollution_burden;
+    const pc = enviroscreen.overall_percentiles?.population_characteristics;
+    return `
+      <section class="section-block">
+        <h3 class="section-header">CalEnviroScreen 4.0</h3>
+        <div class="kv">
+          <div class="key">Overall percentile</div><div class="val">${badge(overall)}</div>
+          <div class="key">Pollution burden</div><div class="val">${badge(pb)}</div>
+          <div class="key">Population characteristics</div><div class="val">${badge(pc)}</div>
+        </div>
+      </section>
+    `;
+  })();
   const coords = (lat != null && lon != null) ? `${Number(lat).toFixed(6)}, ${Number(lon).toFixed(6)}` : "—";
 
   document.getElementById("result").innerHTML = `
@@ -176,6 +220,8 @@ function renderResult(address, data) {
         </div>
       </section>
 
+      ${cesSection}
+
       <section class="section-block">
         <h3 class="section-header">Active alerts (NWS)</h3>
         ${alerts.length ? `
@@ -186,7 +232,7 @@ function renderResult(address, data) {
       </section>
 
       <span class="updated--footer">
-        Sources: FCC Block for county &amp; tract; US Census ACS 5‑year (languages, population, median income); NWS alerts.
+        Sources: FCC Block for county &amp; tract; US Census ACS 5‑year (languages, population, median income); CalEnviroScreen 4.0; NWS alerts.
       </span>
     </article>
   `;
