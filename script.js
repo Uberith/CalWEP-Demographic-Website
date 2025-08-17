@@ -9,6 +9,7 @@ let autocomplete = null;
 // ---------- Config ----------
 const API_BASE = "https://calwep-nft-api.onrender.com";
 const API_PATH = "/demographics"; // see section 2 for why '/api' is safest
+const GOOGLE_MAPS_KEY = "AIzaSyBSLprmo1jaNX4wrG4N1Ipgg7-QPrLV97U";
 
 // ---------- Utilities ----------
 function escapeHTML(str = "") {
@@ -308,6 +309,10 @@ function renderResult(address, data, elapsedMs) {
     lat != null && lon != null
       ? `${Number(lat).toFixed(6)}, ${Number(lon).toFixed(6)}`
       : "—";
+  const mapImgHtml =
+    lat != null && lon != null
+      ? `<img class="map-image" src="https://maps.googleapis.com/maps/api/staticmap?center=${lat},${lon}&zoom=13&size=600x300&markers=color:red|${lat},${lon}&key=${GOOGLE_MAPS_KEY}" alt="Map of location" />`
+      : "";
 
   const hardshipSection = `
     <section class="section-block">
@@ -348,35 +353,53 @@ function renderResult(address, data, elapsedMs) {
 
   const surroundingSection = (() => {
     const s = surrounding_10_mile || {};
-    if (!s || typeof s !== "object" || Object.keys(s).length === 0) return "";
+    const d = s.demographics || {};
+    if (Object.keys(d).length === 0) return "";
     return `
       <section class="section-block">
         <h3 class="section-header">Surrounding 10‑mile area (ACS)</h3>
         <div class="kv">
-          <div class="key">Population</div><div class="val">${fmtInt(s.population)}</div>
-          <div class="key">Median age</div><div class="val">${fmtNumber(s.median_age)}</div>
-          <div class="key">Median household income</div><div class="val">${fmtCurrency(s.median_household_income)}</div>
-          <div class="key">Per capita income</div><div class="val">${fmtCurrency(s.per_capita_income)}</div>
-          <div class="key">Poverty rate</div><div class="val">${fmtPct(s.poverty_rate)}</div>
-          <div class="key">Unemployment rate</div><div class="val">${fmtPct(s.unemployment_rate)}</div>
-          <div class="key">Owner occupied</div><div class="val">${fmtPct(s.owner_occupied_pct)}</div>
-          <div class="key">Renter occupied</div><div class="val">${fmtPct(s.renter_occupied_pct)}</div>
-          <div class="key">Median home value</div><div class="val">${fmtCurrency(s.median_home_value)}</div>
-          <div class="key">High school or higher</div><div class="val">${fmtPct(s.high_school_or_higher_pct)}</div>
-          <div class="key">Bachelor's degree or higher</div><div class="val">${fmtPct(s.bachelors_or_higher_pct)}</div>
-          <div class="key">White</div><div class="val">${fmtPct(s.white_pct)}</div>
-          <div class="key">Black or African American</div><div class="val">${fmtPct(s.black_pct)}</div>
-          <div class="key">American Indian / Alaska Native</div><div class="val">${fmtPct(s.native_pct)}</div>
-          <div class="key">Asian</div><div class="val">${fmtPct(s.asian_pct)}</div>
-          <div class="key">Native Hawaiian / Pacific Islander</div><div class="val">${fmtPct(s.pacific_pct)}</div>
-          <div class="key">Other race</div><div class="val">${fmtPct(s.other_race_pct)}</div>
-          <div class="key">Two or more races</div><div class="val">${fmtPct(s.two_or_more_races_pct)}</div>
-          <div class="key">Hispanic</div><div class="val">${fmtPct(s.hispanic_pct)}</div>
-          <div class="key">Not Hispanic</div><div class="val">${fmtPct(s.not_hispanic_pct)}</div>
+          <div class="key">Population</div><div class="val">${fmtInt(d.population)}</div>
+          <div class="key">Median age</div><div class="val">${fmtNumber(d.median_age)}</div>
+          <div class="key">Median household income</div><div class="val">${fmtCurrency(d.median_household_income)}</div>
+          <div class="key">Per capita income</div><div class="val">${fmtCurrency(d.per_capita_income)}</div>
+          <div class="key">Poverty rate</div><div class="val">${fmtPct(d.poverty_rate)}</div>
+          <div class="key">Unemployment rate</div><div class="val">${fmtPct(d.unemployment_rate)}</div>
+          <div class="key">Owner occupied</div><div class="val">${fmtPct(d.owner_occupied_pct)}</div>
+          <div class="key">Renter occupied</div><div class="val">${fmtPct(d.renter_occupied_pct)}</div>
+          <div class="key">Median home value</div><div class="val">${fmtCurrency(d.median_home_value)}</div>
+          <div class="key">High school or higher</div><div class="val">${fmtPct(d.high_school_or_higher_pct)}</div>
+          <div class="key">Bachelor's degree or higher</div><div class="val">${fmtPct(d.bachelors_or_higher_pct)}</div>
+          <div class="key">White</div><div class="val">${fmtPct(d.white_pct)}</div>
+          <div class="key">Black or African American</div><div class="val">${fmtPct(d.black_pct)}</div>
+          <div class="key">American Indian / Alaska Native</div><div class="val">${fmtPct(d.native_pct)}</div>
+          <div class="key">Asian</div><div class="val">${fmtPct(d.asian_pct)}</div>
+          <div class="key">Native Hawaiian / Pacific Islander</div><div class="val">${fmtPct(d.pacific_pct)}</div>
+          <div class="key">Other race</div><div class="val">${fmtPct(d.other_race_pct)}</div>
+          <div class="key">Two or more races</div><div class="val">${fmtPct(d.two_or_more_races_pct)}</div>
+          <div class="key">Hispanic</div><div class="val">${fmtPct(d.hispanic_pct)}</div>
+          <div class="key">Not Hispanic</div><div class="val">${fmtPct(d.not_hispanic_pct)}</div>
         </div>
       </section>
     `;
   })();
+
+  const chartsSection = `
+    <section class="section-block">
+      <h3 class="section-header">Visualizations</h3>
+      <div class="chart-grid">
+        <div><canvas id="raceChart"></canvas></div>
+        <div><canvas id="exposureChart"></canvas></div>
+      </div>
+    </section>
+  `;
+
+  const rawJsonSection = `
+    <section class="section-block">
+      <h3 class="section-header">Raw data</h3>
+      <pre class="raw-json">${escapeHTML(JSON.stringify(data, null, 2))}</pre>
+    </section>
+  `;
 
   const localInfo = `
     <section class="section-block">
@@ -387,6 +410,7 @@ function renderResult(address, data, elapsedMs) {
         <div class="key">County</div><div class="val">${escapeHTML(county) || "—"}</div>
         <div class="key">Coordinates</div><div class="val">${coords}</div>
       </div>
+      ${mapImgHtml}
     </section>
       <p class="note">Search took ${formatDuration(elapsedMs)}.</p>
 
@@ -424,6 +448,7 @@ function renderResult(address, data, elapsedMs) {
 
     ${cesSection}
     ${hardshipSection}
+    ${chartsSection}
 
     <section class="section-block">
       <h3 class="section-header">Active alerts (NWS)</h3>
@@ -437,6 +462,7 @@ function renderResult(address, data, elapsedMs) {
           : `<p class="note">No active alerts found for this location.</p>`
       }
     </section>
+    ${rawJsonSection}
   `;
 
   document.getElementById("result").innerHTML = `
@@ -460,6 +486,77 @@ function renderResult(address, data, elapsedMs) {
       </span>
     </article>
   `;
+  renderCharts(data);
+}
+
+function renderCharts(data) {
+  if (typeof Chart === "undefined") return;
+  const raceCtx = document.getElementById("raceChart");
+  if (raceCtx) {
+    new Chart(raceCtx, {
+      type: "pie",
+      data: {
+        labels: [
+          "White",
+          "Black",
+          "Native",
+          "Asian",
+          "Pacific",
+          "Other",
+          "Two or more",
+          "Hispanic",
+          "Not Hispanic",
+        ],
+        datasets: [
+          {
+            data: [
+              data.white_pct,
+              data.black_pct,
+              data.native_pct,
+              data.asian_pct,
+              data.pacific_pct,
+              data.other_race_pct,
+              data.two_or_more_races_pct,
+              data.hispanic_pct,
+              data.not_hispanic_pct,
+            ],
+            backgroundColor: [
+              "#4e79a7",
+              "#f28e2c",
+              "#e15759",
+              "#76b7b2",
+              "#59a14f",
+              "#edc948",
+              "#b07aa1",
+              "#ff9da7",
+              "#9c755f",
+            ],
+          },
+        ],
+      },
+      options: { plugins: { legend: { position: "bottom" } } },
+    });
+  }
+  const exposureCtx = document.getElementById("exposureChart");
+  if (exposureCtx) {
+    const exp = (data.enviroscreen && data.enviroscreen.exposures) || {};
+    const labels = Object.keys(exp).map((k) => CES_LABELS[k] || titleCase(k));
+    const values = Object.values(exp);
+    new Chart(exposureCtx, {
+      type: "bar",
+      data: {
+        labels,
+        datasets: [
+          {
+            label: "Percentile",
+            data: values,
+            backgroundColor: "#4e79a7",
+          },
+        ],
+      },
+      options: { scales: { y: { beginAtZero: true, max: 100 } } },
+    });
+  }
 }
 
 // ---------- Flow ----------
