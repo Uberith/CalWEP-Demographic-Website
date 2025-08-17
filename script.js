@@ -253,7 +253,9 @@ function renderResult(address, data) {
       const kv = Object.entries(obj)
         .map(
           ([k, v]) =>
-            `<div class="key">${escapeHTML(CES_LABELS[k] || titleCase(k))}</div><div class="val">${fmtNumber(v)}</div>`,
+            `<div class="key">${escapeHTML(
+              CES_LABELS[k] || titleCase(k),
+            )}</div><div class="val">${badge(v)}</div>`,
         )
         .join("");
       return `<h4 class="sub-section-header">${title}</h4><div class="kv">${kv}</div>`;
@@ -347,72 +349,83 @@ function renderResult(address, data) {
     `;
   })();
 
+  const localInfo = `
+    <section class="section-block">
+      <h3 class="section-header">Location summary</h3>
+      <div class="kv">
+        <div class="key">City</div><div class="val">${escapeHTML(city) || "—"}</div>
+        <div class="key">ZIP code</div><div class="val">${escapeHTML(zip) || "—"}</div>
+        <div class="key">County</div><div class="val">${escapeHTML(county) || "—"}</div>
+        <div class="key">Coordinates</div><div class="val">${coords}</div>
+      </div>
+    </section>
+
+    <section class="section-block">
+      <h3 class="section-header">Population &amp; income (ACS)</h3>
+      <div class="kv">
+        <div class="key">Total population</div><div class="val">${fmtInt(population)}</div>
+        <div class="key">Median age</div><div class="val">${fmtNumber(median_age)}</div>
+        <div class="key">Median household income</div><div class="val">${fmtCurrency(median_household_income)}</div>
+        <div class="key">Per capita income</div><div class="val">${fmtCurrency(per_capita_income)}</div>
+        <div class="key">People below poverty</div><div class="val">${fmtInt(people_below_poverty)}</div>
+        <div class="key">Poverty rate</div><div class="val">${fmtPct(poverty_rate)}</div>
+        <div class="key">Unemployment rate</div><div class="val">${fmtPct(unemployment_rate)}</div>
+      </div>
+    </section>
+
+    <section class="section-block">
+      <h3 class="section-header">Languages (ACS)</h3>
+      <div class="kv">
+        <div class="key">Primary language</div><div class="val">${escapeHTML(primary_language) || "—"}</div>
+        <div class="key">Second most common</div><div class="val">${escapeHTML(secondary_language) || "—"}</div>
+      </div>
+    </section>
+
+    ${raceSection}
+    ${housingSection}
+
+    <section class="section-block">
+      <h3 class="section-header">Disadvantaged Community (DAC)</h3>
+      <div class="callout" style="border-left-color:${
+        dac_status ? "var(--success)" : "var(--border-strong)"
+      }">
+        Disadvantaged community: <strong>${dac_status ? "Yes" : "No"}</strong>
+      </div>
+    </section>
+
+    ${cesSection}
+    ${hardshipSection}
+
+    <section class="section-block">
+      <h3 class="section-header">Active alerts (NWS)</h3>
+      ${
+        alertList.length
+          ? `
+        <div class="stats">
+          ${alertList.map((a) => `<span class="pill">${escapeHTML(a)}</span>`).join("")}
+        </div>
+      `
+          : `<p class="note">No active alerts found for this location.</p>`
+      }
+    </section>
+  `;
+
   document.getElementById("result").innerHTML = `
     <article class="card">
       <div class="card__header">
         <h2 class="card__title">Results for: ${escapeHTML(address)}</h2>
         <span class="updated">Updated ${nowStamp()}</span>
       </div>
-
-      <section class="section-block">
-        <h3 class="section-header">Location summary</h3>
-        <div class="kv">
-          <div class="key">City</div><div class="val">${escapeHTML(city) || "—"}</div>
-          <div class="key">ZIP code</div><div class="val">${escapeHTML(zip) || "—"}</div>
-          <div class="key">County</div><div class="val">${escapeHTML(county) || "—"}</div>
-          <div class="key">Coordinates</div><div class="val">${coords}</div>
+      <div class="comparison-grid">
+        <div class="col local">
+          ${localInfo}
         </div>
-      </section>
-
-      <section class="section-block">
-        <h3 class="section-header">Population &amp; income (ACS)</h3>
-        <div class="kv">
-          <div class="key">Total population</div><div class="val">${fmtInt(population)}</div>
-          <div class="key">Median age</div><div class="val">${fmtNumber(median_age)}</div>
-          <div class="key">Median household income</div><div class="val">${fmtCurrency(median_household_income)}</div>
-          <div class="key">Per capita income</div><div class="val">${fmtCurrency(per_capita_income)}</div>
-          <div class="key">People below poverty</div><div class="val">${fmtInt(people_below_poverty)}</div>
-          <div class="key">Poverty rate</div><div class="val">${fmtPct(poverty_rate)}</div>
-          <div class="key">Unemployment rate</div><div class="val">${fmtPct(unemployment_rate)}</div>
-        </div>
-      </section>
-
-      <section class="section-block">
-        <h3 class="section-header">Languages (ACS)</h3>
-        <div class="kv">
-          <div class="key">Primary language</div><div class="val">${escapeHTML(primary_language) || "—"}</div>
-          <div class="key">Second most common</div><div class="val">${escapeHTML(secondary_language) || "—"}</div>
-        </div>
-      </section>
-
-      ${raceSection}
-      ${housingSection}
-
-      <section class="section-block">
-        <h3 class="section-header">Disadvantaged Community (DAC)</h3>
-        <div class="callout" style="border-left-color:${dac_status ? "var(--success)" : "var(--border-strong)"}">
-          Disadvantaged community: <strong>${dac_status ? "Yes" : "No"}</strong>
-        </div>
-      </section>
-
-      ${cesSection}
-      ${hardshipSection}
-
-      <section class="section-block">
-        <h3 class="section-header">Active alerts (NWS)</h3>
         ${
-          alertList.length
-            ? `
-          <div class="stats">
-            ${alertList.map((a) => `<span class="pill">${escapeHTML(a)}</span>`).join("")}
-          </div>
-        `
-            : `<p class="note">No active alerts found for this location.</p>`
+          surroundingSection
+            ? `<div class="col surrounding">${surroundingSection}</div>`
+            : ""
         }
-      </section>
-
-      ${surroundingSection}
-
+      </div>
       <span class="updated--footer">
         Sources: FCC Block for county &amp; tract; US Census ACS 5‑year (languages, population, median income); CalEnviroScreen 4.0; NWS alerts.
       </span>
