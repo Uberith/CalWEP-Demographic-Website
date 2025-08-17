@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Community Demographics Lookup</title>
+  <link rel="stylesheet" href="styles.css" />
+  <!-- Loads Maps JS with Places to power the address autocomplete from your existing file -->
+  <script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyBSLprmo1jaNX4wrG4N1Ipgg7-QPrLV97U&libraries=places"></script>
+</head>
+<body>
+  <div class="container">
+    <header class="page-header stack stack--xl">
+      <h1>Community Demographics Lookup</h1>
+      <p>Enter an address to view language, income, population, DAC status (when applicable), and any active alerts.</p>
+
+      <div class="controls">
+        <label class="visually-hidden" for="autocomplete">Search address</label>
+        <input id="autocomplete"
+               placeholder="123 Main St, Yucaipa, CA 92399"
+               type="text"
+               autocomplete="off"
+               inputmode="search"
+               aria-label="Address search" />
+        <button id="lookupBtn" type="button" aria-label="Lookup demographics">Lookup</button>
+      </div>
+
+      <div class="filters">
+        <label for="building-type" class="form-label">Property type</label>
+        <select id="building-type" aria-label="Select property / building type">
+          <option value="">Select building type…</option>
+
+          <optgroup label="Commercial">
+            <option value="business_parks">Business parks</option>
+            <option value="shopping_centers">Shopping centers</option>
+            <option value="office_complexes">Office complexes</option>
+            <option value="banking_institutions">Banking institutions</option>
+            <option value="gas_stations">Gas stations</option>
+            <option value="grocery_stores">Grocery stores</option>
+            <option value="retail_stores">Retail stores</option>
+            <option value="restaurants_fast_food">Restaurants / fast food establishments</option>
+            <option value="strip_malls">Strip malls</option>
+          </optgroup>
+
+          <optgroup label="Industrial">
+            <option value="industrial_properties">Industrial properties</option>
+            <option value="industrial_parks">Industrial parks</option>
+            <option value="manufacturing_processing">Manufacturing and processing plants</option>
+            <option value="warehouses">Warehouses</option>
+            <option value="distribution_centers">Distribution centers</option>
+          </optgroup>
+
+          <optgroup label="Institutional">
+            <option value="gov_properties">Properties owned by state and local governments</option>
+            <option value="hospitals">Hospitals</option>
+            <option value="universities">Universities</option>
+            <option value="private_schools">Private schools</option>
+            <option value="colleges">Colleges</option>
+            <option value="medical_centers">Medical centers</option>
+            <option value="nursing_homes">Nursing homes</option>
+            <option value="research_institutions">Research institutions</option>
+            <option value="corporate_training_centers">Corporate training centers</option>
+            <option value="religious_nonprofit_properties">Properties owned by religious institutions and non‑profit organizations</option>
+          </optgroup>
+        </select>
+        <p class="form-help">Choose the closest match. DAC information will display only for public‑institution types.</p>
+      </div>
+    </header>
+
+    <div class="page-grid">
+      <main class="main-column stack stack--xxl">
+        <div id="result" class="result-box" aria-live="polite" aria-atomic="true">
+          <!-- JS will inject a card here -->
+        </div>
+      </main>
+
+      <!-- Keeping your aside container but not showing the estimator for this tool -->
+      <aside class="aside-column">
+        <!-- Reserved for future map/visualization if needed -->
+      </aside>
+    </div>
+  </div>
+
+  <script src="script.js" defer></script>
+</body>
+</html>
