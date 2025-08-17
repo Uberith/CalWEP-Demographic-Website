@@ -10,12 +10,6 @@ let autocomplete = null;
 const API_BASE = "https://calwep-nft-api.onrender.com";
 const API_PATH = "/demographics"; // see section 2 for why '/api' is safest
 
-function buildApiUrl(address) {
-  const u = new URL(API_PATH.replace(/^\//, ""), API_BASE + "/");
-  u.searchParams.set("address", address);
-  return u.toString();
-}
-
 // ---------- Utilities ----------
 function escapeHTML(str = "") {
   return String(str)
@@ -68,6 +62,39 @@ const CES_LABELS = {
 };
 function nowStamp() {
   return new Date().toLocaleString();
+}
+
+// Simple search timer
+let searchTimerInterval = null;
+let searchTimerStart = null;
+function formatDuration(ms = 0) {
+  const totalSeconds = Math.round(ms / 1000);
+  const minutes = Math.floor(totalSeconds / 60);
+  const seconds = totalSeconds % 60;
+  const mLabel = minutes === 1 ? "Minute" : "Minutes";
+  const sLabel = seconds === 1 ? "Second" : "Seconds";
+  return `${minutes} ${mLabel} and ${seconds} ${sLabel}`;
+}
+function startSearchTimer() {
+  searchTimerStart = Date.now();
+  const el = document.getElementById("searchTimer");
+  if (el) el.textContent = "0m 00s";
+  searchTimerInterval = setInterval(() => {
+    if (!searchTimerStart) return;
+    const elapsed = Date.now() - searchTimerStart;
+    const secs = Math.floor((elapsed / 1000) % 60);
+    const mins = Math.floor(elapsed / 60000);
+    const timerEl = document.getElementById("searchTimer");
+    if (timerEl)
+      timerEl.textContent = `${mins}m ${secs.toString().padStart(2, "0")}s`;
+  }, 1000);
+}
+function stopSearchTimer() {
+  if (searchTimerInterval) clearInterval(searchTimerInterval);
+  const elapsed = searchTimerStart ? Date.now() - searchTimerStart : 0;
+  searchTimerInterval = null;
+  searchTimerStart = null;
+  return elapsed;
 }
 function buildApiUrl(path, params = {}) {
   const base = API_BASE.endsWith("/") ? API_BASE : API_BASE + "/";
@@ -179,10 +206,11 @@ function renderLoading(address) {
       </div>
       ${address ? `<p class="note">Address: <strong>${escapeHTML(address)}</strong></p>` : ""}
       <div class="callout">Fetching county, languages, population, income, DAC, and alerts…</div>
+      <p class="note">Elapsed: <span id="searchTimer">0m 00s</span></p>
     </div>
   `;
 }
-function renderError(message, address) {
+function renderError(message, address, elapsedMs) {
   document.getElementById("result").innerHTML = `
     <div class="card" role="alert">
       <div class="card__header">
@@ -193,11 +221,12 @@ function renderError(message, address) {
       <div class="callout" style="border-left-color:#b45309;">
         ${escapeHTML(message || "Please try again with a different address.")}
       </div>
+      <p class="note">Search took ${formatDuration(elapsedMs)}.</p>
       <p class="note">API base: <code>${escapeHTML(API_BASE)}</code>. If your API has a prefix, adjust <code>API_PATH</code>.</p>
     </div>
   `;
 }
-function renderResult(address, data) {
+function renderResult(address, data, elapsedMs) {
   const {
     city,
     zip,
@@ -353,6 +382,7 @@ function renderResult(address, data) {
         <h2 class="card__title">Results for: ${escapeHTML(address)}</h2>
         <span class="updated">Updated ${nowStamp()}</span>
       </div>
+      <p class="note">Search took ${formatDuration(elapsedMs)}.</p>
 
       <section class="section-block">
         <h3 class="section-header">Location summary</h3>
@@ -430,21 +460,26 @@ async function lookup() {
     renderError(
       "Please enter a more complete address (at least 4 characters).",
       address,
+      0,
     );
     return;
   }
 
   resultBox.setAttribute("aria-busy", "true");
   renderLoading(address);
+  startSearchTimer();
+  let elapsed = 0;
 
   try {
     const url = buildApiUrl(API_PATH, { address });
     const data = await fetchJsonWithDiagnostics(url);
     if (!data || typeof data !== "object")
       throw new Error("Malformed response.");
-    renderResult(address, data);
+    elapsed = stopSearchTimer();
+    renderResult(address, data, elapsed);
   } catch (err) {
-    renderError(String(err), address);
+    if (!elapsed) elapsed = stopSearchTimer();
+    renderError(String(err), address, elapsed);
   } finally {
     resultBox.removeAttribute("aria-busy");
   }
