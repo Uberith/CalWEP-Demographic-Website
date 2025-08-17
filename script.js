@@ -6,6 +6,44 @@
 
 let autocomplete = null;
 
+let lastReport = null;
+
+function printReport() {
+  window.print();
+}
+
+function downloadReport() {
+  if (!lastReport) return;
+  const blob = new Blob([JSON.stringify(lastReport, null, 2)], {
+    type: "application/json",
+  });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  const safe = (lastReport.address || "report")
+    .replace(/[^a-z0-9]+/gi, "_")
+    .toLowerCase();
+  a.href = url;
+  a.download = `calwep_report_${safe}.json`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+
+function shareReport() {
+  const link = window.location.href;
+  if (navigator.clipboard && window.isSecureContext) {
+    navigator.clipboard
+      .writeText(link)
+      .then(() => alert("Link copied to clipboard"))
+      .catch(() => {
+        prompt("Copy this link:", link);
+      });
+  } else {
+    prompt("Copy this link:", link);
+  }
+}
+
 // ---------- Config ----------
 const API_BASE = "https://calwep-nft-api.onrender.com";
 const API_PATH = "/demographics"; // see section 2 for why '/api' is safest
@@ -468,7 +506,14 @@ function renderResult(address, data, elapsedMs) {
   document.getElementById("result").innerHTML = `
     <article class="card">
       <div class="card__header">
-        <h2 class="card__title">Results for: ${escapeHTML(address)}</h2>
+        <div class="card__head-left">
+          <h2 class="card__title">Results for: ${escapeHTML(address)}</h2>
+          <div class="card__actions">
+            <button type="button" onclick="printReport()">Print</button>
+            <button type="button" onclick="downloadReport()">Download</button>
+            <button type="button" onclick="shareReport()">Share Link</button>
+          </div>
+        </div>
         <span class="updated">Updated ${nowStamp()}</span>
       </div>
       <div class="comparison-grid">
@@ -584,6 +629,10 @@ async function lookup() {
     const data = await fetchJsonWithDiagnostics(url);
     if (!data || typeof data !== "object")
       throw new Error("Malformed response.");
+    lastReport = { address, data };
+    const locUrl = new URL(window.location);
+    locUrl.searchParams.set("address", address);
+    window.history.replaceState(null, "", locUrl.toString());
     elapsed = stopSearchTimer();
     renderResult(address, data, elapsed);
   } catch (err) {
@@ -608,4 +657,13 @@ function bindLookupTrigger() {
 window.onload = () => {
   initAutocomplete();
   bindLookupTrigger();
+  const params = new URLSearchParams(window.location.search);
+  const addr = params.get("address");
+  if (addr) {
+    const input = document.getElementById("autocomplete");
+    if (input) {
+      input.value = addr;
+      lookup().catch(console.error);
+    }
+  }
 };
