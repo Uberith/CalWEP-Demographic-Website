@@ -7,9 +7,7 @@
 let autocomplete = null;
 
 // ---------- Config ----------
-const META_API_BASE =
-  (document.querySelector('meta[name="api-base"]')?.content || "").trim();
-const API_BASE = META_API_BASE || window.location.origin; // fallback to same-origin if meta not present
+const API_BASE = "calwep-nft-api.onrender.com" || window.location.origin; // fallback to same-origin if meta not present
 const API_PATH = "/demographics"; // router exposes this path with no prefix
 
 // ---------- Utilities ----------
