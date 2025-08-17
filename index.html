@@ -5,6 +5,8 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>Community Demographics Lookup</title>
   <link rel="stylesheet" href="styles.css" />
+  <!-- Point the frontend at the correct API host -->
+  <meta name="api-base" content="https://calwep-nft-api.onrender.com">
   <!-- Google Maps (Places) for autocomplete -->
   <script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyBSLprmo1jaNX4wrG4N1Ipgg7-QPrLV97U&libraries=places"></script>
 </head>
@@ -24,7 +26,6 @@
                aria-label="Address search" />
         <button id="lookupBtn" type="button" aria-label="Lookup demographics">Lookup</button>
       </div>
-      <!-- Property type dropdown removed -->
     </header>
 
     <main class="main-column stack stack--xxl">

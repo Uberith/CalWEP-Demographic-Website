@@ -1,13 +1,16 @@
-/* script.js — Demographics Lookup
-   - Places Autocomplete with Enter-to-search
-   - Robust fetch wrapper (diagnostics)
-   - Renders a professional results card using your CSS components
+/* script.js — Demographics Lookup (API-base aware)
+   - Reads API base from <meta name="api-base"> (https://calwep-nft-api.onrender.com)
    - Calls GET /demographics?address=...
+   - Robust fetch diagnostics, Google Places autocomplete, Enter-to-search, aria-busy
 */
 
 let autocomplete = null;
-let selectedLat = null;
-let selectedLon = null;
+
+// ---------- Config ----------
+const META_API_BASE =
+  (document.querySelector('meta[name="api-base"]')?.content || "").trim();
+const API_BASE = META_API_BASE || window.location.origin; // fallback to same-origin if meta not present
+const API_PATH = "/demographics"; // router exposes this path with no prefix
 
 // ---------- Utilities ----------
 function escapeHTML(str = "") {
@@ -21,24 +24,34 @@ function escapeHTML(str = "") {
 function fmtInt(n) { return Number.isFinite(n) ? n.toLocaleString() : "—"; }
 function fmtCurrency(n) {
   if (!Number.isFinite(n)) return "—";
-  const rounded = Math.round(n);
-  return `$${rounded.toLocaleString()}`;
+  const r = Math.round(n);
+  return `$${r.toLocaleString()}`;
 }
 function nowStamp() { return new Date().toLocaleString(); }
-
+function buildApiUrl(path, params = {}) {
+  const base = API_BASE.endsWith("/") ? API_BASE : API_BASE + "/";
+  const url = new URL(path.replace(/^\//, ""), base);
+  for (const [k, v] of Object.entries(params)) {
+    if (v !== undefined && v !== null && String(v).length) url.searchParams.set(k, v);
+  }
+  return url.toString();
+}
 async function fetchJsonWithDiagnostics(url) {
   let res;
   try {
-    res = await fetch(url, { method: "GET", headers: { Accept: "application/json" }, cache: "no-store" });
+    res = await fetch(url, {
+      method: "GET",
+      mode: "cors",
+      cache: "no-store",
+      headers: { Accept: "application/json" }
+    });
   } catch (e) {
     throw new Error(`Network error calling API: ${e?.message || e}`);
   }
-  const text = await res.text().catch(() => "");
-  if (!res.ok) {
-    throw new Error(`API ${res.status} ${res.statusText} for ${url} :: ${text || "<no body>"}`);
-  }
-  try { return JSON.parse(text); }
-  catch { throw new Error(`API 200 but response was not valid JSON for ${url} :: ${text.slice(0, 200)}…`); }
+  const txt = await res.text().catch(() => "");
+  if (!res.ok) throw new Error(`API ${res.status} ${res.statusText} for ${url} :: ${txt || "<no body>"}`);
+  try { return JSON.parse(txt); }
+  catch { throw new Error(`API 200 but response was not valid JSON for ${url} :: ${txt.slice(0, 200)}…`); }
 }
 
 // ---------- Places Autocomplete ----------
@@ -48,12 +61,12 @@ function initAutocomplete() {
 
   autocomplete = new google.maps.places.Autocomplete(input, {
     types: ["address"],
-    componentRestrictions: { country: "us" }
+    componentRestrictions: { country: "us" },
+    fields: ["address_components", "formatted_address"],
   });
 
   autocomplete.addListener("place_changed", () => {
     const p = autocomplete.getPlace();
-    // Compose a clean single-line address
     let street = "", city = "", state = "", zip = "";
     for (const comp of p.address_components || []) {
       const t = comp.types || [];
@@ -67,34 +80,16 @@ function initAutocomplete() {
       const m = p.formatted_address.match(/\b\d{5}(?:-\d{4})?\b/);
       if (m) zip = m[0];
     }
-    if (p.geometry && p.geometry.location) {
-      selectedLat = p.geometry.location.lat();
-      selectedLon = p.geometry.location.lng();
-    } else {
-      selectedLat = selectedLon = null;
-    }
     const parts = [street.trim(), city, state, zip].filter(Boolean);
     if (parts.length) input.value = parts.join(", ");
   });
 
-  // Pressing Enter triggers lookup
+  // Enter triggers lookup
   input.addEventListener("keydown", (e) => {
     if (e.key === "Enter") {
       e.preventDefault();
       document.getElementById("lookupBtn")?.click();
     }
-  });
-}
-
-function bindLookupTrigger() {
-  const btn = document.getElementById("lookupBtn");
-  if (!btn) return;
-  // Avoid double-binding by cloning
-  const clone = btn.cloneNode(true);
-  btn.replaceWith(clone);
-  clone.addEventListener("click", (e) => {
-    e.preventDefault();
-    lookup().catch(console.error);
   });
 }
 
@@ -111,7 +106,6 @@ function renderLoading(address) {
     </div>
   `;
 }
-
 function renderError(message, address) {
   document.getElementById("result").innerHTML = `
     <div class="card" role="alert">
@@ -123,11 +117,10 @@ function renderError(message, address) {
       <div class="callout" style="border-left-color:#b45309;">
         ${escapeHTML(message || "Please try again with a different address.")}
       </div>
-      <p class="note">Confirm the <code>/demographics</code> endpoint is reachable and CORS is configured if cross-origin.</p>
+      <p class="note">API base: <code>${escapeHTML(API_BASE)}</code>. If your API has a prefix, adjust <code>API_PATH</code>.</p>
     </div>
   `;
 }
-
 function renderResult(address, data) {
   const {
     city, zip, county, lat, lon,
@@ -210,9 +203,8 @@ async function lookup() {
   renderLoading(address);
 
   try {
-    const url = new URL("/demographics", window.location.origin);
-    url.searchParams.set("address", address);
-    const data = await fetchJsonWithDiagnostics(url.toString());
+    const url = buildApiUrl(API_PATH, { address });
+    const data = await fetchJsonWithDiagnostics(url);
     if (!data || typeof data !== "object") throw new Error("Malformed response.");
     renderResult(address, data);
   } catch (err) {
@@ -222,8 +214,15 @@ async function lookup() {
   }
 }
 
-// Initialize
-window.onload = () => {
-  initAutocomplete();
-  bindLookupTrigger();
-};
+// ---------- Init ----------
+function bindLookupTrigger() {
+  const btn = document.getElementById("lookupBtn");
+  if (!btn) return;
+  const clone = btn.cloneNode(true);
+  btn.replaceWith(clone);
+  clone.addEventListener("click", (e) => {
+    e.preventDefault();
+    lookup().catch(console.error);
+  });
+}
+window.onload = () => { initAutocomplete(); bindLookupTrigger(); };
