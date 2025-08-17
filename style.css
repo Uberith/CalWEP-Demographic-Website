@@ -259,6 +259,17 @@ button:focus-visible {
   line-height: 1.6;
 }
 
+.comparison-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--space-6);
+  margin-top: var(--space-5);
+}
+
+.comparison-grid .col {
+  min-width: 0;
+}
+
 .callout {
   margin: var(--space-3) 0 var(--space-4) 0;
   padding: 12px 14px;
@@ -335,6 +346,9 @@ button:focus-visible {
   .card__header {
     flex-direction: column;
     align-items: flex-start;
+  }
+  .comparison-grid {
+    grid-template-columns: 1fr;
   }
 }
 @media (max-width: 520px) {
