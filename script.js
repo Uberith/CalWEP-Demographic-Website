@@ -47,7 +47,6 @@ function shareReport() {
 // ---------- Config ----------
 const API_BASE = "https://calwep-nft-api.onrender.com";
 const API_PATH = "/demographics"; // see section 2 for why '/api' is safest
-const GOOGLE_MAPS_KEY = "AIzaSyBSLprmo1jaNX4wrG4N1Ipgg7-QPrLV97U";
 
 // ---------- Utilities ----------
 function escapeHTML(str = "") {
@@ -654,8 +653,16 @@ function bindLookupTrigger() {
     lookup().catch(console.error);
   });
 }
+
+function loadGoogleMaps() {
+  const script = document.createElement("script");
+  script.src = `https://maps.googleapis.com/maps/api/js?key=${GOOGLE_MAPS_KEY}&libraries=places&callback=initAutocomplete`;
+  script.async = true;
+  document.head.appendChild(script);
+}
+
 window.onload = () => {
-  initAutocomplete();
+  loadGoogleMaps();
   bindLookupTrigger();
   const params = new URLSearchParams(window.location.search);
   const addr = params.get("address");
