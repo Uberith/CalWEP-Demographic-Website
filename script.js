@@ -25,11 +25,26 @@ function escapeHTML(str = "") {
     .replace(/"/g, "&quot;")
     .replace(/'/g, "&#39;");
 }
-function fmtInt(n) { return Number.isFinite(n) ? n.toLocaleString() : "—"; }
+function isMissing(n) { return n == null || Number(n) === -888888888; }
+function fmtInt(n) {
+  return !isMissing(n) && Number.isFinite(Number(n))
+    ? Number(n).toLocaleString()
+    : "—";
+}
 function fmtCurrency(n) {
-  if (!Number.isFinite(n)) return "—";
-  const r = Math.round(n);
+  if (isMissing(n) || !Number.isFinite(Number(n))) return "—";
+  const r = Math.round(Number(n));
   return `$${r.toLocaleString()}`;
+}
+function fmtNumber(n) {
+  return !isMissing(n) && Number.isFinite(Number(n))
+    ? Number(n).toLocaleString(undefined, { maximumFractionDigits: 1 })
+    : "—";
+}
+function fmtPct(n) {
+  return !isMissing(n) && Number.isFinite(Number(n))
+    ? `${Number(n).toFixed(1)}%`
+    : "—";
 }
 function nowStamp() { return new Date().toLocaleString(); }
 function buildApiUrl(path, params = {}) {
@@ -151,8 +166,9 @@ function renderResult(address, data) {
   const {
     city, zip, county, lat, lon,
     primary_language, secondary_language,
-    median_household_income, population,
-    dac_status, environmental_hardships,
+    median_household_income, per_capita_income,
+    median_age, poverty_rate, unemployment_rate,
+    population, dac_status, environmental_hardships,
     enviroscreen
   } = data || {};
 
@@ -201,7 +217,11 @@ function renderResult(address, data) {
         <h3 class="section-header">Population &amp; income (ACS)</h3>
         <div class="kv">
           <div class="key">Total population</div><div class="val">${fmtInt(population)}</div>
+          <div class="key">Median age</div><div class="val">${fmtNumber(median_age)}</div>
           <div class="key">Median household income</div><div class="val">${fmtCurrency(median_household_income)}</div>
+          <div class="key">Per capita income</div><div class="val">${fmtCurrency(per_capita_income)}</div>
+          <div class="key">Poverty rate</div><div class="val">${fmtPct(poverty_rate)}</div>
+          <div class="key">Unemployment rate</div><div class="val">${fmtPct(unemployment_rate)}</div>
         </div>
       </section>
 
