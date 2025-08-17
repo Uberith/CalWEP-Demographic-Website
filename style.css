@@ -198,7 +198,7 @@ button:focus-visible {
 }
 
 .card {
-  background: var(--accent-bg);
+  background: linear-gradient(135deg, var(--accent-bg) 0%, #ffffff 100%);
   border: 1px solid var(--border);
   border-left: 4px solid var(--brand);
   border-radius: 12px;
@@ -250,7 +250,17 @@ button:focus-visible {
   font-size: 1.05rem;
   font-weight: 800;
   color: var(--brand-900);
+  border-bottom: 2px solid var(--border);
+  padding-bottom: 4px;
 }
+
+.section-block {
+  background: #fff;
+  padding: var(--space-4);
+  border-radius: var(--radius);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
+}
+
 .section-block + .section-block {
   margin-top: var(--space-5);
 }
@@ -329,6 +339,15 @@ button:focus-visible {
   background: #fff;
   margin-right: 6px;
   font-size: 0.9rem;
+}
+
+.map-image {
+  max-width: 100%;
+  height: auto;
+  display: block;
+  margin-top: var(--space-4);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-elev);
 }
 
 .ces-badge {

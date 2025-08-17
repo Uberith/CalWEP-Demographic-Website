@@ -12,7 +12,7 @@ function printReport() {
   window.print();
 }
 
-function downloadReport() {
+function downloadRawData() {
   if (!lastReport) return;
   const blob = new Blob([JSON.stringify(lastReport, null, 2)], {
     type: "application/json",
@@ -28,6 +28,23 @@ function downloadReport() {
   a.click();
   document.body.removeChild(a);
   URL.revokeObjectURL(url);
+}
+
+function downloadPdf() {
+  if (!lastReport) return;
+  const safe = (lastReport.address || "report")
+    .replace(/[^a-z0-9]+/gi, "_")
+    .toLowerCase();
+  const element = document.querySelector("#result .card");
+  if (!element) return;
+  const opt = {
+    margin: 0.5,
+    filename: `calwep_report_${safe}.pdf`,
+    image: { type: "jpeg", quality: 0.98 },
+    html2canvas: { scale: 2 },
+    jsPDF: { unit: "in", format: "letter", orientation: "portrait" },
+  };
+  html2pdf().set(opt).from(element).save();
 }
 
 function shareReport() {
@@ -431,13 +448,6 @@ function renderResult(address, data, elapsedMs) {
     </section>
   `;
 
-  const rawJsonSection = `
-    <section class="section-block">
-      <h3 class="section-header">Raw data</h3>
-      <pre class="raw-json">${escapeHTML(JSON.stringify(data, null, 2))}</pre>
-    </section>
-  `;
-
   const localInfo = `
     <section class="section-block">
       <h3 class="section-header">Location summary</h3>
@@ -499,7 +509,6 @@ function renderResult(address, data, elapsedMs) {
           : `<p class="note">No active alerts found for this location.</p>`
       }
     </section>
-    ${rawJsonSection}
   `;
 
   document.getElementById("result").innerHTML = `
@@ -509,7 +518,8 @@ function renderResult(address, data, elapsedMs) {
           <h2 class="card__title">Results for: ${escapeHTML(address)}</h2>
           <div class="card__actions">
             <button type="button" onclick="printReport()">Print</button>
-            <button type="button" onclick="downloadReport()">Download</button>
+            <button type="button" onclick="downloadPdf()">Download PDF</button>
+            <button type="button" onclick="downloadRawData()">Raw Data</button>
             <button type="button" onclick="shareReport()">Share Link</button>
           </div>
         </div>
