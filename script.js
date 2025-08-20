@@ -286,6 +286,7 @@ function renderResult(address, data, elapsedMs) {
     city,
     zip,
     county,
+    census_tract,
     lat,
     lon,
     primary_language,
@@ -346,7 +347,10 @@ function renderResult(address, data, elapsedMs) {
     };
     return `
       <section class="section-block">
-        <h3 class="section-header">CalEnviroScreen 4.0</h3>
+        <h3 class="section-header">Environmental Indicators (CalEPA Enviroscreen)</h3>
+        <p class="section-description">This section shows environmental and community health indicators from California’s Enviroscreen tool. Results are presented as percentiles, with higher numbers (and darker colors) indicating greater environmental burdens compared to other areas in the state. These measures include factors such as air quality, traffic pollution, and access to safe drinking water.</p>
+        <p class="section-description">Staff can use this information to understand potential environmental challenges facing a neighborhood, strengthen grant applications that require equity or environmental justice considerations, and design outreach that addresses local concerns. For example, if an event is planned in an area with a high Enviroscreen percentile, staff may want to highlight programs or benefits related to clean water, pollution reduction, or community health.</p>
+        <p class="section-description"><strong>How to Read This</strong><br>Green = Low burden (fewer environmental and health challenges)<br>Yellow/Orange = Moderate burden<br>Red = High burden (greater environmental and health challenges)<br>Percentile score shows how the community compares to others across California.</p>
         <div class="kv">
           <div class="key">Overall percentile</div><div class="val">${badge(overall)}</div>
           <div class="key">Pollution burden</div><div class="val">${badge(pb)}</div>
@@ -377,7 +381,8 @@ function renderResult(address, data, elapsedMs) {
 
   const raceSection = `
     <section class="section-block">
-      <h3 class="section-header">Race &amp; ethnicity (ACS)</h3>
+      <h3 class="section-header">Race &amp; Ethnicity (ACS)</h3>
+      <p class="section-description">This section shows the racial and ethnic composition of the community, expressed as percentages of the total population using American Community Survey (ACS) data. These insights help identify the diversity of the area and support efforts to ensure programs, outreach, and engagement strategies reflect and serve all community groups.</p>
       <div class="kv">
         <div class="key">White</div><div class="val">${fmtPct(white_pct)}</div>
         <div class="key">Black or African American</div><div class="val">${fmtPct(black_pct)}</div>
@@ -394,7 +399,8 @@ function renderResult(address, data, elapsedMs) {
 
   const housingSection = `
     <section class="section-block">
-      <h3 class="section-header">Housing &amp; education (ACS)</h3>
+      <h3 class="section-header">Housing &amp; Education (ACS)</h3>
+      <p class="section-description">This section combines information on housing and educational attainment in the community. It includes the percentage of owner-occupied and renter-occupied homes, median home value, and levels of education such as high school completion and bachelor’s degree or higher. These indicators provide insight into community stability, affordability, and educational opportunities, helping inform outreach strategies and program planning.</p>
       <div class="kv">
         <div class="key">Owner occupied</div><div class="val">${fmtPct(owner_occupied_pct)}</div>
         <div class="key">Renter occupied</div><div class="val">${fmtPct(renter_occupied_pct)}</div>
@@ -409,10 +415,18 @@ function renderResult(address, data, elapsedMs) {
     const s = surrounding_10_mile || {};
     const d = s.demographics || {};
     if (Object.keys(d).length === 0) return "";
+    const tractList = Array.isArray(s.census_tracts)
+      ? s.census_tracts.join(", ")
+      : escapeHTML(s.census_tracts) || "—";
+    const cityList = Array.isArray(s.cities)
+      ? s.cities.join(", ")
+      : escapeHTML(s.city) || "—";
     return `
       <section class="section-block">
-        <h3 class="section-header">Surrounding 10‑mile area (ACS)</h3>
+        <h3 class="section-header">Surrounding 10‑Mile Area (ACS)</h3>
         <div class="kv">
+          <div class="key">Cities</div><div class="val">${cityList}</div>
+          <div class="key">Census tracts</div><div class="val">${tractList}</div>
           <div class="key">Population</div><div class="val">${fmtInt(d.population)}</div>
           <div class="key">Median age</div><div class="val">${fmtNumber(d.median_age)}</div>
           <div class="key">Median household income</div><div class="val">${fmtCurrency(d.median_household_income)}</div>
@@ -450,9 +464,10 @@ function renderResult(address, data, elapsedMs) {
 
   const localInfo = `
     <section class="section-block">
-      <h3 class="section-header">Location summary</h3>
+      <h3 class="section-header">Location Summary</h3>
       <div class="kv">
         <div class="key">City</div><div class="val">${escapeHTML(city) || "—"}</div>
+        <div class="key">Census tract</div><div class="val">${escapeHTML(census_tract) || "—"}</div>
         <div class="key">ZIP code</div><div class="val">${escapeHTML(zip) || "—"}</div>
         <div class="key">County</div><div class="val">${escapeHTML(county) || "—"}</div>
         <div class="key">Coordinates</div><div class="val">${coords}</div>
@@ -462,20 +477,32 @@ function renderResult(address, data, elapsedMs) {
       <p class="note">Search took ${formatDuration(elapsedMs)}.</p>
 
     <section class="section-block">
-      <h3 class="section-header">Population &amp; income (ACS)</h3>
+      <h3 class="section-header">Population &amp; Income (ACS)</h3>
+      <p class="section-description">This section provides a snapshot of the people living in the selected area, drawn from the American Community Survey (ACS). It includes the total population, median age, household income, poverty rate, and unemployment rate. These indicators offer a quick view of community size, economic stability, and social conditions.</p>
       <div class="kv">
-        <div class="key">Total population</div><div class="val">${fmtInt(population)}</div>
-        <div class="key">Median age</div><div class="val">${fmtNumber(median_age)}</div>
-        <div class="key">Median household income</div><div class="val">${fmtCurrency(median_household_income)}</div>
-        <div class="key">Per capita income</div><div class="val">${fmtCurrency(per_capita_income)}</div>
-        <div class="key">People below poverty</div><div class="val">${fmtInt(people_below_poverty)}</div>
-        <div class="key">Poverty rate</div><div class="val">${fmtPct(poverty_rate)}</div>
-        <div class="key">Unemployment rate</div><div class="val">${fmtPct(unemployment_rate)}</div>
+        ${(() => {
+          const popEntries = [
+            ["Total population", fmtInt(population)],
+            ["Median age", fmtNumber(median_age)],
+            ["Median household income", fmtCurrency(median_household_income)],
+            ["Per capita income", fmtCurrency(per_capita_income)],
+            ["People below poverty", fmtInt(people_below_poverty)],
+            ["Poverty rate", fmtPct(poverty_rate)],
+            ["Unemployment rate", fmtPct(unemployment_rate)],
+          ];
+          return popEntries
+            .filter(([, v]) => v !== "—")
+            .map(
+              ([k, v]) => `<div class="key">${k}</div><div class="val">${v}</div>`,
+            )
+            .join("");
+        })()}
       </div>
     </section>
 
     <section class="section-block">
-      <h3 class="section-header">Languages (ACS)</h3>
+      <h3 class="section-header">Language (ACS)</h3>
+      <p class="section-description">This section highlights the primary and secondary languages spoken in the community, based on American Community Survey (ACS) data. Understanding which languages are most common helps identify translation needs, ensure inclusive communication, and better engage residents at events, in outreach, and through program materials.</p>
       <div class="kv">
         <div class="key">Primary language</div><div class="val">${escapeHTML(primary_language) || "—"}</div>
         <div class="key">Second most common</div><div class="val">${escapeHTML(secondary_language) || "—"}</div>
@@ -485,7 +512,8 @@ function renderResult(address, data, elapsedMs) {
     ${raceSection}
     ${housingSection}
     <section class="section-block">
-      <h3 class="section-header">Disadvantaged Community (DAC)</h3>
+      <h3 class="section-header">Disadvantaged Community (DAC) Status</h3>
+      <p class="section-description">This section indicates whether the selected area is designated as a Disadvantaged Community (DAC) using the California Department of Water Resources (DWR) mapping tool. DAC status is determined by household income and is shown as a simple yes/no outcome. This designation is important for identifying areas eligible for certain state and federal funding opportunities and for ensuring that equity considerations are included in outreach and program planning.</p>
       <div class="callout" style="border-left-color:${
         dac_status ? "var(--success)" : "var(--border-strong)"
       }">
@@ -498,7 +526,8 @@ function renderResult(address, data, elapsedMs) {
     ${chartsSection}
 
     <section class="section-block">
-      <h3 class="section-header">Active alerts (NWS)</h3>
+      <h3 class="section-header">Active Alerts (National Weather Service)</h3>
+      <p class="section-description">This section displays any current weather alerts issued by the National Weather Service (NWS) for the selected location. Alerts may include warnings for extreme heat, flooding, wildfire smoke, or other hazardous conditions. Having this information alongside demographic and environmental data helps staff anticipate safety concerns for events, tailor outreach, and ensure programs are responsive to current community conditions.</p>
       ${
         alertList.length
           ? `
