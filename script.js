@@ -198,7 +198,12 @@ async function enrichLocation(data = {}) {
       )
         .then((r) => r.json())
         .then((j) => {
-          city = j.city || j.locality || city;
+          const adminCity = Array.isArray(j?.localityInfo?.administrative)
+            ? j.localityInfo.administrative.find(
+                (a) => a.order === 8 || a.adminLevel === 8,
+              )?.name
+            : null;
+          city = adminCity || j.city || j.locality || city;
         })
         .catch(() => {})
     );
