@@ -67,6 +67,7 @@ const API_PATH = "/demographics"; // see section 2 for why '/api' is safest
 
 // ---------- Utilities ----------
 function escapeHTML(str = "") {
+  if (str === null || str === undefined) return "";
   return String(str)
     .replace(/&/g, "&amp;")
     .replace(/</g, "&lt;")
@@ -184,6 +185,42 @@ async function fetchJsonWithDiagnostics(url) {
       `API 200 but response was not valid JSON for ${url} :: ${txt.slice(0, 200)}…`,
     );
   }
+}
+
+// Attempt to fill in missing city or census tract using public geocoders
+async function enrichLocation(data = {}) {
+  let { city, census_tract, lat, lon } = data;
+  const tasks = [];
+  if (!city && lat != null && lon != null) {
+    tasks.push(
+      fetch(
+        `https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=${lat}&longitude=${lon}&localityLanguage=en`,
+      )
+        .then((r) => r.json())
+        .then((j) => {
+          city = j.city || j.locality || city;
+        })
+        .catch(() => {})
+    );
+  }
+  if (!census_tract && lat != null && lon != null) {
+    tasks.push(
+      fetch(
+        `https://geo.fcc.gov/api/census/block/find?latitude=${lat}&longitude=${lon}&format=json`,
+      )
+        .then((r) => r.json())
+        .then((j) => {
+          const fips = j?.Block?.FIPS;
+          if (fips && fips.length >= 11) {
+            const tractRaw = fips.slice(5, 11);
+            census_tract = `${tractRaw.slice(0, 4)}.${tractRaw.slice(4)}`;
+          }
+        })
+        .catch(() => {})
+    );
+  }
+  if (tasks.length) await Promise.all(tasks);
+  return { ...data, city, census_tract };
 }
 
 // CalEnviroScreen color helper
@@ -664,9 +701,10 @@ async function lookup() {
 
   try {
     const url = buildApiUrl(API_PATH, { address });
-    const data = await fetchJsonWithDiagnostics(url);
+    let data = await fetchJsonWithDiagnostics(url);
     if (!data || typeof data !== "object")
       throw new Error("Malformed response.");
+    data = await enrichLocation(data);
     lastReport = { address, data };
     const locUrl = new URL(window.location);
     locUrl.searchParams.set("address", address);
