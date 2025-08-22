@@ -326,16 +326,6 @@ button:focus-visible {
   min-width: 0;
 }
 
-.chart-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
-  gap: var(--space-4);
-  margin-top: var(--space-4);
-}
-.chart-grid canvas {
-  max-width: 100%;
-}
-
 .callout {
   margin: var(--space-3) 0 var(--space-4) 0;
   padding: 12px 14px;

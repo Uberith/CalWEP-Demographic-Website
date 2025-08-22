@@ -658,15 +658,6 @@ function renderResult(address, data, elapsedMs) {
     return html;
   })();
 
-  const chartsSection = `
-    <section class="section-block">
-      <h3 class="section-header">Visualizations</h3>
-      <div class="chart-grid">
-        <div><canvas id="raceChart"></canvas></div>
-        <div><canvas id="exposureChart"></canvas></div>
-      </div>
-    </section>
-  `;
 
   const localInfo = `
     <section class="section-block">
@@ -732,8 +723,6 @@ function renderResult(address, data, elapsedMs) {
 
     ${cesSection}
     ${hardshipSection}
-    ${chartsSection}
-
     <section class="section-block">
       <h3 class="section-header">Active Alerts (National Weather Service)</h3>
       <p class="section-description">This section displays any current weather alerts issued by the National Weather Service (NWS) for the selected location. Alerts may include warnings for extreme heat, flooding, wildfire smoke, or other hazardous conditions. Having this information alongside demographic and environmental data helps staff anticipate safety concerns for events, tailor outreach, and ensure programs are responsive to current community conditions.</p>
@@ -783,79 +772,7 @@ function renderResult(address, data, elapsedMs) {
       </span>
     </article>
   `;
-  renderCharts(data);
 }
-
-function renderCharts(data) {
-  if (typeof Chart === "undefined") return;
-  const raceCtx = document.getElementById("raceChart");
-  if (raceCtx) {
-    new Chart(raceCtx, {
-      type: "pie",
-      data: {
-        labels: [
-          "White",
-          "Black",
-          "Native",
-          "Asian",
-          "Pacific",
-          "Other",
-          "Two or more",
-          "Hispanic",
-          "Not Hispanic",
-        ],
-        datasets: [
-          {
-            data: [
-              data.white_pct,
-              data.black_pct,
-              data.native_pct,
-              data.asian_pct,
-              data.pacific_pct,
-              data.other_race_pct,
-              data.two_or_more_races_pct,
-              data.hispanic_pct,
-              data.not_hispanic_pct,
-            ],
-            backgroundColor: [
-              "#4e79a7",
-              "#f28e2c",
-              "#e15759",
-              "#76b7b2",
-              "#59a14f",
-              "#edc948",
-              "#b07aa1",
-              "#ff9da7",
-              "#9c755f",
-            ],
-          },
-        ],
-      },
-      options: { plugins: { legend: { position: "bottom" } } },
-    });
-  }
-  const exposureCtx = document.getElementById("exposureChart");
-  if (exposureCtx) {
-    const exp = (data.enviroscreen && data.enviroscreen.exposures) || {};
-    const labels = Object.keys(exp).map((k) => CES_LABELS[k] || titleCase(k));
-    const values = Object.values(exp);
-    new Chart(exposureCtx, {
-      type: "bar",
-      data: {
-        labels,
-        datasets: [
-          {
-            label: "Percentile",
-            data: values,
-            backgroundColor: "#4e79a7",
-          },
-        ],
-      },
-      options: { scales: { y: { beginAtZero: true, max: 100 } } },
-    });
-  }
-}
-
 // ---------- Flow ----------
 async function lookup() {
   const input = document.getElementById("autocomplete");
