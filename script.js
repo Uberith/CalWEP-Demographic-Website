@@ -376,6 +376,63 @@ async function fetchLanguageAcs({ state_fips, county_fips, tract_code } = {}) {
   return aggregateLanguageForTracts([fips]);
 }
 
+// Aggregate basic demographic fields for a set of census tracts using
+// population-weighted averages.
+async function aggregateBasicDemographicsForTracts(fipsList = []) {
+  const groups = {};
+  for (const f of fipsList) {
+    const code = String(f).replace(/[^0-9]/g, "").padStart(11, "0");
+    if (code.length !== 11) continue;
+    const state = code.slice(0, 2);
+    const county = code.slice(2, 5);
+    const tract = code.slice(5);
+    const key = `${state}${county}`;
+    if (!groups[key]) groups[key] = { state, county, tracts: [] };
+    groups[key].tracts.push(tract);
+  }
+
+  let totalPop = 0;
+  let ageWeighted = 0;
+  let incomeWeighted = 0;
+  let perCapitaWeighted = 0;
+  let povertyCount = 0;
+
+  for (const g of Object.values(groups)) {
+    const url =
+      "https://api.census.gov/data/2022/acs/acs5/profile?get=DP05_0001E,DP05_0018E,DP03_0062E,DP03_0088E,DP03_0119E&for=tract:" +
+      g.tracts.join(",") +
+      `&in=state:${g.state}%20county:${g.county}`;
+    try {
+      const rows = await fetch(url).then((r) => r.json());
+      if (!Array.isArray(rows) || rows.length < 2) continue;
+      for (let i = 1; i < rows.length; i++) {
+        const [pop, age, income, perCapita, pov, state, county, tract] = rows[i].map(Number);
+        if (Number.isFinite(pop) && pop > 0) {
+          totalPop += pop;
+          if (Number.isFinite(age)) ageWeighted += age * pop;
+          if (Number.isFinite(income)) incomeWeighted += income * pop;
+          if (Number.isFinite(perCapita)) perCapitaWeighted += perCapita * pop;
+          if (Number.isFinite(pov)) povertyCount += pov;
+        }
+      }
+    } catch {
+      // ignore errors for this group
+    }
+  }
+
+  const result = {};
+  if (totalPop > 0) {
+    result.population = totalPop;
+    if (ageWeighted > 0) result.median_age = ageWeighted / totalPop;
+    if (incomeWeighted > 0)
+      result.median_household_income = incomeWeighted / totalPop;
+    if (perCapitaWeighted > 0)
+      result.per_capita_income = perCapitaWeighted / totalPop;
+    if (povertyCount > 0) result.poverty_rate = (povertyCount / totalPop) * 100;
+  }
+  return result;
+}
+
 // Fetch unemployment rate and population for one or more census tracts
 async function fetchUnemploymentForTracts(fipsList = []) {
   const groups = {};
@@ -430,6 +487,34 @@ async function aggregateHardshipsForTracts(fipsList = []) {
     }),
   );
   return Array.from(set).sort();
+}
+
+// Populate basic demographic fields for surrounding and district regions using
+// population-weighted averages.
+async function enrichRegionBasics(data = {}) {
+  const { surrounding_10_mile, water_district } = data || {};
+  const out = { ...data };
+  const s = surrounding_10_mile || {};
+  if (
+    Array.isArray(s.census_tracts_fips) &&
+    s.census_tracts_fips.length
+  ) {
+    const basics = await aggregateBasicDemographicsForTracts(
+      s.census_tracts_fips,
+    );
+    const d = s.demographics || {};
+    out.surrounding_10_mile = {
+      ...s,
+      demographics: { ...d, ...basics },
+    };
+  }
+  const w = water_district || {};
+  if (Array.isArray(w.census_tracts) && w.census_tracts.length) {
+    const basics = await aggregateBasicDemographicsForTracts(w.census_tracts);
+    const d = w.demographics || {};
+    out.water_district = { ...w, demographics: { ...d, ...basics } };
+  }
+  return out;
 }
 
 // Ensure unemployment rates are populated for local, surrounding, and water regions
@@ -1521,7 +1606,7 @@ function renderResult(address, data, elapsedMs) {
     }),
     popFields(s.demographics || {}),
     popFields(w.demographics || {}),
-    '<p class="section-description">This section provides a snapshot of the people living in the selected area, drawn from the American Community Survey (ACS). It includes the total population, median age, household income, poverty rate, and unemployment rate. These indicators offer a quick view of community size, economic stability, and social conditions.</p>',
+    '<p class="section-description">This section provides a snapshot of the people living in the selected area, drawn from the American Community Survey (ACS). It includes the total population, median age, household income, poverty rate, and unemployment rate. These indicators offer a quick view of community size, economic stability, and social conditions.</p><p class="section-description"><em>Values for the surrounding 10-mile area and water district are population-weighted averages.</em></p>',
   );
   const languageFields = (d = {}) => {
     const entries = [
@@ -1552,7 +1637,7 @@ function renderResult(address, data, elapsedMs) {
     }),
     languageFields(s.demographics || {}),
     languageFields(w.demographics || {}),
-    '<p class="section-description">This section highlights the primary and secondary languages spoken in the community and key language indicators based on American Community Survey (ACS) 5&#8209;year estimates.</p>',
+    '<p class="section-description">This section highlights the primary and secondary languages spoken in the community and key language indicators based on American Community Survey (ACS) 5&#8209;year estimates.</p><p class="section-description"><em>Values for the surrounding 10-mile area and water district are population-weighted averages.</em></p>',
   );
 
   const raceContent = (d = {}) => {
@@ -1586,7 +1671,7 @@ function renderResult(address, data, elapsedMs) {
     }),
     raceContent(s.demographics || {}),
     raceContent(w.demographics || {}),
-    '<p class="section-description">This section shows the racial and ethnic composition of the community, expressed as percentages of the total population using American Community Survey (ACS) data. These insights help identify the diversity of the area and support efforts to ensure programs, outreach, and engagement strategies reflect and serve all community groups.</p>',
+    '<p class="section-description">This section shows the racial and ethnic composition of the community, expressed as percentages of the total population using American Community Survey (ACS) data. These insights help identify the diversity of the area and support efforts to ensure programs, outreach, and engagement strategies reflect and serve all community groups.</p><p class="section-description"><em>Values for the surrounding 10-mile area and water district are population-weighted averages.</em></p>',
   );
 
   const housingContent = (d = {}) => {
@@ -1612,7 +1697,7 @@ function renderResult(address, data, elapsedMs) {
     }),
     housingContent(s.demographics || {}),
     housingContent(w.demographics || {}),
-    '<p class="section-description">This section combines information on housing and educational attainment in the community. It includes the percentage of owner&#8209;occupied and renter&#8209;occupied homes, median home value, and levels of education such as high school completion and bachelor’s degree or higher. These indicators provide insight into community stability, affordability, and educational opportunities, helping inform outreach strategies and program planning.</p>',
+    '<p class="section-description">This section combines information on housing and educational attainment in the community. It includes the percentage of owner&#8209;occupied and renter&#8209;occupied homes, median home value, and levels of education such as high school completion and bachelor’s degree or higher. These indicators provide insight into community stability, affordability, and educational opportunities, helping inform outreach strategies and program planning.</p><p class="section-description"><em>Values for the surrounding 10-mile area and water district are population-weighted averages.</em></p>',
   );
 
   const dacCallout = (status, tracts, popPct, tractPct) => {
@@ -1714,6 +1799,7 @@ function renderResult(address, data, elapsedMs) {
       ${hardshipRow}
       ${alertsRow}
       <p class="note">Search took ${formatDuration(elapsedMs)}.</p>
+      <p class="note">Values for the surrounding 10-mile area and water district are population-weighted averages.</p>
       <span class="updated--footer">
         Sources: FCC Block for county &amp; tract; US Census ACS 5‑year (languages, population, median income); CalEnviroScreen 4.0; NWS alerts.
       </span>
@@ -1750,6 +1836,7 @@ async function lookup() {
     data = { ...data, ...lang };
     data = await enrichSurrounding(data);
     data = await enrichWaterDistrict(data, address);
+    data = await enrichRegionBasics(data);
     data = await enrichUnemployment(data);
     data = await enrichRegionLanguages(data);
     data = await enrichRegionHardships(data);
