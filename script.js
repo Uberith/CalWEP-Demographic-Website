@@ -116,6 +116,39 @@ const CES_LABELS = {
   linguistic_isolation: "Linguistic isolation",
   housing_burden: "Housing burden",
 };
+
+// Desired display order for CalEnviroScreen indicator groups
+const CES_GROUP_ORDER = {
+  exposures: [
+    "ozone",
+    "pm25",
+    "diesel",
+    "toxic_releases",
+    "traffic",
+    "pesticides",
+    "drinking_water",
+    "lead",
+  ],
+  environmental_effects: [
+    "cleanup_sites",
+    "groundwater_threats",
+    "hazardous_waste",
+    "impaired_waters",
+    "solid_waste",
+  ],
+  sensitive_populations: [
+    "asthma",
+    "low_birth_weight",
+    "cardiovascular_disease",
+  ],
+  socioeconomic_factors: [
+    "education",
+    "linguistic_isolation",
+    "poverty",
+    "unemployment",
+    "housing_burden",
+  ],
+};
 function nowStamp() {
   return new Date().toLocaleString();
 }
@@ -730,9 +763,17 @@ function renderEnviroscreenSection(title, data, includeDescription = false) {
   const overall = data.percentile;
   const pb = data.overall_percentiles?.pollution_burden;
   const pc = data.overall_percentiles?.population_characteristics;
-  const renderGroup = (groupTitle, obj) => {
+  const renderGroup = (groupTitle, obj, order = []) => {
     if (!obj || typeof obj !== "object") return "";
-    const kv = Object.entries(obj)
+    const entries = Object.entries(obj).sort(([a], [b]) => {
+      const ia = order.indexOf(a);
+      const ib = order.indexOf(b);
+      if (ia !== -1 && ib !== -1) return ia - ib;
+      if (ia !== -1) return -1;
+      if (ib !== -1) return 1;
+      return a.localeCompare(b);
+    });
+    const kv = entries
       .map(
         ([k, v]) =>
           `<div class="key">${escapeHTML(
@@ -758,10 +799,10 @@ function renderEnviroscreenSection(title, data, includeDescription = false) {
           <div class="key">Pollution burden</div><div class="val">${badge(pb)}</div>
           <div class="key">Population characteristics</div><div class="val">${badge(pc)}</div>
         </div>
-        ${renderGroup("Exposures", data.exposures)}
-        ${renderGroup("Environmental effects", data.environmental_effects)}
-        ${renderGroup("Sensitive populations", data.sensitive_populations)}
-        ${renderGroup("Socioeconomic factors", data.socioeconomic_factors)}
+        ${renderGroup("Exposures", data.exposures, CES_GROUP_ORDER.exposures)}
+        ${renderGroup("Environmental effects", data.environmental_effects, CES_GROUP_ORDER.environmental_effects)}
+        ${renderGroup("Sensitive populations", data.sensitive_populations, CES_GROUP_ORDER.sensitive_populations)}
+        ${renderGroup("Socioeconomic factors", data.socioeconomic_factors, CES_GROUP_ORDER.socioeconomic_factors)}
       </section>
     `;
 }
@@ -873,9 +914,17 @@ function renderEnviroscreenContent(data) {
   const overall = data.percentile;
   const pb = data.overall_percentiles?.pollution_burden;
   const pc = data.overall_percentiles?.population_characteristics;
-  const renderGroup = (title, obj) => {
+  const renderGroup = (title, obj, order = []) => {
     if (!obj || typeof obj !== "object") return "";
-    const kv = Object.entries(obj)
+    const entries = Object.entries(obj).sort(([a], [b]) => {
+      const ia = order.indexOf(a);
+      const ib = order.indexOf(b);
+      if (ia !== -1 && ib !== -1) return ia - ib;
+      if (ia !== -1) return -1;
+      if (ib !== -1) return 1;
+      return a.localeCompare(b);
+    });
+    const kv = entries
       .map(
         ([k, v]) =>
           `<div class=\"key\">${escapeHTML(
@@ -891,10 +940,10 @@ function renderEnviroscreenContent(data) {
       <div class="key">Pollution burden</div><div class="val">${badge(pb)}</div>
       <div class="key">Population characteristics</div><div class="val">${badge(pc)}</div>
     </div>
-    ${renderGroup("Exposures", data.exposures)}
-    ${renderGroup("Environmental effects", data.environmental_effects)}
-    ${renderGroup("Sensitive populations", data.sensitive_populations)}
-    ${renderGroup("Socioeconomic factors", data.socioeconomic_factors)}
+    ${renderGroup("Exposures", data.exposures, CES_GROUP_ORDER.exposures)}
+    ${renderGroup("Environmental effects", data.environmental_effects, CES_GROUP_ORDER.environmental_effects)}
+    ${renderGroup("Sensitive populations", data.sensitive_populations, CES_GROUP_ORDER.sensitive_populations)}
+    ${renderGroup("Socioeconomic factors", data.socioeconomic_factors, CES_GROUP_ORDER.socioeconomic_factors)}
   `;
 }
 function renderResultOld(address, data, elapsedMs) {
