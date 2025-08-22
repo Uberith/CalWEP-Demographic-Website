@@ -471,7 +471,58 @@ function renderError(message, address, elapsedMs) {
     </div>
   `;
 }
-function renderResult(address, data, elapsedMs) {
+
+function buildComparisonRow(title, localHtml, surroundingHtml, districtHtml) {
+  const cell = (html) =>
+    html && String(html).trim() ? html : '<p class="note">No data</p>';
+  return `
+    <section class="section-block">
+      <h3 class="section-header">${title}</h3>
+      <div class="comparison-grid">
+        <div class="col local">${cell(localHtml)}</div>
+        <div class="col surrounding">${cell(surroundingHtml)}</div>
+        <div class="col district">${cell(districtHtml)}</div>
+      </div>
+    </section>
+  `;
+}
+
+function renderEnviroscreenContent(data) {
+  if (!data || typeof data !== "object")
+    return "<p class=\"note\">No data</p>";
+  const badge = (v) => {
+    const { bg, fg } = cesColor(v);
+    const val = Number.isFinite(Number(v)) ? Number(v).toFixed(1) : "—";
+    return `<span class="ces-badge" style="background:${bg};color:${fg};">${val}</span>`;
+  };
+  const overall = data.percentile;
+  const pb = data.overall_percentiles?.pollution_burden;
+  const pc = data.overall_percentiles?.population_characteristics;
+  const renderGroup = (title, obj) => {
+    if (!obj || typeof obj !== "object") return "";
+    const kv = Object.entries(obj)
+      .map(
+        ([k, v]) =>
+          `<div class=\"key\">${escapeHTML(
+            CES_LABELS[k] || titleCase(k),
+          )}</div><div class=\"val\">${badge(v)}</div>`,
+      )
+      .join("");
+    return `<h4 class=\"sub-section-header\">${title}</h4><div class=\"kv\">${kv}</div>`;
+  };
+  return `
+    <div class="kv">
+      <div class="key">Overall percentile</div><div class="val">${badge(overall)}</div>
+      <div class="key">Pollution burden</div><div class="val">${badge(pb)}</div>
+      <div class="key">Population characteristics</div><div class="val">${badge(pc)}</div>
+    </div>
+    ${renderGroup("Exposures", data.exposures)}
+    ${renderGroup("Environmental effects", data.environmental_effects)}
+    ${renderGroup("Sensitive populations", data.sensitive_populations)}
+    ${renderGroup("Socioeconomic factors", data.socioeconomic_factors)}
+  `;
+}
+function renderResultOld(address, data, elapsedMs) {
   const {
     city,
     zip,
@@ -529,7 +580,7 @@ function renderResult(address, data, elapsedMs) {
       ? `<img class="map-image" src="https://maps.googleapis.com/maps/api/staticmap?center=${lat},${lon}&zoom=13&size=600x300&markers=color:red|${lat},${lon}&key=${GOOGLE_MAPS_KEY}" alt="Map of location" />`
       : "";
 
-  const hardshipSection = `
+const hardshipSection = `
     <section class="section-block">
       <h3 class="section-header">Environmental hardships</h3>
       ${hardshipList.length ? `<div class="stats">${hardshipList.map((h) => `<span class="pill">${escapeHTML(h)}</span>`).join("")}</div>` : `<p class="note">No environmental hardships recorded.</p>`}
@@ -784,6 +835,284 @@ function renderResult(address, data, elapsedMs) {
             : ""
         }
       </div>
+      <span class="updated--footer">
+        Sources: FCC Block for county &amp; tract; US Census ACS 5‑year (languages, population, median income); CalEnviroScreen 4.0; NWS alerts.
+      </span>
+    </article>
+  `;
+}
+
+// New row-based renderer
+function renderResult(address, data, elapsedMs) {
+  const {
+    city,
+    zip,
+    county,
+    census_tract,
+    lat,
+    lon,
+    english_less_than_very_well_pct,
+    language_other_than_english_pct,
+    spanish_at_home_pct,
+    median_household_income,
+    per_capita_income,
+    median_age,
+    poverty_rate,
+    unemployment_rate,
+    population,
+    dac_status,
+    environmental_hardships,
+    white_pct,
+    black_pct,
+    native_pct,
+    asian_pct,
+    pacific_pct,
+    other_race_pct,
+    two_or_more_races_pct,
+    hispanic_pct,
+    not_hispanic_pct,
+    owner_occupied_pct,
+    renter_occupied_pct,
+    median_home_value,
+    high_school_or_higher_pct,
+    bachelors_or_higher_pct,
+    alerts,
+    enviroscreen,
+    surrounding_10_mile,
+    water_district,
+  } = data || {};
+
+  const hardshipList = Array.isArray(environmental_hardships)
+    ? environmental_hardships
+    : [];
+  const alertList = Array.isArray(alerts) ? alerts : [];
+
+  const coords =
+    lat != null && lon != null
+      ? `${Number(lat).toFixed(6)}, ${Number(lon).toFixed(6)}`
+      : "—";
+  const mapImgHtml =
+    lat != null && lon != null
+      ? `<img class="map-image" src="https://maps.googleapis.com/maps/api/staticmap?center=${lat},${lon}&zoom=13&size=600x300&markers=color:red|${lat},${lon}&key=${GOOGLE_MAPS_KEY}" alt="Map of location" />`
+      : "";
+
+  const s = surrounding_10_mile || {};
+  const w = water_district || {};
+  const sTracts = Array.isArray(s.census_tracts)
+    ? s.census_tracts.join(", ")
+    : escapeHTML(s.census_tracts) || "—";
+  const sCities = Array.isArray(s.cities)
+    ? s.cities.join(", ")
+    : escapeHTML(s.cities) || "—";
+  const wTracts = Array.isArray(w.census_tracts)
+    ? w.census_tracts.join(", ")
+    : escapeHTML(w.census_tracts) || "—";
+  const wCities = Array.isArray(w.cities)
+    ? w.cities.join(", ")
+    : escapeHTML(w.cities) || "—";
+
+  const locLocal = `
+    <div class="kv">
+      <div class="key">City</div><div class="val">${escapeHTML(city) || "—"}</div>
+      <div class="key">Census tract</div><div class="val">${escapeHTML(census_tract) || "—"}</div>
+      <div class="key">ZIP code</div><div class="val">${escapeHTML(zip) || "—"}</div>
+      <div class="key">County</div><div class="val">${escapeHTML(county) || "—"}</div>
+      <div class="key">Coordinates</div><div class="val">${coords}</div>
+    </div>
+    ${mapImgHtml}
+  `;
+  const locSurround = `
+    <div class="kv">
+      <div class="key">Cities</div><div class="val">${sCities}</div>
+      <div class="key">Census tracts</div><div class="val">${sTracts}</div>
+    </div>
+  `;
+  const locDistrict = `
+    <div class="kv">
+      <div class="key">District</div><div class="val">${escapeHTML(w.name) || "—"}</div>
+      <div class="key">Cities</div><div class="val">${wCities}</div>
+      <div class="key">Census tracts</div><div class="val">${wTracts}</div>
+    </div>
+  `;
+  const locationRow = buildComparisonRow(
+    "Location Summary",
+    locLocal,
+    locSurround,
+    locDistrict,
+  );
+
+  const popFields = (d = {}) => {
+    const entries = [
+      ["Total population", fmtInt(d.population)],
+      ["Median age", fmtNumber(d.median_age)],
+      ["Median household income", fmtCurrency(d.median_household_income)],
+      ["Per capita income", fmtCurrency(d.per_capita_income)],
+      ["Poverty rate", fmtPct(d.poverty_rate)],
+      ["Unemployment rate", fmtPct(d.unemployment_rate)],
+    ];
+    return `<div class="kv">${entries
+      .map(([k, v]) => `<div class="key">${k}</div><div class="val">${v}</div>`)
+      .join("")}</div>`;
+  };
+  const populationRow = buildComparisonRow(
+    "Population &amp; Income (ACS)",
+    popFields({
+      population,
+      median_age,
+      median_household_income,
+      per_capita_income,
+      poverty_rate,
+      unemployment_rate,
+    }),
+    popFields(s.demographics || {}),
+    popFields(w.demographics || {}),
+  );
+
+  const languageLocal = `
+    <div class="kv">
+      <div class="key">People who speak a language other than English at home</div><div class="val">${fmtPct(
+        language_other_than_english_pct,
+      )}</div>
+      <div class="key">People who speak English less than \"very well\"</div><div class="val">${fmtPct(
+        english_less_than_very_well_pct,
+      )}</div>
+      <div class="key">People who speak Spanish at home</div><div class="val">${fmtPct(
+        spanish_at_home_pct,
+      )}</div>
+    </div>
+    <p class="note">Source: Latest ACS 5-Year Estimates<br>Data Profiles/Social Characteristics</p>
+  `;
+  const languageRow = buildComparisonRow("Language (ACS)", languageLocal, "", "");
+
+  const raceContent = (d = {}) => {
+    const entries = [
+      ["White", fmtPct(d.white_pct)],
+      ["Black or African American", fmtPct(d.black_pct)],
+      ["American Indian / Alaska Native", fmtPct(d.native_pct)],
+      ["Asian", fmtPct(d.asian_pct)],
+      ["Native Hawaiian / Pacific Islander", fmtPct(d.pacific_pct)],
+      ["Other race", fmtPct(d.other_race_pct)],
+      ["Two or more races", fmtPct(d.two_or_more_races_pct)],
+      ["Hispanic", fmtPct(d.hispanic_pct)],
+      ["Not Hispanic", fmtPct(d.not_hispanic_pct)],
+    ];
+    return `<div class="kv">${entries
+      .map(([k, v]) => `<div class="key">${k}</div><div class="val">${v}</div>`)
+      .join("")}</div>`;
+  };
+  const raceRow = buildComparisonRow(
+    "Race &amp; Ethnicity (ACS)",
+    raceContent({
+      white_pct,
+      black_pct,
+      native_pct,
+      asian_pct,
+      pacific_pct,
+      other_race_pct,
+      two_or_more_races_pct,
+      hispanic_pct,
+      not_hispanic_pct,
+    }),
+    raceContent(s.demographics || {}),
+    raceContent(w.demographics || {}),
+  );
+
+  const housingContent = (d = {}) => {
+    const entries = [
+      ["Owner occupied", fmtPct(d.owner_occupied_pct)],
+      ["Renter occupied", fmtPct(d.renter_occupied_pct)],
+      ["Median home value", fmtCurrency(d.median_home_value)],
+      ["High school or higher", fmtPct(d.high_school_or_higher_pct)],
+      ["Bachelor's degree or higher", fmtPct(d.bachelors_or_higher_pct)],
+    ];
+    return `<div class="kv">${entries
+      .map(([k, v]) => `<div class="key">${k}</div><div class="val">${v}</div>`)
+      .join("")}</div>`;
+  };
+  const housingRow = buildComparisonRow(
+    "Housing &amp; Education (ACS)",
+    housingContent({
+      owner_occupied_pct,
+      renter_occupied_pct,
+      median_home_value,
+      high_school_or_higher_pct,
+      bachelors_or_higher_pct,
+    }),
+    housingContent(s.demographics || {}),
+    housingContent(w.demographics || {}),
+  );
+
+  const dacRow = buildComparisonRow(
+    "Disadvantaged Community (DAC) Status",
+    `<div class="callout" style="border-left-color:${
+      dac_status ? "var(--success)" : "var(--border-strong)"
+    }">Disadvantaged community: <strong>${dac_status ? "Yes" : "No"}</strong></div>`,
+    "",
+    "",
+  );
+
+  const enviroscreenRow = buildComparisonRow(
+    "Environmental Indicators (CalEPA Enviroscreen)",
+    renderEnviroscreenContent(enviroscreen),
+    renderEnviroscreenContent(s.environment),
+    renderEnviroscreenContent(w.environment),
+  );
+
+  const hardshipRow = buildComparisonRow(
+    "Environmental Hardships",
+    hardshipList.length
+      ? `<div class="stats">${hardshipList
+          .map((h) => `<span class="pill">${escapeHTML(h)}</span>`)
+          .join("")}</div>`
+      : "",
+    "",
+    "",
+  );
+
+  const alertsRow = buildComparisonRow(
+    "Active Alerts (National Weather Service)",
+    alertList.length
+      ? `<div class="stats">${alertList
+          .map((a) => `<span class="pill">${escapeHTML(a)}</span>`)
+          .join("")}</div>`
+      : '<p class="note">No active alerts found for this location.</p>',
+    "",
+    "",
+  );
+
+  const columnHeaders = `
+    <div class="comparison-grid column-headers">
+      <div class="col">Census tract</div>
+      <div class="col">10 mile radius</div>
+      <div class="col">Water district</div>
+    </div>
+  `;
+
+  document.getElementById("result").innerHTML = `
+    <article class="card">
+      <div class="card__header">
+        <div class="card__head-left">
+          <h2 class="card__title">Results for: ${escapeHTML(address)}</h2>
+          <div class="card__actions">
+            <button type="button" onclick="printReport()">Print</button>
+            <button type="button" onclick="downloadPdf()">Download PDF</button>
+            <button type="button" onclick="downloadRawData()">Raw Data</button>
+            <button type="button" onclick="shareReport()">Share Link</button>
+          </div>
+        </div>
+        <span class="updated">Updated ${nowStamp()}</span>
+      </div>
+      ${columnHeaders}
+      ${locationRow}
+      ${populationRow}
+      ${languageRow}
+      ${raceRow}
+      ${housingRow}
+      ${dacRow}
+      ${enviroscreenRow}
+      ${hardshipRow}
+      ${alertsRow}
+      <p class="note">Search took ${formatDuration(elapsedMs)}.</p>
       <span class="updated--footer">
         Sources: FCC Block for county &amp; tract; US Census ACS 5‑year (languages, population, median income); CalEnviroScreen 4.0; NWS alerts.
       </span>
