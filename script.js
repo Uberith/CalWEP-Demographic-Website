@@ -498,9 +498,9 @@ async function enrichRegionLanguages(data = {}) {
 // Fetch surrounding cities and census tracts if API didn't provide them
 async function enrichSurrounding(data = {}) {
   const { lat, lon, census_tract, surrounding_10_mile } = data || {};
-  if (!surrounding_10_mile || lat == null || lon == null) return data;
+  if (lat == null || lon == null) return data;
   const radiusMeters = 1609.34 * 10; // 10 miles
-  const s = { ...surrounding_10_mile };
+  const s = { ...(surrounding_10_mile || {}) };
   const tasks = [];
   if (!Array.isArray(s.cities) || !s.cities.length) {
     const query = `[out:json];(node[place=city](around:${radiusMeters},${lat},${lon});node[place=town](around:${radiusMeters},${lat},${lon}););out;`;
@@ -553,6 +553,7 @@ async function enrichSurrounding(data = {}) {
       .catch(() => {}),
   );
   if (tasks.length) await Promise.all(tasks);
+  if (!Array.isArray(s.cities)) s.cities = [];
   const tractSet = new Set(Array.isArray(s.census_tracts) ? s.census_tracts : []);
   if (census_tract) tractSet.add(String(census_tract));
   s.census_tracts = Array.from(tractSet);
