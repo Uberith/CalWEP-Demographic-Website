@@ -189,7 +189,8 @@ async function fetchJsonWithDiagnostics(url) {
 
 // Attempt to fill in missing city or census tract using public geocoders
 async function enrichLocation(data = {}) {
-  let { city, census_tract, lat, lon } = data;
+  let { city, census_tract, lat, lon, state_fips, county_fips, tract_code } =
+    data;
   const tasks = [];
   if (!city && lat != null && lon != null) {
     tasks.push(
@@ -205,10 +206,14 @@ async function enrichLocation(data = {}) {
             : null;
           city = adminCity || j.city || j.locality || city;
         })
-        .catch(() => {})
+        .catch(() => {}),
     );
   }
-  if (!census_tract && lat != null && lon != null) {
+  if (
+    (!census_tract || !state_fips || !county_fips || !tract_code) &&
+    lat != null &&
+    lon != null
+  ) {
     tasks.push(
       fetch(
         `https://geo.fcc.gov/api/census/block/find?latitude=${lat}&longitude=${lon}&format=json`,
@@ -217,15 +222,38 @@ async function enrichLocation(data = {}) {
         .then((j) => {
           const fips = j?.Block?.FIPS;
           if (fips && fips.length >= 11) {
-            const tractRaw = fips.slice(5, 11);
-            census_tract = `${tractRaw.slice(0, 4)}.${tractRaw.slice(4)}`;
+            state_fips = fips.slice(0, 2);
+            county_fips = fips.slice(2, 5);
+            tract_code = fips.slice(5, 11);
+            census_tract = `${tract_code.slice(0, 4)}.${tract_code.slice(4)}`;
           }
         })
-        .catch(() => {})
+        .catch(() => {}),
     );
   }
   if (tasks.length) await Promise.all(tasks);
-  return { ...data, city, census_tract };
+  return { ...data, city, census_tract, state_fips, county_fips, tract_code };
+}
+
+async function fetchLanguageAcs({ state_fips, county_fips, tract_code } = {}) {
+  try {
+    if (!state_fips || !county_fips || !tract_code) return {};
+    const vars = ["DP02_0114PE", "DP02_0115PE", "DP02_0116PE"];
+    const url =
+      "https://api.census.gov/data/2022/acs/acs5/profile?get=" +
+      vars.join(",") +
+      `&for=tract:${tract_code}&in=state:${state_fips}%20county:${county_fips}`;
+    const rows = await fetch(url).then((r) => r.json());
+    if (!Array.isArray(rows) || rows.length < 2) return {};
+    const [langOther, engNotWell, spanish] = rows[1];
+    return {
+      language_other_than_english_pct: Number(langOther),
+      english_less_than_very_well_pct: Number(engNotWell),
+      spanish_at_home_pct: Number(spanish),
+    };
+  } catch {
+    return {};
+  }
 }
 
 // Fetch surrounding cities and census tracts if API didn't provide them
@@ -249,7 +277,7 @@ async function enrichSurrounding(data = {}) {
             .filter(Boolean);
           s.cities = Array.from(new Set(names)).slice(0, 10);
         })
-        .catch(() => {})
+        .catch(() => {}),
     );
   }
   if (!Array.isArray(s.census_tracts) || !s.census_tracts.length) {
@@ -266,7 +294,7 @@ async function enrichSurrounding(data = {}) {
             .map((n) => n.replace(/^Census Tract\s+/i, ""));
           s.census_tracts = Array.from(new Set(names)).slice(0, 10);
         })
-        .catch(() => {})
+        .catch(() => {}),
     );
   }
   if (tasks.length) await Promise.all(tasks);
@@ -422,9 +450,9 @@ function renderResult(address, data, elapsedMs) {
     census_tract,
     lat,
     lon,
-    primary_language,
-    secondary_language,
     english_less_than_very_well_pct,
+    language_other_than_english_pct,
+    spanish_at_home_pct,
     median_household_income,
     per_capita_income,
     median_age,
@@ -539,9 +567,6 @@ function renderResult(address, data, elapsedMs) {
           <div class="key">Median home value</div><div class="val">${fmtCurrency(d.median_home_value)}</div>
           <div class="key">High school or higher</div><div class="val">${fmtPct(d.high_school_or_higher_pct)}</div>
           <div class="key">Bachelor's degree or higher</div><div class="val">${fmtPct(d.bachelors_or_higher_pct)}</div>
-          <div class="key">Primary language</div><div class="val">${escapeHTML(d.primary_language) || "—"}</div>
-          <div class="key">Second most common</div><div class="val">${escapeHTML(d.secondary_language) || "—"}</div>
-          <div class="key">Speak English less than \"very well\"</div><div class="val">${fmtPct(d.english_less_than_very_well_pct)}</div>
           <div class="key">White</div><div class="val">${fmtPct(d.white_pct)}</div>
           <div class="key">Black or African American</div><div class="val">${fmtPct(d.black_pct)}</div>
           <div class="key">American Indian / Alaska Native</div><div class="val">${fmtPct(d.native_pct)}</div>
@@ -583,9 +608,6 @@ function renderResult(address, data, elapsedMs) {
           <div class="key">Median home value</div><div class="val">${fmtCurrency(d.median_home_value)}</div>
           <div class="key">High school or higher</div><div class="val">${fmtPct(d.high_school_or_higher_pct)}</div>
           <div class="key">Bachelor's degree or higher</div><div class="val">${fmtPct(d.bachelors_or_higher_pct)}</div>
-          <div class="key">Primary language</div><div class="val">${escapeHTML(d.primary_language) || "—"}</div>
-          <div class="key">Second most common</div><div class="val">${escapeHTML(d.secondary_language) || "—"}</div>
-          <div class="key">Speak English less than \"very well\"</div><div class="val">${fmtPct(d.english_less_than_very_well_pct)}</div>
           <div class="key">White</div><div class="val">${fmtPct(d.white_pct)}</div>
           <div class="key">Black or African American</div><div class="val">${fmtPct(d.black_pct)}</div>
           <div class="key">American Indian / Alaska Native</div><div class="val">${fmtPct(d.native_pct)}</div>
@@ -648,7 +670,8 @@ function renderResult(address, data, elapsedMs) {
           return popEntries
             .filter(([, v]) => v !== "—")
             .map(
-              ([k, v]) => `<div class="key">${k}</div><div class="val">${v}</div>`,
+              ([k, v]) =>
+                `<div class="key">${k}</div><div class="val">${v}</div>`,
             )
             .join("");
         })()}
@@ -657,12 +680,13 @@ function renderResult(address, data, elapsedMs) {
 
     <section class="section-block">
       <h3 class="section-header">Language (ACS)</h3>
-      <p class="section-description">This section highlights the primary and secondary languages spoken in the community, based on American Community Survey (ACS) data. Understanding which languages are most common helps identify translation needs, ensure inclusive communication, and better engage residents at events, in outreach, and through program materials.</p>
+      <p class="section-description">Key language indicators based on American Community Survey (ACS) 5‑year estimates.</p>
       <div class="kv">
-        <div class="key">Primary language</div><div class="val">${escapeHTML(primary_language) || "—"}</div>
-        <div class="key">Second most common</div><div class="val">${escapeHTML(secondary_language) || "—"}</div>
-        <div class="key">Speak English less than \"very well\"</div><div class="val">${fmtPct(english_less_than_very_well_pct)}</div>
+        <div class="key">People who speak a language other than English at home</div><div class="val">${fmtPct(language_other_than_english_pct)}</div>
+        <div class="key">People who speak English less than \"very well\"</div><div class="val">${fmtPct(english_less_than_very_well_pct)}</div>
+        <div class="key">People who speak Spanish at home</div><div class="val">${fmtPct(spanish_at_home_pct)}</div>
       </div>
+      <p class="note">Source: Latest ACS 5-Year Estimates<br>Data Profiles/Social Characteristics</p>
     </section>
 
     ${raceSection}
@@ -829,6 +853,8 @@ async function lookup() {
     if (!data || typeof data !== "object")
       throw new Error("Malformed response.");
     data = await enrichLocation(data);
+    const lang = await fetchLanguageAcs(data);
+    data = { ...data, ...lang };
     data = await enrichSurrounding(data);
     lastReport = { address, data };
     const locUrl = new URL(window.location);
