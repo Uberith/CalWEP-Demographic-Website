@@ -519,38 +519,39 @@ async function enrichSurrounding(data = {}) {
         .catch(() => {}),
     );
   }
-  if (!Array.isArray(s.census_tracts) || !s.census_tracts.length) {
-    const tractUrl =
-      "https://tigerweb.geo.census.gov/arcgis/rest/services/TIGERweb/Tracts_Blocks/MapServer/10/query" +
-      `?where=1=1&geometry=${lon},${lat}&geometryType=esriGeometryPoint&inSR=4326&spatialRel=esriSpatialRelIntersects&distance=${radiusMeters}&units=esriSRUnit_Meter&outFields=NAME,GEOID&f=json`;
-    tasks.push(
-      fetch(tractUrl)
-        .then((r) => r.json())
-        .then((j) => {
-          const features = j.features || [];
-          const names = [];
-          const fips = [];
-          const map = {};
-          for (const f of features) {
-            const attrs = f.attributes || {};
-            let name = null;
-            if (attrs.NAME) {
-              name = attrs.NAME.replace(/^Census Tract\s+/i, "");
-              names.push(name);
-            }
-            if (attrs.GEOID) {
-              const geoid = String(attrs.GEOID);
-              fips.push(geoid);
-              if (name) map[geoid] = name;
-            }
+  const existingTracts = Array.isArray(s.census_tracts) ? s.census_tracts.map(String) : [];
+  const existingFips = Array.isArray(s.census_tracts_fips) ? s.census_tracts_fips.map(String) : [];
+  const existingMap = { ...(s.census_tract_map || {}) };
+  const tractUrl =
+    "https://tigerweb.geo.census.gov/arcgis/rest/services/TIGERweb/Tracts_Blocks/MapServer/10/query" +
+    `?where=1=1&geometry=${lon},${lat}&geometryType=esriGeometryPoint&inSR=4326&spatialRel=esriSpatialRelIntersects&distance=${radiusMeters}&units=esriSRUnit_Meter&outFields=NAME,GEOID&f=json`;
+  tasks.push(
+    fetch(tractUrl)
+      .then((r) => r.json())
+      .then((j) => {
+        const features = j.features || [];
+        const names = [];
+        const fips = [];
+        const map = {};
+        for (const f of features) {
+          const attrs = f.attributes || {};
+          let name = null;
+          if (attrs.NAME) {
+            name = attrs.NAME.replace(/^Census Tract\s+/i, "");
+            names.push(name);
           }
-          s.census_tracts = Array.from(new Set(names)).slice(0, 10);
-          s.census_tracts_fips = Array.from(new Set(fips));
-          s.census_tract_map = map;
-        })
-        .catch(() => {}),
-    );
-  }
+          if (attrs.GEOID) {
+            const geoid = String(attrs.GEOID);
+            fips.push(geoid);
+            if (name) map[geoid] = name;
+          }
+        }
+        s.census_tracts = Array.from(new Set([...existingTracts, ...names]));
+        s.census_tracts_fips = Array.from(new Set([...existingFips, ...fips]));
+        s.census_tract_map = { ...existingMap, ...map };
+      })
+      .catch(() => {}),
+  );
   if (tasks.length) await Promise.all(tasks);
   const tractSet = new Set(Array.isArray(s.census_tracts) ? s.census_tracts : []);
   if (census_tract) tractSet.add(String(census_tract));
@@ -583,6 +584,10 @@ async function enrichSurrounding(data = {}) {
         }
       }
       s.dac_tracts = dac;
+      if (dac.length) {
+        const set = new Set([...(s.census_tracts || []), ...dac]);
+        s.census_tracts = Array.from(set);
+      }
     } catch (e) {
       // ignore errors
     }
