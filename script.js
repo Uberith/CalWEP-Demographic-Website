@@ -396,14 +396,23 @@ async function enrichSurrounding(data = {}) {
           const features = j.features || [];
           const names = [];
           const fips = [];
+          const map = {};
           for (const f of features) {
             const attrs = f.attributes || {};
-            if (attrs.NAME)
-              names.push(attrs.NAME.replace(/^Census Tract\s+/i, ""));
-            if (attrs.GEOID) fips.push(String(attrs.GEOID));
+            let name = null;
+            if (attrs.NAME) {
+              name = attrs.NAME.replace(/^Census Tract\s+/i, "");
+              names.push(name);
+            }
+            if (attrs.GEOID) {
+              const geoid = String(attrs.GEOID);
+              fips.push(geoid);
+              if (name) map[geoid] = name;
+            }
           }
           s.census_tracts = Array.from(new Set(names)).slice(0, 10);
           s.census_tracts_fips = Array.from(new Set(fips));
+          s.census_tract_map = map;
         })
         .catch(() => {}),
     );
@@ -418,6 +427,31 @@ async function enrichSurrounding(data = {}) {
     if (state_fips && county_fips && tract_code)
       fipsSet.add(`${state_fips}${county_fips}${tract_code}`);
     s.census_tracts_fips = Array.from(fipsSet);
+  }
+  if (Array.isArray(s.census_tracts_fips) && s.census_tracts_fips.length) {
+    try {
+      const where = `GEOID20 IN (${s.census_tracts_fips
+        .map((f) => `'${f}'`)
+        .join(",")})`;
+      const dacUrl =
+        "https://gis.water.ca.gov/arcgis/rest/services/Society/i16_Census_Tract_DisadvantagedCommunities_2020/MapServer/0/query" +
+        `?where=${encodeURIComponent(where)}&outFields=GEOID20,DAC20&returnGeometry=false&f=json`;
+      const j = await fetch(dacUrl).then((r) => r.json());
+      const dac = [];
+      for (const f of j.features || []) {
+        const attrs = f.attributes || {};
+        const geoid = String(attrs.GEOID20);
+        const status = String(attrs.DAC20 || "").toUpperCase();
+        if (status === "Y") {
+          const name =
+            (s.census_tract_map && s.census_tract_map[geoid]) || geoid;
+          dac.push(name);
+        }
+      }
+      s.dac_tracts = dac;
+    } catch (e) {
+      // ignore errors
+    }
   }
   return { ...data, surrounding_10_mile: s };
 }
@@ -1289,12 +1323,20 @@ function renderResult(address, data, elapsedMs) {
     '<p class="section-description">This section combines information on housing and educational attainment in the community. It includes the percentage of owner&#8209;occupied and renter&#8209;occupied homes, median home value, and levels of education such as high school completion and bachelor’s degree or higher. These indicators provide insight into community stability, affordability, and educational opportunities, helping inform outreach strategies and program planning.</p>',
   );
 
+  const dacCallout = (status, tracts) => {
+    const yes = Array.isArray(tracts) ? tracts.length > 0 : !!status;
+    const border = yes ? "var(--success)" : "var(--border-strong)";
+    const list =
+      Array.isArray(tracts) && tracts.length
+        ? ` — Tracts ${tracts.map((t) => escapeHTML(t)).join(", ")}`
+        : "";
+    return `<div class="callout" style="border-left-color:${border}">Disadvantaged community: <strong>${yes ? "Yes" : "No"}</strong>${list}</div>`;
+  };
+
   const dacRow = buildComparisonRow(
     "Disadvantaged Community (DAC) Status",
-    `<div class="callout" style="border-left-color:${
-      dac_status ? "var(--success)" : "var(--border-strong)"
-    }">Disadvantaged community: <strong>${dac_status ? "Yes" : "No"}</strong></div>`,
-    "",
+    dacCallout(dac_status),
+    Array.isArray(s.dac_tracts) ? dacCallout(null, s.dac_tracts) : "",
     "",
     '<p class="section-description">This section indicates whether the selected area is designated as a Disadvantaged Community (DAC) using the California Department of Water Resources (DWR) mapping tool. DAC status is determined by household income and is shown as a simple yes/no outcome. This designation is important for identifying areas eligible for certain state and federal funding opportunities and for ensuring that equity considerations are included in outreach and program planning.</p>',
   );
