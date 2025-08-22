@@ -406,6 +406,25 @@ async function fetchUnemploymentForTracts(fipsList = []) {
   return results;
 }
 
+// Fetch environmental hardships for one or more census tracts and merge them
+async function aggregateHardshipsForTracts(fipsList = []) {
+  const set = new Set();
+  await Promise.all(
+    fipsList.map(async (f) => {
+      try {
+        const url = buildApiUrl(API_PATH, { fips: f, census_tract: f, geoid: f });
+        const j = await fetchJsonWithDiagnostics(url);
+        if (Array.isArray(j.environmental_hardships)) {
+          j.environmental_hardships.forEach((h) => set.add(h));
+        }
+      } catch {
+        // ignore errors for this tract
+      }
+    }),
+  );
+  return Array.from(set).sort();
+}
+
 // Ensure unemployment rates are populated for local, surrounding, and water regions
 async function enrichUnemployment(data = {}) {
   const {
@@ -491,6 +510,31 @@ async function enrichRegionLanguages(data = {}) {
     const lang = await aggregateLanguageForTracts(w.census_tracts);
     const d = w.demographics || {};
     out.water_district = { ...w, demographics: { ...d, ...lang } };
+  }
+  return out;
+}
+
+// Populate environmental hardships for surrounding and district regions
+async function enrichRegionHardships(data = {}) {
+  const { surrounding_10_mile, water_district } = data || {};
+  const out = { ...data };
+  const s = surrounding_10_mile || {};
+  if (
+    (!Array.isArray(s.environmental_hardships) || !s.environmental_hardships.length) &&
+    Array.isArray(s.census_tracts_fips) &&
+    s.census_tracts_fips.length
+  ) {
+    const hardships = await aggregateHardshipsForTracts(s.census_tracts_fips);
+    out.surrounding_10_mile = { ...s, environmental_hardships: hardships };
+  }
+  const w = water_district || {};
+  if (
+    (!Array.isArray(w.environmental_hardships) || !w.environmental_hardships.length) &&
+    Array.isArray(w.census_tracts) &&
+    w.census_tracts.length
+  ) {
+    const hardships = await aggregateHardshipsForTracts(w.census_tracts);
+    out.water_district = { ...w, environmental_hardships: hardships };
   }
   return out;
 }
@@ -994,7 +1038,7 @@ function renderResultOld(address, data, elapsedMs) {
   } = data || {};
 
   const hardshipList = Array.isArray(environmental_hardships)
-    ? environmental_hardships
+    ? Array.from(new Set(environmental_hardships))
     : [];
   const alertList = Array.isArray(alerts) ? alerts : [];
   const cesSection = renderEnviroscreenSection(
@@ -1326,7 +1370,7 @@ function renderResult(address, data, elapsedMs) {
   } = data || {};
 
   const hardshipList = Array.isArray(environmental_hardships)
-    ? environmental_hardships
+    ? Array.from(new Set(environmental_hardships))
     : [];
   const alertList = Array.isArray(alerts) ? alerts : [];
 
@@ -1341,6 +1385,12 @@ function renderResult(address, data, elapsedMs) {
 
   const s = surrounding_10_mile || {};
   const w = water_district || {};
+  const sHardships = Array.isArray(s.environmental_hardships)
+    ? Array.from(new Set(s.environmental_hardships))
+    : [];
+  const wHardships = Array.isArray(w.environmental_hardships)
+    ? Array.from(new Set(w.environmental_hardships))
+    : [];
   const sTracts = Array.isArray(s.census_tracts)
     ? s.census_tracts.join(", ")
     : escapeHTML(s.census_tracts) || "—";
@@ -1528,8 +1578,16 @@ function renderResult(address, data, elapsedMs) {
           .map((h) => `<span class="pill">${escapeHTML(h)}</span>`)
           .join("")}</div>`
       : "",
-    "",
-    "",
+    sHardships.length
+      ? `<div class="stats">${sHardships
+          .map((h) => `<span class="pill">${escapeHTML(h)}</span>`)
+          .join("")}</div>`
+      : "",
+    wHardships.length
+      ? `<div class="stats">${wHardships
+          .map((h) => `<span class="pill">${escapeHTML(h)}</span>`)
+          .join("")}</div>`
+      : "",
     '<p class="section-description">This section lists environmental hardships reported for the selected location, highlighting challenges that may affect residents and program planning.</p>',
   );
 
@@ -1616,6 +1674,7 @@ async function lookup() {
     data = await enrichWaterDistrict(data, address);
     data = await enrichUnemployment(data);
     data = await enrichRegionLanguages(data);
+    data = await enrichRegionHardships(data);
     data = await enrichEnglishProficiency(data);
     lastReport = { address, data };
     const locUrl = new URL(window.location);
