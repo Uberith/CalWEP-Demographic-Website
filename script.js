@@ -235,25 +235,105 @@ async function enrichLocation(data = {}) {
   return { ...data, city, census_tract, state_fips, county_fips, tract_code };
 }
 
-async function fetchLanguageAcs({ state_fips, county_fips, tract_code } = {}) {
+let LANGUAGE_META = null;
+async function getLanguageMeta() {
+  if (LANGUAGE_META) return LANGUAGE_META;
   try {
-    if (!state_fips || !county_fips || !tract_code) return {};
-    const vars = ["DP02_0114PE", "DP02_0115PE", "DP02_0116PE"];
-    const url =
-      "https://api.census.gov/data/2022/acs/acs5/profile?get=" +
-      vars.join(",") +
-      `&for=tract:${tract_code}&in=state:${state_fips}%20county:${county_fips}`;
-    const rows = await fetch(url).then((r) => r.json());
-    if (!Array.isArray(rows) || rows.length < 2) return {};
-    const [langOther, engNotWell, spanish] = rows[1];
-    return {
-      language_other_than_english_pct: Number(langOther),
-      english_less_than_very_well_pct: Number(engNotWell),
-      spanish_at_home_pct: Number(spanish),
-    };
+    const meta = await fetchJsonWithDiagnostics(
+      "https://api.census.gov/data/2022/acs/acs5/groups/B16001.json",
+    );
+    const vars = meta?.variables || {};
+    const codes = [];
+    const names = {};
+    for (const [code, info] of Object.entries(vars)) {
+      if (!code.endsWith("E")) continue;
+      const label = info.label || "";
+      const m = /^Estimate!!Total:!!([^:]+):$/.exec(label);
+      if (m) {
+        codes.push(code);
+        names[code] = m[1];
+      }
+    }
+    LANGUAGE_META = { codes, names };
   } catch {
-    return {};
+    LANGUAGE_META = { codes: [], names: {} };
   }
+  return LANGUAGE_META;
+}
+
+async function aggregateLanguageForTracts(fipsList = []) {
+  const { codes, names } = await getLanguageMeta();
+  if (!codes.length) return {};
+  const varList = ["B16001_001E", "B16001_002E", ...codes];
+  const groups = {};
+  for (const f of fipsList) {
+    const code = String(f).replace(/[^0-9]/g, "").padStart(11, "0");
+    if (code.length !== 11) continue;
+    const state = code.slice(0, 2);
+    const county = code.slice(2, 5);
+    const tract = code.slice(5);
+    const key = `${state}${county}`;
+    if (!groups[key]) groups[key] = { state, county, tracts: [] };
+    groups[key].tracts.push(tract);
+  }
+  let total = 0;
+  let englishOnly = 0;
+  let englishLess = 0;
+  const langCounts = {};
+  for (const g of Object.values(groups)) {
+    const tractStr = g.tracts.join(",");
+    const url =
+      `https://api.census.gov/data/2022/acs/acs5?get=${varList.join(",")}&for=tract:${tractStr}&in=state:${g.state}%20county:${g.county}`;
+    try {
+      const rows = await fetch(url).then((r) => r.json());
+      if (Array.isArray(rows) && rows.length > 1) {
+        const headers = rows[0];
+        for (let i = 1; i < rows.length; i++) {
+          const row = rows[i];
+          const rec = {};
+          headers.forEach((h, idx) => (rec[h] = Number(row[idx])));
+          total += rec.B16001_001E || 0;
+          englishOnly += rec.B16001_002E || 0;
+          for (const code of codes) {
+            const name = names[code];
+            const val = rec[code] || 0;
+            langCounts[name] = (langCounts[name] || 0) + val;
+          }
+        }
+      }
+    } catch {}
+    const url2 =
+      `https://api.census.gov/data/2022/acs/acs5/profile?get=DP02_0115E&for=tract:${tractStr}&in=state:${g.state}%20county:${g.county}`;
+    try {
+      const rows2 = await fetch(url2).then((r) => r.json());
+      if (Array.isArray(rows2) && rows2.length > 1) {
+        const headers2 = rows2[0];
+        for (let i = 1; i < rows2.length; i++) {
+          const row2 = rows2[i];
+          const rec2 = {};
+          headers2.forEach((h, idx) => (rec2[h] = Number(row2[idx])));
+          englishLess += rec2.DP02_0115E || 0;
+        }
+      }
+    } catch {}
+  }
+  langCounts.English = englishOnly;
+  const spanishCount = langCounts.Spanish || 0;
+  const sorted = Object.entries(langCounts).sort((a, b) => b[1] - a[1]);
+  return {
+    primary_language: sorted[0]?.[0],
+    secondary_language: sorted[1]?.[0],
+    language_other_than_english_pct:
+      total ? ((total - englishOnly) / total) * 100 : null,
+    english_less_than_very_well_pct: total ? (englishLess / total) * 100 : null,
+    spanish_at_home_pct: total ? (spanishCount / total) * 100 : null,
+  };
+}
+
+async function fetchLanguageAcs({ state_fips, county_fips, tract_code } = {}) {
+  if (!state_fips || !county_fips || !tract_code) return {};
+  const fips = `${state_fips}${county_fips}${tract_code}`;
+  return aggregateLanguageForTracts([fips]);
 }
 
 // Fetch unemployment rate and population for one or more census tracts
@@ -358,6 +438,27 @@ async function enrichUnemployment(data = {}) {
       };
   }
 
+  return out;
+}
+
+async function enrichRegionLanguages(data = {}) {
+  const { surrounding_10_mile, water_district } = data || {};
+  const out = { ...data };
+  const s = surrounding_10_mile || {};
+  if (
+    Array.isArray(s.census_tracts_fips) &&
+    s.census_tracts_fips.length
+  ) {
+    const lang = await aggregateLanguageForTracts(s.census_tracts_fips);
+    const d = s.demographics || {};
+    out.surrounding_10_mile = { ...s, demographics: { ...d, ...lang } };
+  }
+  const w = water_district || {};
+  if (Array.isArray(w.census_tracts) && w.census_tracts.length) {
+    const lang = await aggregateLanguageForTracts(w.census_tracts);
+    const d = w.demographics || {};
+    out.water_district = { ...w, demographics: { ...d, ...lang } };
+  }
   return out;
 }
 
@@ -923,6 +1024,11 @@ const hardshipSection = `
           <div class="key">Median home value</div><div class="val">${fmtCurrency(d.median_home_value)}</div>
           <div class="key">High school or higher</div><div class="val">${fmtPct(d.high_school_or_higher_pct)}</div>
           <div class="key">Bachelor's degree or higher</div><div class="val">${fmtPct(d.bachelors_or_higher_pct)}</div>
+          <div class="key">Primary language</div><div class="val">${escapeHTML(d.primary_language) || "—"}</div>
+          <div class="key">Second most common</div><div class="val">${escapeHTML(d.secondary_language) || "—"}</div>
+          <div class="key">People who speak a language other than English at home</div><div class="val">${fmtPct(d.language_other_than_english_pct)}</div>
+          <div class="key">People who speak English less than \"very well\"</div><div class="val">${fmtPct(d.english_less_than_very_well_pct)}</div>
+          <div class="key">People who speak Spanish at home</div><div class="val">${fmtPct(d.spanish_at_home_pct)}</div>
           <div class="key">White</div><div class="val">${fmtPct(d.white_pct)}</div>
           <div class="key">Black or African American</div><div class="val">${fmtPct(d.black_pct)}</div>
           <div class="key">American Indian / Alaska Native</div><div class="val">${fmtPct(d.native_pct)}</div>
@@ -983,6 +1089,8 @@ const hardshipSection = `
           <div class="key">Bachelor's degree or higher</div><div class="val">${fmtPct(d.bachelors_or_higher_pct)}</div>
           <div class="key">Primary language</div><div class="val">${escapeHTML(d.primary_language) || "—"}</div>
           <div class="key">Second most common</div><div class="val">${escapeHTML(d.secondary_language) || "—"}</div>
+          <div class="key">People who speak a language other than English at home</div><div class="val">${fmtPct(d.language_other_than_english_pct)}</div>
+          <div class="key">People who speak Spanish at home</div><div class="val">${fmtPct(d.spanish_at_home_pct)}</div>
           <div class="key">Speak English less than \"very well\"</div><div class="val">${fmtPct(d.english_less_than_very_well_pct)}</div>
           <div class="key">White</div><div class="val">${fmtPct(d.white_pct)}</div>
           <div class="key">Black or African American</div><div class="val">${fmtPct(d.black_pct)}</div>
@@ -1453,6 +1561,7 @@ async function lookup() {
     data = await enrichSurrounding(data);
     data = await enrichWaterDistrict(data, address);
     data = await enrichUnemployment(data);
+    data = await enrichRegionLanguages(data);
     data = await enrichEnglishProficiency(data);
     lastReport = { address, data };
     const locUrl = new URL(window.location);
