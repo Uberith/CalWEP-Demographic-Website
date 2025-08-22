@@ -509,8 +509,13 @@ async function enrichRegionBasics(data = {}) {
     };
   }
   const w = water_district || {};
-  if (Array.isArray(w.census_tracts) && w.census_tracts.length) {
-    const basics = await aggregateBasicDemographicsForTracts(w.census_tracts);
+  const wFips = Array.isArray(w.census_tracts_fips) && w.census_tracts_fips.length
+    ? w.census_tracts_fips
+    : Array.isArray(w.census_tracts)
+      ? w.census_tracts
+      : [];
+  if (wFips.length) {
+    const basics = await aggregateBasicDemographicsForTracts(wFips);
     const d = w.demographics || {};
     out.water_district = { ...w, demographics: { ...d, ...basics } };
   }
@@ -536,7 +541,11 @@ async function enrichUnemployment(data = {}) {
   const sFips = Array.isArray(s.census_tracts_fips) ? s.census_tracts_fips : [];
   if (s.demographics && isMissing(s.demographics.unemployment_rate) && sFips.length)
     needed.push(...sFips);
-  const wFips = Array.isArray(w.census_tracts) ? w.census_tracts.map(String) : [];
+  const wFips = Array.isArray(w.census_tracts_fips)
+    ? w.census_tracts_fips.map(String)
+    : Array.isArray(w.census_tracts)
+      ? w.census_tracts.map(String)
+      : [];
   if (w.demographics && isMissing(w.demographics.unemployment_rate) && wFips.length)
     needed.push(...wFips);
 
@@ -598,8 +607,13 @@ async function enrichRegionLanguages(data = {}) {
     out.surrounding_10_mile = { ...s, demographics: { ...d, ...lang } };
   }
   const w = water_district || {};
-  if (Array.isArray(w.census_tracts) && w.census_tracts.length) {
-    const lang = await aggregateLanguageForTracts(w.census_tracts);
+  const wFips = Array.isArray(w.census_tracts_fips) && w.census_tracts_fips.length
+    ? w.census_tracts_fips
+    : Array.isArray(w.census_tracts)
+      ? w.census_tracts
+      : [];
+  if (wFips.length) {
+    const lang = await aggregateLanguageForTracts(wFips);
     const d = w.demographics || {};
     out.water_district = { ...w, demographics: { ...d, ...lang } };
   }
@@ -611,21 +625,29 @@ async function enrichRegionHardships(data = {}) {
   const { surrounding_10_mile, water_district } = data || {};
   const out = { ...data };
   const s = surrounding_10_mile || {};
+  const sFips = Array.isArray(s.census_tracts_fips) && s.census_tracts_fips.length
+    ? s.census_tracts_fips
+    : Array.isArray(s.census_tracts)
+      ? s.census_tracts
+      : [];
   if (
     (!Array.isArray(s.environmental_hardships) || !s.environmental_hardships.length) &&
-    Array.isArray(s.census_tracts_fips) &&
-    s.census_tracts_fips.length
+    sFips.length
   ) {
-    const hardships = await aggregateHardshipsForTracts(s.census_tracts_fips);
+    const hardships = await aggregateHardshipsForTracts(sFips);
     out.surrounding_10_mile = { ...s, environmental_hardships: hardships };
   }
   const w = water_district || {};
+  const wFips = Array.isArray(w.census_tracts_fips) && w.census_tracts_fips.length
+    ? w.census_tracts_fips
+    : Array.isArray(w.census_tracts)
+      ? w.census_tracts.map(String)
+      : [];
   if (
     (!Array.isArray(w.environmental_hardships) || !w.environmental_hardships.length) &&
-    Array.isArray(w.census_tracts) &&
-    w.census_tracts.length
+    wFips.length
   ) {
-    const hardships = await aggregateHardshipsForTracts(w.census_tracts);
+    const hardships = await aggregateHardshipsForTracts(wFips);
     out.water_district = { ...w, environmental_hardships: hardships };
   }
   return out;
@@ -760,7 +782,16 @@ async function enrichSurrounding(data = {}) {
 
 // Fill in missing water district basics if the API doesn't provide them
 async function enrichWaterDistrict(data = {}, address = "") {
-  const { lat, lon, city, census_tract, water_district } = data || {};
+  const {
+    lat,
+    lon,
+    city,
+    census_tract,
+    state_fips,
+    county_fips,
+    tract_code,
+    water_district,
+  } = data || {};
   if (lat == null || lon == null) return data;
   const w = { ...water_district };
   const tasks = [];
@@ -778,9 +809,16 @@ async function enrichWaterDistrict(data = {}, address = "") {
             j?.census_tracts ||
             j?.agency?.census_tracts;
           if (typeof tracts === "string") {
-            w.census_tracts = tracts.split(/\s*,\s*/).filter(Boolean);
+            const arr = tracts.split(/\s*,\s*/).filter(Boolean);
+            w.census_tracts = arr;
+            const fipsArr = arr.filter((t) => /^\d{11}$/.test(t));
+            if (fipsArr.length) w.census_tracts_fips = fipsArr;
           } else if (Array.isArray(tracts)) {
-            w.census_tracts = [...new Set(tracts.map(String))];
+            const arr = [...new Set(tracts.map(String))];
+            w.census_tracts = arr;
+            const fipsArr = arr.filter((t) => /^\d{11}$/.test(t));
+            if (fipsArr.length)
+              w.census_tracts_fips = [...new Set([...(w.census_tracts_fips || []), ...fipsArr])];
           }
         })
         .catch(() => {}),
@@ -840,19 +878,29 @@ async function enrichWaterDistrict(data = {}, address = "") {
       if (geom) {
         const tractUrl =
           "https://tigerweb.geo.census.gov/arcgis/rest/services/TIGERweb/Tracts_Blocks/MapServer/10/query" +
-          `?where=1%3D1&geometry=${encodeURIComponent(JSON.stringify(geom))}&geometryType=esriGeometryPolygon&inSR=4326&spatialRel=esriSpatialRelIntersects&outFields=NAME&returnGeometry=false&f=json`;
+          `?where=1%3D1&geometry=${encodeURIComponent(JSON.stringify(geom))}&geometryType=esriGeometryPolygon&inSR=4326&spatialRel=esriSpatialRelIntersects&outFields=NAME,GEOID&returnGeometry=false&f=json`;
         const t = await fetch(tractUrl).then((r) => r.json());
-        const names = (t.features || [])
-          .map((f) => f.attributes?.NAME)
-          .filter(Boolean)
-          .map((n) => n.replace(/^Census Tract\s+/i, ""));
-        if (names.length) {
+        const names = [];
+        const fips = [];
+        for (const f of t.features || []) {
+          const attrs = f.attributes || {};
+          if (attrs.NAME)
+            names.push(attrs.NAME.replace(/^Census Tract\s+/i, ""));
+          if (attrs.GEOID) fips.push(String(attrs.GEOID));
+        }
+        if (names.length || fips.length) {
           const existing = Array.isArray(w.census_tracts)
             ? w.census_tracts.map(String)
             : [];
-          w.census_tracts = [
-            ...new Set([...existing, ...names.map(String)]),
-          ];
+          const existingFips = Array.isArray(w.census_tracts_fips)
+            ? w.census_tracts_fips.map(String)
+            : [];
+          if (names.length)
+            w.census_tracts = [...new Set([...existing, ...names])];
+          if (fips.length)
+            w.census_tracts_fips = [
+              ...new Set([...existingFips, ...fips]),
+            ];
         }
       }
     } catch {
@@ -866,6 +914,16 @@ async function enrichWaterDistrict(data = {}, address = "") {
     tracts = w.census_tracts.split(/\s*,\s*/).filter(Boolean);
   if (census_tract) tracts.unshift(String(census_tract));
   w.census_tracts = [...new Set(tracts)];
+
+  let fipsList = Array.isArray(w.census_tracts_fips)
+    ? w.census_tracts_fips.map(String)
+    : [];
+  for (const t of w.census_tracts) {
+    if (/^\d{11}$/.test(t)) fipsList.push(t);
+  }
+  if (state_fips && county_fips && tract_code)
+    fipsList.unshift(`${state_fips}${county_fips}${tract_code}`);
+  w.census_tracts_fips = [...new Set(fipsList)];
 
   // Hard-coded CalEnviroScreen indicators for the water district region
   w.environment = {
