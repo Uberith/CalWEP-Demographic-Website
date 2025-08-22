@@ -466,6 +466,26 @@ async function enrichWaterDistrict(data = {}, address = "") {
     );
   }
 
+  if (!Array.isArray(w.cities) || !w.cities.length) {
+    if (city) w.cities = [city];
+  }
+
+  if (tasks.length) await Promise.all(tasks);
+
+  // Fetch census tracts from the API if we have a name but no tract list
+  if (w.name && (!Array.isArray(w.census_tracts) || !w.census_tracts.length)) {
+    try {
+      const url = buildApiUrl("/census-tracts", { agency_name: w.name });
+      const j = await fetchJsonWithDiagnostics(url);
+      const tracts = j?.census_tracts;
+      if (Array.isArray(tracts)) {
+        w.census_tracts = [...new Set(tracts.map(String))];
+      }
+    } catch {
+      // ignore errors
+    }
+  }
+
   // If the census tract list looks incomplete, overlay the water district shape
   const needsOverlay =
     !Array.isArray(w.census_tracts) ||
@@ -475,44 +495,34 @@ async function enrichWaterDistrict(data = {}, address = "") {
       w.census_tracts[0] === String(census_tract));
 
   if (needsOverlay) {
-    const geoUrl =
-      "https://services.arcgis.com/8DFNJhY7CUN8E0bX/ArcGIS/rest/services/Public_Water_System_Boundaries/FeatureServer/0/query" +
-      `?geometry=${lon}%2C${lat}&geometryType=esriGeometryPoint&inSR=4326&spatialRel=esriSpatialRelIntersects&outFields=PWS_NAME&returnGeometry=true&outSR=4326&f=json`;
-    tasks.push(
-      fetch(geoUrl)
-        .then((r) => r.json())
-        .then((j) => {
-          const geom = j?.features?.[0]?.geometry;
-          if (!geom) return;
-          const tractUrl =
-            "https://tigerweb.geo.census.gov/arcgis/rest/services/TIGERweb/Tracts_Blocks/MapServer/10/query" +
-            `?where=1%3D1&geometry=${encodeURIComponent(JSON.stringify(geom))}&geometryType=esriGeometryPolygon&inSR=4326&spatialRel=esriSpatialRelIntersects&outFields=NAME&returnGeometry=false&f=json`;
-          return fetch(tractUrl)
-            .then((r) => r.json())
-            .then((t) => {
-              const names = (t.features || [])
-                .map((f) => f.attributes?.NAME)
-                .filter(Boolean)
-                .map((n) => n.replace(/^Census Tract\s+/i, ""));
-              if (names.length) {
-                const existing = Array.isArray(w.census_tracts)
-                  ? w.census_tracts.map(String)
-                  : [];
-                w.census_tracts = [
-                  ...new Set([...existing, ...names.map(String)]),
-                ];
-              }
-            });
-        })
-        .catch(() => {}),
-    );
+    try {
+      const geoUrl =
+        "https://services.arcgis.com/8DFNJhY7CUN8E0bX/ArcGIS/rest/services/Public_Water_System_Boundaries/FeatureServer/0/query" +
+        `?geometry=${lon}%2C${lat}&geometryType=esriGeometryPoint&inSR=4326&spatialRel=esriSpatialRelIntersects&outFields=PWS_NAME&returnGeometry=true&outSR=4326&f=json`;
+      const j = await fetch(geoUrl).then((r) => r.json());
+      const geom = j?.features?.[0]?.geometry;
+      if (geom) {
+        const tractUrl =
+          "https://tigerweb.geo.census.gov/arcgis/rest/services/TIGERweb/Tracts_Blocks/MapServer/10/query" +
+          `?where=1%3D1&geometry=${encodeURIComponent(JSON.stringify(geom))}&geometryType=esriGeometryPolygon&inSR=4326&spatialRel=esriSpatialRelIntersects&outFields=NAME&returnGeometry=false&f=json`;
+        const t = await fetch(tractUrl).then((r) => r.json());
+        const names = (t.features || [])
+          .map((f) => f.attributes?.NAME)
+          .filter(Boolean)
+          .map((n) => n.replace(/^Census Tract\s+/i, ""));
+        if (names.length) {
+          const existing = Array.isArray(w.census_tracts)
+            ? w.census_tracts.map(String)
+            : [];
+          w.census_tracts = [
+            ...new Set([...existing, ...names.map(String)]),
+          ];
+        }
+      }
+    } catch {
+      // ignore errors
+    }
   }
-
-  if (!Array.isArray(w.cities) || !w.cities.length) {
-    if (city) w.cities = [city];
-  }
-
-  if (tasks.length) await Promise.all(tasks);
 
   let tracts = [];
   if (Array.isArray(w.census_tracts)) tracts = w.census_tracts.map(String);
