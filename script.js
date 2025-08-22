@@ -256,6 +256,111 @@ async function fetchLanguageAcs({ state_fips, county_fips, tract_code } = {}) {
   }
 }
 
+// Fetch unemployment rate and population for one or more census tracts
+async function fetchUnemploymentForTracts(fipsList = []) {
+  const groups = {};
+  for (const f of fipsList) {
+    const code = String(f).replace(/[^0-9]/g, "").padStart(11, "0");
+    if (code.length !== 11) continue;
+    const state = code.slice(0, 2);
+    const county = code.slice(2, 5);
+    const tract = code.slice(5);
+    const key = `${state}${county}`;
+    if (!groups[key]) groups[key] = { state, county, tracts: [] };
+    groups[key].tracts.push(tract);
+  }
+  const results = {};
+  for (const g of Object.values(groups)) {
+    const url =
+      "https://api.census.gov/data/2022/acs/acs5/profile?get=DP03_0009PE,DP05_0001E&for=tract:" +
+      g.tracts.join(",") +
+      `&in=state:${g.state}%20county:${g.county}`;
+    try {
+      const rows = await fetch(url).then((r) => r.json());
+      if (!Array.isArray(rows) || rows.length < 2) continue;
+      for (let i = 1; i < rows.length; i++) {
+        const [unemp, pop, state, county, tract] = rows[i];
+        const geoid = `${state}${county}${tract}`;
+        results[geoid] = {
+          unemployment_rate: Number(unemp),
+          population: Number(pop),
+        };
+      }
+    } catch {
+      // ignore errors for this group
+    }
+  }
+  return results;
+}
+
+// Ensure unemployment rates are populated for local, surrounding, and water regions
+async function enrichUnemployment(data = {}) {
+  const {
+    state_fips,
+    county_fips,
+    tract_code,
+    unemployment_rate,
+    surrounding_10_mile,
+    water_district,
+  } = data || {};
+
+  const s = surrounding_10_mile || {};
+  const w = water_district || {};
+  const needed = [];
+  const localFips = state_fips && county_fips && tract_code ? `${state_fips}${county_fips}${tract_code}` : null;
+  if (isMissing(unemployment_rate) && localFips) needed.push(localFips);
+  const sFips = Array.isArray(s.census_tracts_fips) ? s.census_tracts_fips : [];
+  if (s.demographics && isMissing(s.demographics.unemployment_rate) && sFips.length)
+    needed.push(...sFips);
+  const wFips = Array.isArray(w.census_tracts) ? w.census_tracts.map(String) : [];
+  if (w.demographics && isMissing(w.demographics.unemployment_rate) && wFips.length)
+    needed.push(...wFips);
+
+  const fipsSet = Array.from(new Set(needed));
+  if (!fipsSet.length) return data;
+  const lookup = await fetchUnemploymentForTracts(fipsSet);
+
+  const out = { ...data };
+  if (isMissing(unemployment_rate) && localFips && lookup[localFips])
+    out.unemployment_rate = lookup[localFips].unemployment_rate;
+
+  if (s.demographics && isMissing(s.demographics.unemployment_rate) && sFips.length) {
+    let totPop = 0;
+    let totWeighted = 0;
+    for (const f of sFips) {
+      const item = lookup[f];
+      if (item && Number.isFinite(item.unemployment_rate) && Number.isFinite(item.population)) {
+        totPop += item.population;
+        totWeighted += item.unemployment_rate * item.population;
+      }
+    }
+    if (totPop > 0)
+      out.surrounding_10_mile = {
+        ...s,
+        demographics: { ...s.demographics, unemployment_rate: totWeighted / totPop },
+      };
+  }
+
+  if (w.demographics && isMissing(w.demographics.unemployment_rate) && wFips.length) {
+    let totPop = 0;
+    let totWeighted = 0;
+    for (const f of wFips) {
+      const item = lookup[f];
+      if (item && Number.isFinite(item.unemployment_rate) && Number.isFinite(item.population)) {
+        totPop += item.population;
+        totWeighted += item.unemployment_rate * item.population;
+      }
+    }
+    if (totPop > 0)
+      out.water_district = {
+        ...w,
+        demographics: { ...w.demographics, unemployment_rate: totWeighted / totPop },
+      };
+  }
+
+  return out;
+}
+
 // Fetch surrounding cities and census tracts if API didn't provide them
 async function enrichSurrounding(data = {}) {
   const { lat, lon, census_tract, surrounding_10_mile } = data || {};
@@ -283,16 +388,22 @@ async function enrichSurrounding(data = {}) {
   if (!Array.isArray(s.census_tracts) || !s.census_tracts.length) {
     const tractUrl =
       "https://tigerweb.geo.census.gov/arcgis/rest/services/TIGERweb/Tracts_Blocks/MapServer/10/query" +
-      `?where=1=1&geometry=${lon},${lat}&geometryType=esriGeometryPoint&inSR=4326&spatialRel=esriSpatialRelIntersects&distance=${radiusMeters}&units=esriSRUnit_Meter&outFields=NAME&f=json`;
+      `?where=1=1&geometry=${lon},${lat}&geometryType=esriGeometryPoint&inSR=4326&spatialRel=esriSpatialRelIntersects&distance=${radiusMeters}&units=esriSRUnit_Meter&outFields=NAME,GEOID&f=json`;
     tasks.push(
       fetch(tractUrl)
         .then((r) => r.json())
         .then((j) => {
-          const names = (j.features || [])
-            .map((f) => f.attributes?.NAME)
-            .filter(Boolean)
-            .map((n) => n.replace(/^Census Tract\s+/i, ""));
+          const features = j.features || [];
+          const names = [];
+          const fips = [];
+          for (const f of features) {
+            const attrs = f.attributes || {};
+            if (attrs.NAME)
+              names.push(attrs.NAME.replace(/^Census Tract\s+/i, ""));
+            if (attrs.GEOID) fips.push(String(attrs.GEOID));
+          }
           s.census_tracts = Array.from(new Set(names)).slice(0, 10);
+          s.census_tracts_fips = Array.from(new Set(fips));
         })
         .catch(() => {}),
     );
@@ -301,6 +412,13 @@ async function enrichSurrounding(data = {}) {
   const tractSet = new Set(Array.isArray(s.census_tracts) ? s.census_tracts : []);
   if (census_tract) tractSet.add(String(census_tract));
   s.census_tracts = Array.from(tractSet);
+  if (Array.isArray(s.census_tracts_fips)) {
+    const fipsSet = new Set(s.census_tracts_fips);
+    const { state_fips, county_fips, tract_code } = data || {};
+    if (state_fips && county_fips && tract_code)
+      fipsSet.add(`${state_fips}${county_fips}${tract_code}`);
+    s.census_tracts_fips = Array.from(fipsSet);
+  }
   return { ...data, surrounding_10_mile: s };
 }
 
@@ -1269,6 +1387,7 @@ async function lookup() {
     data = { ...data, ...lang };
     data = await enrichSurrounding(data);
     data = await enrichWaterDistrict(data, address);
+    data = await enrichUnemployment(data);
     data = await enrichEnglishProficiency(data);
     lastReport = { address, data };
     const locUrl = new URL(window.location);
