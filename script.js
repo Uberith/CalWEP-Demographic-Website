@@ -258,7 +258,7 @@ async function fetchLanguageAcs({ state_fips, county_fips, tract_code } = {}) {
 
 // Fetch surrounding cities and census tracts if API didn't provide them
 async function enrichSurrounding(data = {}) {
-  const { lat, lon, surrounding_10_mile } = data || {};
+  const { lat, lon, census_tract, surrounding_10_mile } = data || {};
   if (!surrounding_10_mile || lat == null || lon == null) return data;
   const radiusMeters = 1609.34 * 10; // 10 miles
   const s = { ...surrounding_10_mile };
@@ -298,6 +298,9 @@ async function enrichSurrounding(data = {}) {
     );
   }
   if (tasks.length) await Promise.all(tasks);
+  const tractSet = new Set(Array.isArray(s.census_tracts) ? s.census_tracts : []);
+  if (census_tract) tractSet.add(String(census_tract));
+  s.census_tracts = Array.from(tractSet);
   return { ...data, surrounding_10_mile: s };
 }
 
@@ -349,11 +352,15 @@ async function enrichWaterDistrict(data = {}, address = "") {
     if (city) w.cities = [city];
   }
 
-  if (!Array.isArray(w.census_tracts) || !w.census_tracts.length) {
-    if (census_tract) w.census_tracts = [census_tract];
-  }
-
   if (tasks.length) await Promise.all(tasks);
+
+  let tracts = [];
+  if (Array.isArray(w.census_tracts)) tracts = w.census_tracts.map(String);
+  else if (typeof w.census_tracts === "string")
+    tracts = w.census_tracts.split(/\s*,\s*/).filter(Boolean);
+  if (census_tract) tracts.unshift(String(census_tract));
+  w.census_tracts = [...new Set(tracts)];
+
   return { ...data, water_district: w };
 }
 
