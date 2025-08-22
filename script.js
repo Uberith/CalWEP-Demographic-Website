@@ -262,7 +262,8 @@ async function enrichSurrounding(data = {}) {
         .then((j) => {
           const names = (j.features || [])
             .map((f) => f.attributes?.NAME)
-            .filter(Boolean);
+            .filter(Boolean)
+            .map((n) => n.replace(/^Census Tract\s+/i, ""));
           s.census_tracts = Array.from(new Set(names)).slice(0, 10);
         })
         .catch(() => {})
