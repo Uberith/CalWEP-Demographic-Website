@@ -479,6 +479,8 @@ function renderResult(address, data, elapsedMs) {
     census_tract,
     lat,
     lon,
+    primary_language,
+    secondary_language,
     english_less_than_very_well_pct,
     language_other_than_english_pct,
     spanish_at_home_pct,
@@ -627,7 +629,7 @@ function renderResult(address, data, elapsedMs) {
     const cityList = Array.isArray(w.cities)
       ? w.cities.join(", ")
       : escapeHTML(w.cities) || "—";
-    if (w.census_tracts || w.cities)
+    if (w.name || w.census_tracts || w.cities)
       html += `
       <section class="section-block">
         <h3 class="section-header">Location Summary</h3>
@@ -654,6 +656,9 @@ function renderResult(address, data, elapsedMs) {
           <div class="key">Median home value</div><div class="val">${fmtCurrency(d.median_home_value)}</div>
           <div class="key">High school or higher</div><div class="val">${fmtPct(d.high_school_or_higher_pct)}</div>
           <div class="key">Bachelor's degree or higher</div><div class="val">${fmtPct(d.bachelors_or_higher_pct)}</div>
+          <div class="key">Primary language</div><div class="val">${escapeHTML(d.primary_language) || "—"}</div>
+          <div class="key">Second most common</div><div class="val">${escapeHTML(d.secondary_language) || "—"}</div>
+          <div class="key">Speak English less than \"very well\"</div><div class="val">${fmtPct(d.english_less_than_very_well_pct)}</div>
           <div class="key">White</div><div class="val">${fmtPct(d.white_pct)}</div>
           <div class="key">Black or African American</div><div class="val">${fmtPct(d.black_pct)}</div>
           <div class="key">American Indian / Alaska Native</div><div class="val">${fmtPct(d.native_pct)}</div>
@@ -717,8 +722,10 @@ function renderResult(address, data, elapsedMs) {
 
     <section class="section-block">
       <h3 class="section-header">Language (ACS)</h3>
-      <p class="section-description">Key language indicators based on American Community Survey (ACS) 5‑year estimates.</p>
+      <p class="section-description">This section highlights the primary and secondary languages spoken in the community and key language indicators based on American Community Survey (ACS) 5‑year estimates.</p>
       <div class="kv">
+        <div class="key">Primary language</div><div class="val">${escapeHTML(primary_language) || "—"}</div>
+        <div class="key">Second most common</div><div class="val">${escapeHTML(secondary_language) || "—"}</div>
         <div class="key">People who speak a language other than English at home</div><div class="val">${fmtPct(language_other_than_english_pct)}</div>
         <div class="key">People who speak English less than \"very well\"</div><div class="val">${fmtPct(english_less_than_very_well_pct)}</div>
         <div class="key">People who speak Spanish at home</div><div class="val">${fmtPct(spanish_at_home_pct)}</div>
