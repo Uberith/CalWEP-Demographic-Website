@@ -644,6 +644,32 @@ async function enrichSurrounding(data = {}) {
       // ignore errors
     }
   }
+  if (Array.isArray(s.census_tracts_fips) && s.census_tracts_fips.length) {
+    try {
+      const lookup = await fetchUnemploymentForTracts(s.census_tracts_fips);
+      let totalPop = 0;
+      let dacPop = 0;
+      const dacFips = new Set();
+      const map = s.census_tract_map || {};
+      if (Array.isArray(s.dac_tracts)) {
+        for (const [fips, name] of Object.entries(map)) {
+          if (s.dac_tracts.includes(name)) dacFips.add(String(fips));
+        }
+      }
+      for (const f of s.census_tracts_fips) {
+        const info = lookup[f];
+        if (info && Number.isFinite(info.population)) {
+          totalPop += info.population;
+          if (dacFips.has(String(f))) dacPop += info.population;
+        }
+      }
+      if (totalPop > 0) s.dac_population_pct = (dacPop / totalPop) * 100;
+      if (s.census_tracts_fips.length > 0)
+        s.dac_tracts_pct = (dacFips.size / s.census_tracts_fips.length) * 100;
+    } catch (e) {
+      // ignore errors
+    }
+  }
   return { ...data, surrounding_10_mile: s };
 }
 
@@ -1589,20 +1615,26 @@ function renderResult(address, data, elapsedMs) {
     '<p class="section-description">This section combines information on housing and educational attainment in the community. It includes the percentage of owner&#8209;occupied and renter&#8209;occupied homes, median home value, and levels of education such as high school completion and bachelor’s degree or higher. These indicators provide insight into community stability, affordability, and educational opportunities, helping inform outreach strategies and program planning.</p>',
   );
 
-  const dacCallout = (status, tracts) => {
+  const dacCallout = (status, tracts, popPct, tractPct) => {
     const yes = Array.isArray(tracts) ? tracts.length > 0 : !!status;
     const border = yes ? "var(--success)" : "var(--border-strong)";
     const list =
       Array.isArray(tracts) && tracts.length
         ? ` — Tracts ${tracts.map((t) => escapeHTML(t)).join(", ")}`
         : "";
-    return `<div class="callout" style="border-left-color:${border}">Disadvantaged community: <strong>${yes ? "Yes" : "No"}</strong>${list}</div>`;
+    const parts = [];
+    if (Number.isFinite(popPct)) parts.push(`${fmtPct(popPct)} population`);
+    if (Number.isFinite(tractPct)) parts.push(`${fmtPct(tractPct)} of tracts`);
+    const extra = parts.length ? ` (${parts.join(", ")})` : "";
+    return `<div class="callout" style="border-left-color:${border}">Disadvantaged community: <strong>${yes ? "Yes" : "No"}</strong>${list}${extra}</div>`;
   };
 
   const dacRow = buildComparisonRow(
     "Disadvantaged Community (DAC) Status",
     dacCallout(dac_status),
-    Array.isArray(s.dac_tracts) ? dacCallout(null, s.dac_tracts) : "",
+    Array.isArray(s.dac_tracts)
+      ? dacCallout(null, s.dac_tracts, s.dac_population_pct, s.dac_tracts_pct)
+      : "",
     "",
     '<p class="section-description">This section indicates whether the selected area is designated as a Disadvantaged Community (DAC) using the California Department of Water Resources (DWR) mapping tool. DAC status is determined by household income and is shown as a simple yes/no outcome. This designation is important for identifying areas eligible for certain state and federal funding opportunities and for ensuring that equity considerations are included in outreach and program planning.</p>',
   );
