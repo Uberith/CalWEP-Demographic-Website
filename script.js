@@ -297,7 +297,6 @@ async function getLanguageMeta() {
 async function aggregateLanguageForTracts(fipsList = []) {
   const { codes, names } = await getLanguageMeta();
   if (!codes.length) return {};
-  const varList = ["B16001_001E", "B16001_002E", ...codes];
   const groups = {};
   for (const f of fipsList) {
     const code = String(f).replace(/[^0-9]/g, "").padStart(11, "0");
@@ -315,26 +314,34 @@ async function aggregateLanguageForTracts(fipsList = []) {
   const langCounts = {};
   for (const g of Object.values(groups)) {
     const tractStr = g.tracts.join(",");
-    const url =
-      `https://api.census.gov/data/2022/acs/acs5?get=${varList.join(",")}&for=tract:${tractStr}&in=state:${g.state}%20county:${g.county}`;
-    try {
-      const rows = await fetch(url).then((r) => r.json());
-      if (Array.isArray(rows) && rows.length > 1) {
-        const headers = rows[0];
-        for (let i = 1; i < rows.length; i++) {
-          const row = rows[i];
-          const rec = {};
-          headers.forEach((h, idx) => (rec[h] = Number(row[idx])));
-          total += rec.B16001_001E || 0;
-          englishOnly += rec.B16001_002E || 0;
-          for (const code of codes) {
-            const name = names[code];
-            const val = rec[code] || 0;
-            langCounts[name] = (langCounts[name] || 0) + val;
+    const chunkSize = 40;
+    for (let i = 0; i < codes.length; i += chunkSize) {
+      const chunk = codes.slice(i, i + chunkSize);
+      const vars =
+        i === 0
+          ? ["B16001_001E", "B16001_002E", ...chunk]
+          : chunk;
+      const url =
+        `https://api.census.gov/data/2022/acs/acs5?get=${vars.join(",")}&for=tract:${tractStr}&in=state:${g.state}%20county:${g.county}`;
+      try {
+        const rows = await fetch(url).then((r) => r.json());
+        if (Array.isArray(rows) && rows.length > 1) {
+          const headers = rows[0];
+          for (let j = 1; j < rows.length; j++) {
+            const row = rows[j];
+            const rec = {};
+            headers.forEach((h, idx) => (rec[h] = Number(row[idx])));
+            total += rec.B16001_001E || 0;
+            englishOnly += rec.B16001_002E || 0;
+            for (const code of chunk) {
+              const name = names[code];
+              const val = rec[code] || 0;
+              if (name) langCounts[name] = (langCounts[name] || 0) + val;
+            }
           }
         }
-      }
-    } catch {}
+      } catch {}
+    }
     const url2 =
       `https://api.census.gov/data/2022/acs/acs5/profile?get=DP02_0115E&for=tract:${tractStr}&in=state:${g.state}%20county:${g.county}`;
     try {
@@ -1297,6 +1304,8 @@ function renderResult(address, data, elapsedMs) {
     english_less_than_very_well_pct,
     language_other_than_english_pct,
     spanish_at_home_pct,
+    primary_language,
+    secondary_language,
     median_household_income,
     per_capita_income,
     median_age,
@@ -1412,26 +1421,35 @@ function renderResult(address, data, elapsedMs) {
     popFields(w.demographics || {}),
     '<p class="section-description">This section provides a snapshot of the people living in the selected area, drawn from the American Community Survey (ACS). It includes the total population, median age, household income, poverty rate, and unemployment rate. These indicators offer a quick view of community size, economic stability, and social conditions.</p>',
   );
-
-  const languageLocal = `
-    <div class="kv">
-      <div class="key">People who speak a language other than English at home</div><div class="val">${fmtPct(
-        language_other_than_english_pct,
-      )}</div>
-      <div class="key">People who speak English less than \"very well\"</div><div class="val">${fmtPct(
-        english_less_than_very_well_pct,
-      )}</div>
-      <div class="key">People who speak Spanish at home</div><div class="val">${fmtPct(
-        spanish_at_home_pct,
-      )}</div>
-    </div>
-    <p class="note">Source: Latest ACS 5-Year Estimates<br>Data Profiles/Social Characteristics</p>
-  `;
+  const languageFields = (d = {}) => {
+    const entries = [
+      ["Primary language", escapeHTML(d.primary_language) || "—"],
+      ["Second most common", escapeHTML(d.secondary_language) || "—"],
+      [
+        "People who speak a language other than English at home",
+        fmtPct(d.language_other_than_english_pct),
+      ],
+      [
+        'People who speak English less than "very well"',
+        fmtPct(d.english_less_than_very_well_pct),
+      ],
+      ["People who speak Spanish at home", fmtPct(d.spanish_at_home_pct)],
+    ];
+    return `<div class="kv">${entries
+      .map(([k, v]) => `<div class="key">${k}</div><div class="val">${v}</div>`)
+      .join("")}</div>`;
+  };
   const languageRow = buildComparisonRow(
     "Language (ACS)",
-    languageLocal,
-    "",
-    "",
+    languageFields({
+      primary_language,
+      secondary_language,
+      language_other_than_english_pct,
+      english_less_than_very_well_pct,
+      spanish_at_home_pct,
+    }),
+    languageFields(s.demographics || {}),
+    languageFields(w.demographics || {}),
     '<p class="section-description">This section highlights the primary and secondary languages spoken in the community and key language indicators based on American Community Survey (ACS) 5&#8209;year estimates.</p>',
   );
 
