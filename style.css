@@ -326,6 +326,14 @@ button:focus-visible {
   min-width: 0;
 }
 
+.column-headers .col {
+  background: none;
+  border: none;
+  padding: 0;
+  text-align: center;
+  font-weight: 700;
+}
+
 .callout {
   margin: var(--space-3) 0 var(--space-4) 0;
   padding: 12px 14px;
