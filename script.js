@@ -466,8 +466,15 @@ async function enrichWaterDistrict(data = {}, address = "") {
     );
   }
 
-  // If census tracts weren't provided, try overlaying the water district shape
-  if (!Array.isArray(w.census_tracts) || !w.census_tracts.length) {
+  // If the census tract list looks incomplete, overlay the water district shape
+  const needsOverlay =
+    !Array.isArray(w.census_tracts) ||
+    w.census_tracts.length < 2 ||
+    (census_tract &&
+      w.census_tracts.length === 1 &&
+      w.census_tracts[0] === String(census_tract));
+
+  if (needsOverlay) {
     const geoUrl =
       "https://services.arcgis.com/8DFNJhY7CUN8E0bX/ArcGIS/rest/services/Public_Water_System_Boundaries/FeatureServer/0/query" +
       `?geometry=${lon}%2C${lat}&geometryType=esriGeometryPoint&inSR=4326&spatialRel=esriSpatialRelIntersects&outFields=PWS_NAME&returnGeometry=true&outSR=4326&f=json`;
@@ -487,8 +494,14 @@ async function enrichWaterDistrict(data = {}, address = "") {
                 .map((f) => f.attributes?.NAME)
                 .filter(Boolean)
                 .map((n) => n.replace(/^Census Tract\s+/i, ""));
-              if (names.length)
-                w.census_tracts = [...new Set(names.map(String))];
+              if (names.length) {
+                const existing = Array.isArray(w.census_tracts)
+                  ? w.census_tracts.map(String)
+                  : [];
+                w.census_tracts = [
+                  ...new Set([...existing, ...names.map(String)]),
+                ];
+              }
             });
         })
         .catch(() => {}),
