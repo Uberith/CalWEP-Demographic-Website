@@ -802,7 +802,12 @@ async function enrichWaterDistrict(data = {}, address = "") {
     tasks.push(
       fetchJsonWithDiagnostics(url)
         .then((j) => {
-          w.name = j?.agency?.agency_name || w.name;
+          w.name =
+            j?.agency?.agency_name ||
+            j?.agency?.name ||
+            j?.agency_name ||
+            j?.name ||
+            w.name;
           const tracts =
             j?.agency?.service_area_tracts ||
             j?.service_area_tracts ||
