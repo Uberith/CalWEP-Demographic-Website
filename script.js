@@ -736,6 +736,31 @@ async function enrichEnglishProficiency(data = {}) {
   return data;
 }
 
+// Fetch NWS alerts for the given coordinates and append to data
+async function enrichNwsAlerts(data = {}) {
+  const { lat, lon } = data || {};
+  if (lat == null || lon == null) return { ...data, alerts: [] };
+  try {
+    const url = `https://api.weather.gov/alerts/active?point=${lat},${lon}`;
+    const res = await fetch(url, {
+      headers: {
+        Accept: "application/geo+json",
+        "User-Agent": "CalWEP-Demographic-Website (info@calwep.org)",
+      },
+    });
+    if (!res.ok) throw new Error("NWS response not ok");
+    const j = await res.json();
+    const alerts = Array.isArray(j?.features)
+      ? j.features
+          .map((f) => f?.properties?.headline)
+          .filter(Boolean)
+      : [];
+    return { ...data, alerts };
+  } catch {
+    return { ...data, alerts: [] };
+  }
+}
+
 // CalEnviroScreen color helper
 function cesColor(percentile) {
   const p = Number(percentile);
@@ -1533,17 +1558,19 @@ function renderResult(address, data, elapsedMs) {
     '<p class="section-description">This section lists environmental hardships reported for the selected location, highlighting challenges that may affect residents and program planning.</p>',
   );
 
-  const alertsRow = buildComparisonRow(
-    "Active Alerts (National Weather Service)",
-    alertList.length
-      ? `<div class="stats">${alertList
-          .map((a) => `<span class="pill">${escapeHTML(a)}</span>`)
-          .join("")}</div>`
-      : '<p class="note">No active alerts found for this location.</p>',
-    "",
-    "",
-    '<p class="section-description">This section displays any current weather alerts issued by the National Weather Service (NWS) for the selected location. Alerts may include warnings for extreme heat, flooding, wildfire smoke, or other hazardous conditions. Having this information alongside demographic and environmental data helps staff anticipate safety concerns for events, tailor outreach, and ensure programs are responsive to current community conditions.</p>',
-  );
+  const alertsRow = `
+    <section class="section-block">
+      <h3 class="section-header">Active Alerts (National Weather Service)</h3>
+      <p class="section-description">This section displays any current weather alerts issued by the National Weather Service (NWS) for the selected location. Alerts may include warnings for extreme heat, flooding, wildfire smoke, or other hazardous conditions. Having this information alongside demographic and environmental data helps staff anticipate safety concerns for events, tailor outreach, and ensure programs are responsive to current community conditions.</p>
+      ${
+        alertList.length
+          ? `<div class="stats">${alertList
+              .map((a) => `<span class="pill">${escapeHTML(a)}</span>`)
+              .join("")}</div>`
+          : '<p class="note">No active alerts found for this location.</p>'
+      }
+    </section>
+  `;
 
   const columnHeaders = `
     <div class="comparison-grid column-headers">
@@ -1617,6 +1644,7 @@ async function lookup() {
     data = await enrichUnemployment(data);
     data = await enrichRegionLanguages(data);
     data = await enrichEnglishProficiency(data);
+    data = await enrichNwsAlerts(data);
     lastReport = { address, data };
     const locUrl = new URL(window.location);
     locUrl.searchParams.set("address", address);
