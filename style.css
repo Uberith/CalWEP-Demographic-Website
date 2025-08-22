@@ -310,7 +310,7 @@ button:focus-visible {
 
 .comparison-grid {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
   gap: var(--space-6);
   margin-top: var(--space-5);
 }

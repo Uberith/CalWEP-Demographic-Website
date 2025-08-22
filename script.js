@@ -250,6 +250,52 @@ function cesColor(percentile) {
   return { bg: "#6E0000", fg: "#fff" };
 }
 
+function renderEnviroscreenSection(title, data, includeDescription = false) {
+  if (!data || typeof data !== "object") return "";
+  const badge = (v) => {
+    const { bg, fg } = cesColor(v);
+    const val = Number.isFinite(Number(v)) ? Number(v).toFixed(1) : "—";
+    return `<span class="ces-badge" style="background:${bg};color:${fg};">${val}</span>`;
+  };
+  const overall = data.percentile;
+  const pb = data.overall_percentiles?.pollution_burden;
+  const pc = data.overall_percentiles?.population_characteristics;
+  const renderGroup = (groupTitle, obj) => {
+    if (!obj || typeof obj !== "object") return "";
+    const kv = Object.entries(obj)
+      .map(
+        ([k, v]) =>
+          `<div class="key">${escapeHTML(
+            CES_LABELS[k] || titleCase(k),
+          )}</div><div class="val">${badge(v)}</div>`,
+      )
+      .join("");
+    return `<h4 class="sub-section-header">${groupTitle}</h4><div class="kv">${kv}</div>`;
+  };
+  const desc = includeDescription
+    ? `
+        <p class="section-description">This section shows environmental and community health indicators from California’s Enviroscreen tool. Results are presented as percentiles, with higher numbers (and darker colors) indicating greater environmental burdens compared to other areas in the state. These measures include factors such as air quality, traffic pollution, and access to safe drinking water.</p>
+        <p class="section-description">Staff can use this information to understand potential environmental challenges facing a neighborhood, strengthen grant applications that require equity or environmental justice considerations, and design outreach that addresses local concerns. For example, if an event is planned in an area with a high Enviroscreen percentile, staff may want to highlight programs or benefits related to clean water, pollution reduction, or community health.</p>
+        <p class="section-description"><strong>How to Read This</strong><br>Green = Low burden (fewer environmental and health challenges)<br>Yellow/Orange = Moderate burden<br>Red = High burden (greater environmental and health challenges)<br>Percentile score shows how the community compares to others across California.</p>
+      `
+    : "";
+  return `
+      <section class="section-block">
+        <h3 class="section-header">${title}</h3>
+        ${desc}
+        <div class="kv">
+          <div class="key">Overall percentile</div><div class="val">${badge(overall)}</div>
+          <div class="key">Pollution burden</div><div class="val">${badge(pb)}</div>
+          <div class="key">Population characteristics</div><div class="val">${badge(pc)}</div>
+        </div>
+        ${renderGroup("Exposures", data.exposures)}
+        ${renderGroup("Environmental effects", data.environmental_effects)}
+        ${renderGroup("Sensitive populations", data.sensitive_populations)}
+        ${renderGroup("Socioeconomic factors", data.socioeconomic_factors)}
+      </section>
+    `;
+}
+
 // ---------- Places Autocomplete ----------
 function initAutocomplete() {
   const input = document.getElementById("autocomplete");
@@ -359,52 +405,18 @@ function renderResult(address, data, elapsedMs) {
     alerts,
     enviroscreen,
     surrounding_10_mile,
+    water_district,
   } = data || {};
 
   const hardshipList = Array.isArray(environmental_hardships)
     ? environmental_hardships
     : [];
   const alertList = Array.isArray(alerts) ? alerts : [];
-  const cesSection = (() => {
-    if (!enviroscreen || typeof enviroscreen !== "object") return "";
-    const badge = (v) => {
-      const { bg, fg } = cesColor(v);
-      const val = Number.isFinite(Number(v)) ? Number(v).toFixed(1) : "—";
-      return `<span class="ces-badge" style="background:${bg};color:${fg};">${val}</span>`;
-    };
-    const overall = enviroscreen.percentile;
-    const pb = enviroscreen.overall_percentiles?.pollution_burden;
-    const pc = enviroscreen.overall_percentiles?.population_characteristics;
-    const renderGroup = (title, obj) => {
-      if (!obj || typeof obj !== "object") return "";
-      const kv = Object.entries(obj)
-        .map(
-          ([k, v]) =>
-            `<div class="key">${escapeHTML(
-              CES_LABELS[k] || titleCase(k),
-            )}</div><div class="val">${badge(v)}</div>`,
-        )
-        .join("");
-      return `<h4 class="sub-section-header">${title}</h4><div class="kv">${kv}</div>`;
-    };
-    return `
-      <section class="section-block">
-        <h3 class="section-header">Environmental Indicators (CalEPA Enviroscreen)</h3>
-        <p class="section-description">This section shows environmental and community health indicators from California’s Enviroscreen tool. Results are presented as percentiles, with higher numbers (and darker colors) indicating greater environmental burdens compared to other areas in the state. These measures include factors such as air quality, traffic pollution, and access to safe drinking water.</p>
-        <p class="section-description">Staff can use this information to understand potential environmental challenges facing a neighborhood, strengthen grant applications that require equity or environmental justice considerations, and design outreach that addresses local concerns. For example, if an event is planned in an area with a high Enviroscreen percentile, staff may want to highlight programs or benefits related to clean water, pollution reduction, or community health.</p>
-        <p class="section-description"><strong>How to Read This</strong><br>Green = Low burden (fewer environmental and health challenges)<br>Yellow/Orange = Moderate burden<br>Red = High burden (greater environmental and health challenges)<br>Percentile score shows how the community compares to others across California.</p>
-        <div class="kv">
-          <div class="key">Overall percentile</div><div class="val">${badge(overall)}</div>
-          <div class="key">Pollution burden</div><div class="val">${badge(pb)}</div>
-          <div class="key">Population characteristics</div><div class="val">${badge(pc)}</div>
-        </div>
-        ${renderGroup("Exposures", enviroscreen.exposures)}
-        ${renderGroup("Environmental effects", enviroscreen.environmental_effects)}
-        ${renderGroup("Sensitive populations", enviroscreen.sensitive_populations)}
-        ${renderGroup("Socioeconomic factors", enviroscreen.socioeconomic_factors)}
-      </section>
-    `;
-  })();
+  const cesSection = renderEnviroscreenSection(
+    "Environmental Indicators (CalEPA Enviroscreen)",
+    enviroscreen,
+    true,
+  );
   const coords =
     lat != null && lon != null
       ? `${Number(lat).toFixed(6)}, ${Number(lon).toFixed(6)}`
@@ -455,15 +467,16 @@ function renderResult(address, data, elapsedMs) {
 
   const surroundingSection = (() => {
     const s = surrounding_10_mile || {};
+    let html = "";
     const d = s.demographics || {};
-    if (Object.keys(d).length === 0) return "";
-    const tractList = Array.isArray(s.census_tracts)
-      ? s.census_tracts.join(", ")
-      : escapeHTML(s.census_tracts) || "—";
-    const cityList = Array.isArray(s.cities)
-      ? s.cities.join(", ")
-      : escapeHTML(s.city) || "—";
-    return `
+    if (Object.keys(d).length) {
+      const tractList = Array.isArray(s.census_tracts)
+        ? s.census_tracts.join(", ")
+        : escapeHTML(s.census_tracts) || "—";
+      const cityList = Array.isArray(s.cities)
+        ? s.cities.join(", ")
+        : escapeHTML(s.city) || "—";
+      html += `
       <section class="section-block">
         <h3 class="section-header">Surrounding 10‑Mile Area (ACS)</h3>
         <div class="kv">
@@ -492,6 +505,54 @@ function renderResult(address, data, elapsedMs) {
         </div>
       </section>
     `;
+    }
+    if (s.environment)
+      html += renderEnviroscreenSection(
+        "Surrounding 10‑Mile Area Environment (CalEPA Enviroscreen)",
+        s.environment,
+      );
+    return html;
+  })();
+
+  const waterDistrictSection = (() => {
+    const w = water_district || {};
+    let html = "";
+    const d = w.demographics || {};
+    if (Object.keys(d).length) {
+      html += `
+      <section class="section-block">
+        <h3 class="section-header">Water District Region (ACS)</h3>
+        <div class="kv">
+          <div class="key">Population</div><div class="val">${fmtInt(d.population)}</div>
+          <div class="key">Median age</div><div class="val">${fmtNumber(d.median_age)}</div>
+          <div class="key">Median household income</div><div class="val">${fmtCurrency(d.median_household_income)}</div>
+          <div class="key">Per capita income</div><div class="val">${fmtCurrency(d.per_capita_income)}</div>
+          <div class="key">Poverty rate</div><div class="val">${fmtPct(d.poverty_rate)}</div>
+          <div class="key">Unemployment rate</div><div class="val">${fmtPct(d.unemployment_rate)}</div>
+          <div class="key">Owner occupied</div><div class="val">${fmtPct(d.owner_occupied_pct)}</div>
+          <div class="key">Renter occupied</div><div class="val">${fmtPct(d.renter_occupied_pct)}</div>
+          <div class="key">Median home value</div><div class="val">${fmtCurrency(d.median_home_value)}</div>
+          <div class="key">High school or higher</div><div class="val">${fmtPct(d.high_school_or_higher_pct)}</div>
+          <div class="key">Bachelor's degree or higher</div><div class="val">${fmtPct(d.bachelors_or_higher_pct)}</div>
+          <div class="key">White</div><div class="val">${fmtPct(d.white_pct)}</div>
+          <div class="key">Black or African American</div><div class="val">${fmtPct(d.black_pct)}</div>
+          <div class="key">American Indian / Alaska Native</div><div class="val">${fmtPct(d.native_pct)}</div>
+          <div class="key">Asian</div><div class="val">${fmtPct(d.asian_pct)}</div>
+          <div class="key">Native Hawaiian / Pacific Islander</div><div class="val">${fmtPct(d.pacific_pct)}</div>
+          <div class="key">Other race</div><div class="val">${fmtPct(d.other_race_pct)}</div>
+          <div class="key">Two or more races</div><div class="val">${fmtPct(d.two_or_more_races_pct)}</div>
+          <div class="key">Hispanic</div><div class="val">${fmtPct(d.hispanic_pct)}</div>
+          <div class="key">Not Hispanic</div><div class="val">${fmtPct(d.not_hispanic_pct)}</div>
+        </div>
+      </section>
+    `;
+    }
+    if (w.environment)
+      html += renderEnviroscreenSection(
+        "Water District Region Environment (CalEPA Enviroscreen)",
+        w.environment,
+      );
+    return html;
   })();
 
   const chartsSection = `
@@ -603,6 +664,11 @@ function renderResult(address, data, elapsedMs) {
         ${
           surroundingSection
             ? `<div class="col surrounding">${surroundingSection}</div>`
+            : ""
+        }
+        ${
+          waterDistrictSection
+            ? `<div class="col district">${waterDistrictSection}</div>`
             : ""
         }
       </div>
