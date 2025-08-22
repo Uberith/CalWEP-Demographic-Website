@@ -302,13 +302,35 @@ async function enrichSurrounding(data = {}) {
 }
 
 // Fill in missing water district basics if the API doesn't provide them
-async function enrichWaterDistrict(data = {}) {
+async function enrichWaterDistrict(data = {}, address = "") {
   const { lat, lon, city, census_tract, water_district } = data || {};
-  if (!water_district || lat == null || lon == null) return data;
+  if (lat == null || lon == null) return data;
   const w = { ...water_district };
   const tasks = [];
 
-  // Attempt to look up a district name from the state water board service
+  // Primary lookup using the NFT API (includes service-area shape info)
+  if (address) {
+    const url = buildApiUrl("/lookup", { address });
+    tasks.push(
+      fetchJsonWithDiagnostics(url)
+        .then((j) => {
+          w.name = j?.agency?.agency_name || w.name;
+          const tracts =
+            j?.agency?.service_area_tracts ||
+            j?.service_area_tracts ||
+            j?.census_tracts ||
+            j?.agency?.census_tracts;
+          if (typeof tracts === "string") {
+            w.census_tracts = tracts.split(/\s*,\s*/).filter(Boolean);
+          } else if (Array.isArray(tracts)) {
+            w.census_tracts = [...new Set(tracts.map(String))];
+          }
+        })
+        .catch(() => {}),
+    );
+  }
+
+  // Fallback: look up a district name from the state water board service
   if (!w.name) {
     const url =
       "https://services.arcgis.com/8DFNJhY7CUN8E0bX/ArcGIS/rest/services/Public_Water_System_Boundaries/FeatureServer/0/query" +
@@ -1210,7 +1232,7 @@ async function lookup() {
     const lang = await fetchLanguageAcs(data);
     data = { ...data, ...lang };
     data = await enrichSurrounding(data);
-    data = await enrichWaterDistrict(data);
+    data = await enrichWaterDistrict(data, address);
     data = await enrichEnglishProficiency(data);
     lastReport = { address, data };
     const locUrl = new URL(window.location);
