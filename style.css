@@ -341,8 +341,22 @@ button:focus-visible {
   border: 1px dashed var(--border);
   border-left: 4px solid var(--warning);
   border-radius: 10px;
-  font-weight: 700;
+  font-weight: 400;
   color: var(--ink-900);
+}
+
+.dac-stats {
+  margin: var(--space-2) 0 0 1.2em;
+  padding: 0;
+  list-style: disc;
+}
+
+.dac-stats li {
+  margin: 2px 0;
+}
+
+.dac-tracts {
+  margin-top: var(--space-2);
 }
 
 .updated--footer {

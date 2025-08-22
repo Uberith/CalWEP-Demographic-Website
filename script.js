@@ -1618,15 +1618,26 @@ function renderResult(address, data, elapsedMs) {
   const dacCallout = (status, tracts, popPct, tractPct) => {
     const yes = Array.isArray(tracts) ? tracts.length > 0 : !!status;
     const border = yes ? "var(--success)" : "var(--border-strong)";
-    const list =
-      Array.isArray(tracts) && tracts.length
-        ? ` — Tracts ${tracts.map((t) => escapeHTML(t)).join(", ")}`
-        : "";
-    const parts = [];
-    if (Number.isFinite(popPct)) parts.push(`${fmtPct(popPct)} population`);
-    if (Number.isFinite(tractPct)) parts.push(`${fmtPct(tractPct)} of tracts`);
-    const extra = parts.length ? ` (${parts.join(", ")})` : "";
-    return `<div class="callout" style="border-left-color:${border}">Disadvantaged community: <strong>${yes ? "Yes" : "No"}</strong>${list}${extra}</div>`;
+
+    const lines = [
+      `Disadvantaged community: <strong>${yes ? "Yes" : "No"}</strong>`,
+    ];
+
+    const stats = [];
+    if (Number.isFinite(popPct))
+      stats.push(`<li><strong>${fmtPct(popPct)}</strong> of population</li>`);
+    if (Number.isFinite(tractPct))
+      stats.push(`<li><strong>${fmtPct(tractPct)}</strong> of tracts</li>`);
+    if (stats.length) lines.push(`<ul class="dac-stats">${stats.join("")}</ul>`);
+
+    if (Array.isArray(tracts) && tracts.length)
+      lines.push(
+        `<div class="dac-tracts">Tracts ${tracts
+          .map((t) => escapeHTML(t))
+          .join(", ")}</div>`,
+      );
+
+    return `<div class="callout" style="border-left-color:${border}">${lines.join("")}</div>`;
   };
 
   const dacRow = buildComparisonRow(
