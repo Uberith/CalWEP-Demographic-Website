@@ -393,7 +393,7 @@ function renderLoading(address) {
         <span class="updated">Started ${nowStamp()}</span>
       </div>
       ${address ? `<p class="note">Address: <strong>${escapeHTML(address)}</strong></p>` : ""}
-      <div class="callout">Fetching county, languages, population, income, DAC, and alerts…</div>
+      <div class="callout">Fetching county, languages, English proficiency, population, income, DAC, and alerts…</div>
       <p class="note">Elapsed: <span id="searchTimer">0m 00s</span></p>
     </div>
   `;
@@ -424,6 +424,7 @@ function renderResult(address, data, elapsedMs) {
     lon,
     primary_language,
     secondary_language,
+    english_less_than_very_well_pct,
     median_household_income,
     per_capita_income,
     median_age,
@@ -540,6 +541,7 @@ function renderResult(address, data, elapsedMs) {
           <div class="key">Bachelor's degree or higher</div><div class="val">${fmtPct(d.bachelors_or_higher_pct)}</div>
           <div class="key">Primary language</div><div class="val">${escapeHTML(d.primary_language) || "—"}</div>
           <div class="key">Second most common</div><div class="val">${escapeHTML(d.secondary_language) || "—"}</div>
+          <div class="key">Speak English less than \"very well\"</div><div class="val">${fmtPct(d.english_less_than_very_well_pct)}</div>
           <div class="key">White</div><div class="val">${fmtPct(d.white_pct)}</div>
           <div class="key">Black or African American</div><div class="val">${fmtPct(d.black_pct)}</div>
           <div class="key">American Indian / Alaska Native</div><div class="val">${fmtPct(d.native_pct)}</div>
@@ -583,6 +585,7 @@ function renderResult(address, data, elapsedMs) {
           <div class="key">Bachelor's degree or higher</div><div class="val">${fmtPct(d.bachelors_or_higher_pct)}</div>
           <div class="key">Primary language</div><div class="val">${escapeHTML(d.primary_language) || "—"}</div>
           <div class="key">Second most common</div><div class="val">${escapeHTML(d.secondary_language) || "—"}</div>
+          <div class="key">Speak English less than \"very well\"</div><div class="val">${fmtPct(d.english_less_than_very_well_pct)}</div>
           <div class="key">White</div><div class="val">${fmtPct(d.white_pct)}</div>
           <div class="key">Black or African American</div><div class="val">${fmtPct(d.black_pct)}</div>
           <div class="key">American Indian / Alaska Native</div><div class="val">${fmtPct(d.native_pct)}</div>
@@ -658,6 +661,7 @@ function renderResult(address, data, elapsedMs) {
       <div class="kv">
         <div class="key">Primary language</div><div class="val">${escapeHTML(primary_language) || "—"}</div>
         <div class="key">Second most common</div><div class="val">${escapeHTML(secondary_language) || "—"}</div>
+        <div class="key">Speak English less than \"very well\"</div><div class="val">${fmtPct(english_less_than_very_well_pct)}</div>
       </div>
     </section>
 
