@@ -348,6 +348,35 @@ async function enrichWaterDistrict(data = {}, address = "") {
     );
   }
 
+  // If census tracts weren't provided, try overlaying the water district shape
+  if (!Array.isArray(w.census_tracts) || !w.census_tracts.length) {
+    const geoUrl =
+      "https://services.arcgis.com/8DFNJhY7CUN8E0bX/ArcGIS/rest/services/Public_Water_System_Boundaries/FeatureServer/0/query" +
+      `?geometry=${lon}%2C${lat}&geometryType=esriGeometryPoint&inSR=4326&spatialRel=esriSpatialRelIntersects&outFields=PWS_NAME&returnGeometry=true&outSR=4326&f=json`;
+    tasks.push(
+      fetch(geoUrl)
+        .then((r) => r.json())
+        .then((j) => {
+          const geom = j?.features?.[0]?.geometry;
+          if (!geom) return;
+          const tractUrl =
+            "https://tigerweb.geo.census.gov/arcgis/rest/services/TIGERweb/Tracts_Blocks/MapServer/10/query" +
+            `?where=1%3D1&geometry=${encodeURIComponent(JSON.stringify(geom))}&geometryType=esriGeometryPolygon&inSR=4326&spatialRel=esriSpatialRelIntersects&outFields=NAME&returnGeometry=false&f=json`;
+          return fetch(tractUrl)
+            .then((r) => r.json())
+            .then((t) => {
+              const names = (t.features || [])
+                .map((f) => f.attributes?.NAME)
+                .filter(Boolean)
+                .map((n) => n.replace(/^Census Tract\s+/i, ""));
+              if (names.length)
+                w.census_tracts = [...new Set(names.map(String))];
+            });
+        })
+        .catch(() => {}),
+    );
+  }
+
   if (!Array.isArray(w.cities) || !w.cities.length) {
     if (city) w.cities = [city];
   }
