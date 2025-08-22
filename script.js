@@ -228,6 +228,50 @@ async function enrichLocation(data = {}) {
   return { ...data, city, census_tract };
 }
 
+// Fetch surrounding cities and census tracts if API didn't provide them
+async function enrichSurrounding(data = {}) {
+  const { lat, lon, surrounding_10_mile } = data || {};
+  if (!surrounding_10_mile || lat == null || lon == null) return data;
+  const radiusMeters = 1609.34 * 10; // 10 miles
+  const s = { ...surrounding_10_mile };
+  const tasks = [];
+  if (!Array.isArray(s.cities) || !s.cities.length) {
+    const query = `[out:json];(node[place=city](around:${radiusMeters},${lat},${lon});node[place=town](around:${radiusMeters},${lat},${lon}););out;`;
+    const url =
+      "https://overpass-api.de/api/interpreter?data=" +
+      encodeURIComponent(query);
+    tasks.push(
+      fetch(url)
+        .then((r) => r.json())
+        .then((j) => {
+          const names = (j.elements || [])
+            .map((e) => e.tags?.name)
+            .filter(Boolean);
+          s.cities = Array.from(new Set(names)).slice(0, 10);
+        })
+        .catch(() => {})
+    );
+  }
+  if (!Array.isArray(s.census_tracts) || !s.census_tracts.length) {
+    const tractUrl =
+      "https://tigerweb.geo.census.gov/arcgis/rest/services/TIGERweb/Tracts_Blocks/MapServer/10/query" +
+      `?where=1=1&geometry=${lon},${lat}&geometryType=esriGeometryPoint&inSR=4326&spatialRel=esriSpatialRelIntersects&distance=${radiusMeters}&units=esriSRUnit_Meter&outFields=NAME&f=json`;
+    tasks.push(
+      fetch(tractUrl)
+        .then((r) => r.json())
+        .then((j) => {
+          const names = (j.features || [])
+            .map((f) => f.attributes?.NAME)
+            .filter(Boolean);
+          s.census_tracts = Array.from(new Set(names)).slice(0, 10);
+        })
+        .catch(() => {})
+    );
+  }
+  if (tasks.length) await Promise.all(tasks);
+  return { ...data, surrounding_10_mile: s };
+}
+
 // CalEnviroScreen color helper
 function cesColor(percentile) {
   const p = Number(percentile);
@@ -475,7 +519,7 @@ function renderResult(address, data, elapsedMs) {
         : escapeHTML(s.census_tracts) || "—";
       const cityList = Array.isArray(s.cities)
         ? s.cities.join(", ")
-        : escapeHTML(s.city) || "—";
+        : escapeHTML(s.cities) || "—";
       html += `
       <section class="section-block">
         <h3 class="section-header">Surrounding 10‑Mile Area (ACS)</h3>
@@ -780,6 +824,7 @@ async function lookup() {
     if (!data || typeof data !== "object")
       throw new Error("Malformed response.");
     data = await enrichLocation(data);
+    data = await enrichSurrounding(data);
     lastReport = { address, data };
     const locUrl = new URL(window.location);
     locUrl.searchParams.set("address", address);
