@@ -621,6 +621,23 @@ function renderResult(address, data, elapsedMs) {
     const w = water_district || {};
     let html = "";
     const d = w.demographics || {};
+    const tractList = Array.isArray(w.census_tracts)
+      ? w.census_tracts.join(", ")
+      : escapeHTML(w.census_tracts) || "—";
+    const cityList = Array.isArray(w.cities)
+      ? w.cities.join(", ")
+      : escapeHTML(w.cities) || "—";
+    if (w.census_tracts || w.cities)
+      html += `
+      <section class="section-block">
+        <h3 class="section-header">Location Summary</h3>
+        <div class="kv">
+          <div class="key">District</div><div class="val">${escapeHTML(w.name) || "—"}</div>
+          <div class="key">Cities</div><div class="val">${cityList}</div>
+          <div class="key">Census tracts</div><div class="val">${tractList}</div>
+        </div>
+      </section>
+    `;
     if (Object.keys(d).length) {
       html += `
       <section class="section-block">
@@ -650,7 +667,7 @@ function renderResult(address, data, elapsedMs) {
       </section>
     `;
     }
-    if (w.environment)
+    if (w.environment && Object.keys(w.environment).length)
       html += renderEnviroscreenSection(
         "Water District Region Environment (CalEPA Enviroscreen)",
         w.environment,
