@@ -273,6 +273,35 @@ async function enrichSurrounding(data = {}) {
   return { ...data, surrounding_10_mile: s };
 }
 
+// Fetch English proficiency percentage if missing
+async function enrichEnglishProficiency(data = {}) {
+  const { lat, lon, english_less_than_very_well_pct } = data || {};
+  if (!isMissing(english_less_than_very_well_pct) || lat == null || lon == null)
+    return data;
+  try {
+    const geo = await fetch(
+      `https://geo.fcc.gov/api/census/block/find?latitude=${lat}&longitude=${lon}&format=json`,
+    ).then((r) => r.json());
+    const fips = geo?.Block?.FIPS;
+    if (fips && fips.length >= 11) {
+      const state = fips.slice(0, 2);
+      const county = fips.slice(2, 5);
+      const tract = fips.slice(5, 11);
+      const url =
+        `https://api.census.gov/data/2022/acs/acs5/profile?get=DP02_0111PE&for=tract:${tract}&in=state:${state}+county:${county}`;
+      const acs = await fetch(url).then((r) => r.json());
+      const val = acs?.[1]?.[0];
+      const num = Number(val);
+      if (Number.isFinite(num) && num >= 0) {
+        return { ...data, english_less_than_very_well_pct: num };
+      }
+    }
+  } catch (e) {
+    // Ignore errors and fall through
+  }
+  return data;
+}
+
 // CalEnviroScreen color helper
 function cesColor(percentile) {
   const p = Number(percentile);
@@ -830,6 +859,7 @@ async function lookup() {
       throw new Error("Malformed response.");
     data = await enrichLocation(data);
     data = await enrichSurrounding(data);
+    data = await enrichEnglishProficiency(data);
     lastReport = { address, data };
     const locUrl = new URL(window.location);
     locUrl.searchParams.set("address", address);
