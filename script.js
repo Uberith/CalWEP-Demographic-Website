@@ -472,12 +472,19 @@ function renderError(message, address, elapsedMs) {
   `;
 }
 
-function buildComparisonRow(title, localHtml, surroundingHtml, districtHtml) {
+function buildComparisonRow(
+  title,
+  localHtml,
+  surroundingHtml,
+  districtHtml,
+  descriptionHtml = "",
+) {
   const cell = (html) =>
     html && String(html).trim() ? html : '<p class="note">No data</p>';
   return `
     <section class="section-block">
       <h3 class="section-header">${title}</h3>
+      ${descriptionHtml}
       <div class="comparison-grid">
         <div class="col local">${cell(localHtml)}</div>
         <div class="col surrounding">${cell(surroundingHtml)}</div>
@@ -946,6 +953,7 @@ function renderResult(address, data, elapsedMs) {
     locLocal,
     locSurround,
     locDistrict,
+    '<p class="section-description">This section lists basic geographic information for the census tract, surrounding 10&#8209;mile area, and water district, such as city, ZIP code, county, and coordinates.</p>',
   );
 
   const popFields = (d = {}) => {
@@ -973,6 +981,7 @@ function renderResult(address, data, elapsedMs) {
     }),
     popFields(s.demographics || {}),
     popFields(w.demographics || {}),
+    '<p class="section-description">This section provides a snapshot of the people living in the selected area, drawn from the American Community Survey (ACS). It includes the total population, median age, household income, poverty rate, and unemployment rate. These indicators offer a quick view of community size, economic stability, and social conditions.</p>',
   );
 
   const languageLocal = `
@@ -989,7 +998,13 @@ function renderResult(address, data, elapsedMs) {
     </div>
     <p class="note">Source: Latest ACS 5-Year Estimates<br>Data Profiles/Social Characteristics</p>
   `;
-  const languageRow = buildComparisonRow("Language (ACS)", languageLocal, "", "");
+  const languageRow = buildComparisonRow(
+    "Language (ACS)",
+    languageLocal,
+    "",
+    "",
+    '<p class="section-description">This section highlights the primary and secondary languages spoken in the community and key language indicators based on American Community Survey (ACS) 5&#8209;year estimates.</p>',
+  );
 
   const raceContent = (d = {}) => {
     const entries = [
@@ -1022,6 +1037,7 @@ function renderResult(address, data, elapsedMs) {
     }),
     raceContent(s.demographics || {}),
     raceContent(w.demographics || {}),
+    '<p class="section-description">This section shows the racial and ethnic composition of the community, expressed as percentages of the total population using American Community Survey (ACS) data. These insights help identify the diversity of the area and support efforts to ensure programs, outreach, and engagement strategies reflect and serve all community groups.</p>',
   );
 
   const housingContent = (d = {}) => {
@@ -1047,6 +1063,7 @@ function renderResult(address, data, elapsedMs) {
     }),
     housingContent(s.demographics || {}),
     housingContent(w.demographics || {}),
+    '<p class="section-description">This section combines information on housing and educational attainment in the community. It includes the percentage of owner&#8209;occupied and renter&#8209;occupied homes, median home value, and levels of education such as high school completion and bachelor’s degree or higher. These indicators provide insight into community stability, affordability, and educational opportunities, helping inform outreach strategies and program planning.</p>',
   );
 
   const dacRow = buildComparisonRow(
@@ -1056,6 +1073,7 @@ function renderResult(address, data, elapsedMs) {
     }">Disadvantaged community: <strong>${dac_status ? "Yes" : "No"}</strong></div>`,
     "",
     "",
+    '<p class="section-description">This section indicates whether the selected area is designated as a Disadvantaged Community (DAC) using the California Department of Water Resources (DWR) mapping tool. DAC status is determined by household income and is shown as a simple yes/no outcome. This designation is important for identifying areas eligible for certain state and federal funding opportunities and for ensuring that equity considerations are included in outreach and program planning.</p>',
   );
 
   const enviroscreenRow = buildComparisonRow(
@@ -1063,6 +1081,7 @@ function renderResult(address, data, elapsedMs) {
     renderEnviroscreenContent(enviroscreen),
     renderEnviroscreenContent(s.environment),
     renderEnviroscreenContent(w.environment),
+    '<p class="section-description">This section shows environmental and community health indicators from California’s Enviroscreen tool. Results are presented as percentiles, with higher numbers (and darker colors) indicating greater environmental burdens compared to other areas in the state. These measures include factors such as air quality, traffic pollution, and access to safe drinking water.</p><p class="section-description">Staff can use this information to understand potential environmental challenges facing a neighborhood, strengthen grant applications that require equity or environmental justice considerations, and design outreach that addresses local concerns. For example, if an event is planned in an area with a high Enviroscreen percentile, staff may want to highlight programs or benefits related to clean water, pollution reduction, or community health.</p><p class="section-description"><strong>How to Read This</strong><br>Green = Low burden (fewer environmental and health challenges)<br>Yellow/Orange = Moderate burden<br>Red = High burden (greater environmental and health challenges)<br>Percentile score shows how the community compares to others across California.</p>',
   );
 
   const hardshipRow = buildComparisonRow(
@@ -1074,6 +1093,7 @@ function renderResult(address, data, elapsedMs) {
       : "",
     "",
     "",
+    '<p class="section-description">This section lists environmental hardships reported for the selected location, highlighting challenges that may affect residents and program planning.</p>',
   );
 
   const alertsRow = buildComparisonRow(
@@ -1085,6 +1105,7 @@ function renderResult(address, data, elapsedMs) {
       : '<p class="note">No active alerts found for this location.</p>',
     "",
     "",
+    '<p class="section-description">This section displays any current weather alerts issued by the National Weather Service (NWS) for the selected location. Alerts may include warnings for extreme heat, flooding, wildfire smoke, or other hazardous conditions. Having this information alongside demographic and environmental data helps staff anticipate safety concerns for events, tailor outreach, and ensure programs are responsive to current community conditions.</p>',
   );
 
   const columnHeaders = `
