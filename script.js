@@ -301,6 +301,40 @@ async function enrichSurrounding(data = {}) {
   return { ...data, surrounding_10_mile: s };
 }
 
+// Fill in missing water district basics if the API doesn't provide them
+async function enrichWaterDistrict(data = {}) {
+  const { lat, lon, city, census_tract, water_district } = data || {};
+  if (!water_district || lat == null || lon == null) return data;
+  const w = { ...water_district };
+  const tasks = [];
+
+  // Attempt to look up a district name from the state water board service
+  if (!w.name) {
+    const url =
+      "https://services.arcgis.com/8DFNJhY7CUN8E0bX/ArcGIS/rest/services/Public_Water_System_Boundaries/FeatureServer/0/query" +
+      `?geometry=${lon}%2C${lat}&geometryType=esriGeometryPoint&inSR=4326&spatialRel=esriSpatialRelIntersects&outFields=PWS_NAME&returnGeometry=false&f=json`;
+    tasks.push(
+      fetch(url)
+        .then((r) => r.json())
+        .then((j) => {
+          w.name = j?.features?.[0]?.attributes?.PWS_NAME || w.name;
+        })
+        .catch(() => {}),
+    );
+  }
+
+  if (!Array.isArray(w.cities) || !w.cities.length) {
+    if (city) w.cities = [city];
+  }
+
+  if (!Array.isArray(w.census_tracts) || !w.census_tracts.length) {
+    if (census_tract) w.census_tracts = [census_tract];
+  }
+
+  if (tasks.length) await Promise.all(tasks);
+  return { ...data, water_district: w };
+}
+
 // Fetch English proficiency percentage if missing
 async function enrichEnglishProficiency(data = {}) {
   const { lat, lon, english_less_than_very_well_pct } = data || {};
@@ -1176,6 +1210,7 @@ async function lookup() {
     const lang = await fetchLanguageAcs(data);
     data = { ...data, ...lang };
     data = await enrichSurrounding(data);
+    data = await enrichWaterDistrict(data);
     data = await enrichEnglishProficiency(data);
     lastReport = { address, data };
     const locUrl = new URL(window.location);
