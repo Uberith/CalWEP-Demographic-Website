@@ -294,7 +294,7 @@ button:focus-visible {
 
 .kv {
   display: grid;
-  grid-template-columns: 240px 1fr;
+  grid-template-columns: minmax(140px, 45%) 1fr;
   gap: var(--space-2) var(--space-4);
   margin: var(--space-3) 0 var(--space-4) 0;
 }
@@ -302,10 +302,14 @@ button:focus-visible {
   color: var(--muted);
   font-weight: 700;
   line-height: 1.5;
+  word-break: break-word;
+  overflow-wrap: anywhere;
 }
 .kv .val {
   color: var(--ink);
   line-height: 1.6;
+  word-break: break-word;
+  overflow-wrap: anywhere;
 }
 
 .comparison-grid {
@@ -314,9 +318,22 @@ button:focus-visible {
   gap: var(--space-6);
   margin-top: var(--space-5);
 }
-
 .comparison-grid .col {
+  background: var(--accent-bg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: var(--space-4);
   min-width: 0;
+}
+
+.chart-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: var(--space-4);
+  margin-top: var(--space-4);
+}
+.chart-grid canvas {
+  max-width: 100%;
 }
 
 .callout {
