@@ -493,6 +493,8 @@ function renderResult(address, data, elapsedMs) {
           <div class="key">Median home value</div><div class="val">${fmtCurrency(d.median_home_value)}</div>
           <div class="key">High school or higher</div><div class="val">${fmtPct(d.high_school_or_higher_pct)}</div>
           <div class="key">Bachelor's degree or higher</div><div class="val">${fmtPct(d.bachelors_or_higher_pct)}</div>
+          <div class="key">Primary language</div><div class="val">${escapeHTML(d.primary_language) || "—"}</div>
+          <div class="key">Second most common</div><div class="val">${escapeHTML(d.secondary_language) || "—"}</div>
           <div class="key">White</div><div class="val">${fmtPct(d.white_pct)}</div>
           <div class="key">Black or African American</div><div class="val">${fmtPct(d.black_pct)}</div>
           <div class="key">American Indian / Alaska Native</div><div class="val">${fmtPct(d.native_pct)}</div>
@@ -521,7 +523,7 @@ function renderResult(address, data, elapsedMs) {
     if (Object.keys(d).length) {
       html += `
       <section class="section-block">
-        <h3 class="section-header">Water District Region (ACS)</h3>
+        <h3 class="section-header">${escapeHTML(w.name) || "Water District Region"} (ACS)</h3>
         <div class="kv">
           <div class="key">Population</div><div class="val">${fmtInt(d.population)}</div>
           <div class="key">Median age</div><div class="val">${fmtNumber(d.median_age)}</div>
@@ -534,6 +536,8 @@ function renderResult(address, data, elapsedMs) {
           <div class="key">Median home value</div><div class="val">${fmtCurrency(d.median_home_value)}</div>
           <div class="key">High school or higher</div><div class="val">${fmtPct(d.high_school_or_higher_pct)}</div>
           <div class="key">Bachelor's degree or higher</div><div class="val">${fmtPct(d.bachelors_or_higher_pct)}</div>
+          <div class="key">Primary language</div><div class="val">${escapeHTML(d.primary_language) || "—"}</div>
+          <div class="key">Second most common</div><div class="val">${escapeHTML(d.secondary_language) || "—"}</div>
           <div class="key">White</div><div class="val">${fmtPct(d.white_pct)}</div>
           <div class="key">Black or African American</div><div class="val">${fmtPct(d.black_pct)}</div>
           <div class="key">American Indian / Alaska Native</div><div class="val">${fmtPct(d.native_pct)}</div>
