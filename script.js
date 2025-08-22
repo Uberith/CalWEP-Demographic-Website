@@ -273,7 +273,7 @@ async function getLanguageMeta() {
   if (LANGUAGE_META) return LANGUAGE_META;
   try {
     const meta = await fetchJsonWithDiagnostics(
-      "https://api.census.gov/data/2022/acs/acs5/groups/B16001.json",
+      "https://api.census.gov/data/2022/acs/acs5/groups/C16001.json",
     );
     const vars = meta?.variables || {};
     const codes = [];
@@ -319,7 +319,7 @@ async function aggregateLanguageForTracts(fipsList = []) {
       const chunk = codes.slice(i, i + chunkSize);
       const vars =
         i === 0
-          ? ["B16001_001E", "B16001_002E", ...chunk]
+          ? ["C16001_001E", "C16001_002E", ...chunk]
           : chunk;
       const url =
         `https://api.census.gov/data/2022/acs/acs5?get=${vars.join(",")}&for=tract:${tractStr}&in=state:${g.state}%20county:${g.county}`;
@@ -331,8 +331,8 @@ async function aggregateLanguageForTracts(fipsList = []) {
             const row = rows[j];
             const rec = {};
             headers.forEach((h, idx) => (rec[h] = Number(row[idx])));
-            total += rec.B16001_001E || 0;
-            englishOnly += rec.B16001_002E || 0;
+            total += rec.C16001_001E || 0;
+            englishOnly += rec.C16001_002E || 0;
             for (const code of chunk) {
               const name = names[code];
               const val = rec[code] || 0;
