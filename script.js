@@ -7,6 +7,8 @@
 let autocomplete = null;
 
 let lastReport = null;
+// Cache previously retrieved results to avoid redundant network requests
+const lookupCache = new Map();
 
 function printReport() {
   window.print();
@@ -2012,6 +2014,17 @@ async function lookup() {
     return;
   }
 
+  const cacheKey = address.toLowerCase();
+  if (lookupCache.has(cacheKey)) {
+    const cached = lookupCache.get(cacheKey);
+    lastReport = { address, data: cached };
+    const locUrl = new URL(window.location);
+    locUrl.searchParams.set("address", address);
+    window.history.replaceState(null, "", locUrl.toString());
+    renderResult(address, cached, 0);
+    return;
+  }
+
   resultBox.setAttribute("aria-busy", "true");
   renderLoading(address);
   startSearchTimer();
@@ -2037,14 +2050,19 @@ async function lookup() {
       enrichNwsAlerts(data),
     ]);
     deepMerge(data, lang, surround, water, english, alerts);
-    const regionResults = await Promise.all([
-      enrichRegionBasics(data),
+
+    const basics = await enrichRegionBasics(data);
+    deepMerge(data, basics);
+
+    const [regionLangs, regionHard, unemployment] = await Promise.all([
       enrichRegionLanguages(data),
       enrichRegionHardships(data),
+      enrichUnemployment(data),
     ]);
-    deepMerge(data, ...regionResults);
-    data = await enrichUnemployment(data);
+    deepMerge(data, regionLangs, regionHard, unemployment);
+
     lastReport = { address, data };
+    lookupCache.set(cacheKey, data);
     const locUrl = new URL(window.location);
     locUrl.searchParams.set("address", address);
     window.history.replaceState(null, "", locUrl.toString());
