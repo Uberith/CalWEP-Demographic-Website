@@ -330,49 +330,54 @@ async function aggregateLanguageForTracts(fipsList = []) {
   let englishLess = 0;
   const langCounts = {};
   for (const g of Object.values(groups)) {
-    const tractStr = g.tracts.join(",");
-    const chunkSize = 40;
-    for (let i = 0; i < codes.length; i += chunkSize) {
-      const chunk = codes.slice(i, i + chunkSize);
-      const vars =
-        i === 0
-          ? ["C16001_001E", "C16001_002E", ...chunk]
-          : chunk;
-      const url =
-        `https://api.census.gov/data/2022/acs/acs5?get=${vars.join(",")}&for=tract:${tractStr}&in=state:${g.state}%20county:${g.county}`;
-      try {
-        const rows = await fetch(url).then((r) => r.json());
-        if (Array.isArray(rows) && rows.length > 1) {
-          const headers = rows[0];
-          for (let j = 1; j < rows.length; j++) {
-            const row = rows[j];
-            const rec = {};
-            headers.forEach((h, idx) => (rec[h] = Number(row[idx])));
-            total += rec.C16001_001E || 0;
-            englishOnly += rec.C16001_002E || 0;
-            for (const code of chunk) {
-              const name = names[code];
-              const val = rec[code] || 0;
-              if (name) langCounts[name] = (langCounts[name] || 0) + val;
+    // The Census API limits requests to 50 tracts at a time.  Chunk the
+    // tract list to ensure we fetch data for all tracts.
+    const tractChunkSize = 50;
+    for (let t = 0; t < g.tracts.length; t += tractChunkSize) {
+      const tractSlice = g.tracts.slice(t, t + tractChunkSize).join(",");
+      const varChunkSize = 40;
+      for (let i = 0; i < codes.length; i += varChunkSize) {
+        const chunk = codes.slice(i, i + varChunkSize);
+        const vars =
+          i === 0
+            ? ["C16001_001E", "C16001_002E", ...chunk]
+            : chunk;
+        const url =
+          `https://api.census.gov/data/2022/acs/acs5?get=${vars.join(",")}&for=tract:${tractSlice}&in=state:${g.state}%20county:${g.county}`;
+        try {
+          const rows = await fetch(url).then((r) => r.json());
+          if (Array.isArray(rows) && rows.length > 1) {
+            const headers = rows[0];
+            for (let j = 1; j < rows.length; j++) {
+              const row = rows[j];
+              const rec = {};
+              headers.forEach((h, idx) => (rec[h] = Number(row[idx])));
+              total += rec.C16001_001E || 0;
+              englishOnly += rec.C16001_002E || 0;
+              for (const code of chunk) {
+                const name = names[code];
+                const val = rec[code] || 0;
+                if (name) langCounts[name] = (langCounts[name] || 0) + val;
+              }
             }
+          }
+        } catch {}
+      }
+      const url2 =
+        `https://api.census.gov/data/2022/acs/acs5/profile?get=DP02_0115E&for=tract:${tractSlice}&in=state:${g.state}%20county:${g.county}`;
+      try {
+        const rows2 = await fetch(url2).then((r) => r.json());
+        if (Array.isArray(rows2) && rows2.length > 1) {
+          const headers2 = rows2[0];
+          for (let i = 1; i < rows2.length; i++) {
+            const row2 = rows2[i];
+            const rec2 = {};
+            headers2.forEach((h, idx) => (rec2[h] = Number(row2[idx])));
+            englishLess += rec2.DP02_0115E || 0;
           }
         }
       } catch {}
     }
-    const url2 =
-      `https://api.census.gov/data/2022/acs/acs5/profile?get=DP02_0115E&for=tract:${tractStr}&in=state:${g.state}%20county:${g.county}`;
-    try {
-      const rows2 = await fetch(url2).then((r) => r.json());
-      if (Array.isArray(rows2) && rows2.length > 1) {
-        const headers2 = rows2[0];
-        for (let i = 1; i < rows2.length; i++) {
-          const row2 = rows2[i];
-          const rec2 = {};
-          headers2.forEach((h, idx) => (rec2[h] = Number(row2[idx])));
-          englishLess += rec2.DP02_0115E || 0;
-        }
-      }
-    } catch {}
   }
   langCounts.English = englishOnly;
   const spanishCount = langCounts.Spanish || 0;
@@ -415,26 +420,33 @@ async function aggregateBasicDemographicsForTracts(fipsList = []) {
   let povertyCount = 0;
 
   for (const g of Object.values(groups)) {
-    const url =
-      "https://api.census.gov/data/2022/acs/acs5/profile?get=DP05_0001E,DP05_0018E,DP03_0062E,DP03_0088E,DP03_0128PE&for=tract:" +
-      g.tracts.join(",") +
-      `&in=state:${g.state}%20county:${g.county}`;
-    try {
-      const rows = await fetch(url).then((r) => r.json());
-      if (!Array.isArray(rows) || rows.length < 2) continue;
-      for (let i = 1; i < rows.length; i++) {
-        const [pop, age, income, perCapita, povPct, state, county, tract] = rows[i].map(Number);
-        if (Number.isFinite(pop) && pop > 0) {
-          totalPop += pop;
-          if (Number.isFinite(age)) ageWeighted += age * pop;
-          if (Number.isFinite(income)) incomeWeighted += income * pop;
-          if (Number.isFinite(perCapita)) perCapitaWeighted += perCapita * pop;
-          if (Number.isFinite(povPct) && povPct >= 0)
-            povertyCount += (povPct / 100) * pop;
+    // Census API allows up to 50 tract identifiers per request.
+    const chunkSize = 50;
+    for (let i = 0; i < g.tracts.length; i += chunkSize) {
+      const tractSlice = g.tracts.slice(i, i + chunkSize).join(",");
+      const url =
+        "https://api.census.gov/data/2022/acs/acs5/profile?get=DP05_0001E,DP05_0018E,DP03_0062E,DP03_0088E,DP03_0128PE&for=tract:" +
+        tractSlice +
+        `&in=state:${g.state}%20county:${g.county}`;
+      try {
+        const rows = await fetch(url).then((r) => r.json());
+        if (!Array.isArray(rows) || rows.length < 2) continue;
+        for (let j = 1; j < rows.length; j++) {
+          const [pop, age, income, perCapita, povPct] = rows[j]
+            .slice(0, 5)
+            .map(Number);
+          if (Number.isFinite(pop) && pop > 0) {
+            totalPop += pop;
+            if (Number.isFinite(age)) ageWeighted += age * pop;
+            if (Number.isFinite(income)) incomeWeighted += income * pop;
+            if (Number.isFinite(perCapita)) perCapitaWeighted += perCapita * pop;
+            if (Number.isFinite(povPct) && povPct >= 0)
+              povertyCount += (povPct / 100) * pop;
+          }
         }
+      } catch {
+        // ignore errors for this chunk
       }
-    } catch {
-      // ignore errors for this group
     }
   }
 
@@ -466,23 +478,27 @@ async function fetchUnemploymentForTracts(fipsList = []) {
   }
   const results = {};
   for (const g of Object.values(groups)) {
-    const url =
-      "https://api.census.gov/data/2022/acs/acs5/profile?get=DP03_0009PE,DP05_0001E&for=tract:" +
-      g.tracts.join(",") +
-      `&in=state:${g.state}%20county:${g.county}`;
-    try {
-      const rows = await fetch(url).then((r) => r.json());
-      if (!Array.isArray(rows) || rows.length < 2) continue;
-      for (let i = 1; i < rows.length; i++) {
-        const [unemp, pop, state, county, tract] = rows[i];
-        const geoid = `${state}${county}${tract}`;
-        results[geoid] = {
-          unemployment_rate: Number(unemp),
-          population: Number(pop),
-        };
+    const chunkSize = 50; // Census API tract limit per request
+    for (let i = 0; i < g.tracts.length; i += chunkSize) {
+      const tractSlice = g.tracts.slice(i, i + chunkSize).join(",");
+      const url =
+        "https://api.census.gov/data/2022/acs/acs5/profile?get=DP03_0009PE,DP05_0001E&for=tract:" +
+        tractSlice +
+        `&in=state:${g.state}%20county:${g.county}`;
+      try {
+        const rows = await fetch(url).then((r) => r.json());
+        if (!Array.isArray(rows) || rows.length < 2) continue;
+        for (let j = 1; j < rows.length; j++) {
+          const [unemp, pop, state, county, tract] = rows[j];
+          const geoid = `${state}${county}${tract}`;
+          results[geoid] = {
+            unemployment_rate: Number(unemp),
+            population: Number(pop),
+          };
+        }
+      } catch {
+        // ignore errors for this chunk
       }
-    } catch {
-      // ignore errors for this group
     }
   }
   return results;
