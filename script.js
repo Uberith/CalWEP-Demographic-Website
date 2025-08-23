@@ -1306,6 +1306,42 @@ function buildComparisonRow(
   `;
 }
 
+let tractListCounter = 0;
+function renderTractList(list, limit = 4) {
+  let arr = [];
+  if (Array.isArray(list)) arr = list;
+  else if (typeof list === "string")
+    arr = list.split(/\s*,\s*/).filter(Boolean);
+  if (!arr.length) return "—";
+  const esc = arr.map((t) => escapeHTML(t));
+  const visible = esc.slice(0, limit);
+  const hidden = esc.slice(limit);
+  const id = `tracts-${tractListCounter++}`;
+  let html = `<span id="${id}">${visible.join(", ")}`;
+  if (hidden.length) {
+    html += `<span class="tracts-extra" hidden>, ${hidden.join(", ")}</span>`;
+  }
+  html += `</span>`;
+  if (hidden.length)
+    html += ` <button type="button" class="toggle-tracts" data-target="${id}" aria-expanded="false">Show more</button>`;
+  return html;
+}
+
+function bindTractToggles() {
+  document.querySelectorAll(".toggle-tracts").forEach((btn) => {
+    const targetId = btn.getAttribute("data-target");
+    const span = document.getElementById(targetId);
+    const extra = span?.querySelector(".tracts-extra");
+    if (!span || !extra) return;
+    btn.addEventListener("click", () => {
+      const expanded = btn.getAttribute("aria-expanded") === "true";
+      extra.hidden = expanded;
+      btn.setAttribute("aria-expanded", String(!expanded));
+      btn.textContent = expanded ? "Show more" : "Show less";
+    });
+  });
+}
+
 function renderEnviroscreenContent(data) {
   if (!data || typeof data !== "object")
     return "<p class=\"note\">No data</p>";
@@ -1453,9 +1489,7 @@ const hardshipSection = `
     let html = "";
     const d = s.demographics || {};
     if (Object.keys(d).length) {
-      const tractList = Array.isArray(s.census_tracts)
-        ? s.census_tracts.join(", ")
-        : escapeHTML(s.census_tracts) || "—";
+      const tractList = renderTractList(s.census_tracts);
       const cityList = Array.isArray(s.cities)
         ? s.cities.join(", ")
         : escapeHTML(s.cities) || "—";
@@ -1506,9 +1540,7 @@ const hardshipSection = `
     const w = water_district || {};
     let html = "";
     const d = w.demographics || {};
-    const tractList = Array.isArray(w.census_tracts)
-      ? w.census_tracts.join(", ")
-      : escapeHTML(w.census_tracts) || "—";
+    const tractList = renderTractList(w.census_tracts);
     const cityList = Array.isArray(w.cities)
       ? w.cities.join(", ")
       : escapeHTML(w.cities) || "—";
@@ -1681,6 +1713,7 @@ const hardshipSection = `
       </span>
     </article>
   `;
+  bindTractToggles();
 }
 
 // New row-based renderer
@@ -1747,15 +1780,11 @@ function renderResult(address, data, elapsedMs) {
   const wHardships = Array.isArray(w.environmental_hardships)
     ? Array.from(new Set(w.environmental_hardships))
     : [];
-  const sTracts = Array.isArray(s.census_tracts)
-    ? s.census_tracts.join(", ")
-    : escapeHTML(s.census_tracts) || "—";
+  const sTracts = renderTractList(s.census_tracts);
   const sCities = Array.isArray(s.cities)
     ? s.cities.join(", ")
     : escapeHTML(s.cities) || "—";
-  const wTracts = Array.isArray(w.census_tracts)
-    ? w.census_tracts.join(", ")
-    : escapeHTML(w.census_tracts) || "—";
+  const wTracts = renderTractList(w.census_tracts);
   const wCities = Array.isArray(w.cities)
     ? w.cities.join(", ")
     : escapeHTML(w.cities) || "—";
@@ -1927,9 +1956,7 @@ function renderResult(address, data, elapsedMs) {
 
     if (Array.isArray(tracts) && tracts.length)
       lines.push(
-        `<div class="dac-tracts">Tracts ${tracts
-          .map((t) => escapeHTML(t))
-          .join(", ")}</div>`,
+        `<div class="dac-tracts">Tracts ${renderTractList(tracts)}</div>`,
       );
 
     return `<div class="callout" style="border-left-color:${border}">${lines.join("")}</div>`;
