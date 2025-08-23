@@ -470,6 +470,34 @@ async function fetchUnemploymentForTracts(fipsList = []) {
   return results;
 }
 
+// Fetch a list of census tract FIPS codes flagged as disadvantaged communities
+async function fetchDacFips(fipsList = []) {
+  const baseUrl =
+    "https://gis.water.ca.gov/arcgis/rest/services/Society/i16_Census_Tract_DisadvantagedCommunities_2020/MapServer/0/query";
+  const out = new Set();
+  const chunkSize = 50;
+  for (let i = 0; i < fipsList.length; i += chunkSize) {
+    const chunk = fipsList.slice(i, i + chunkSize);
+    if (!chunk.length) continue;
+    const where = `GEOID20 IN (${chunk.map((f) => `'${f}'`).join(",")})`;
+    const url =
+      baseUrl +
+      `?where=${encodeURIComponent(where)}&outFields=GEOID20,DAC20&returnGeometry=false&f=json`;
+    try {
+      const j = await fetch(url).then((r) => r.json());
+      for (const f of j.features || []) {
+        const attrs = f.attributes || {};
+        const geoid = String(attrs.GEOID20);
+        const status = String(attrs.DAC20 || "").toUpperCase();
+        if (status === "Y") out.add(geoid);
+      }
+    } catch {
+      // ignore errors for this chunk
+    }
+  }
+  return Array.from(out);
+}
+
 // Fetch environmental hardships for one or more census tracts and merge them
 async function aggregateHardshipsForTracts(fipsList = []) {
   const set = new Set();
@@ -724,30 +752,19 @@ async function enrichSurrounding(data = {}) {
   }
   if (Array.isArray(s.census_tracts_fips) && s.census_tracts_fips.length) {
     try {
-      const where = `GEOID20 IN (${s.census_tracts_fips
-        .map((f) => `'${f}'`)
-        .join(",")})`;
-      const dacUrl =
-        "https://gis.water.ca.gov/arcgis/rest/services/Society/i16_Census_Tract_DisadvantagedCommunities_2020/MapServer/0/query" +
-        `?where=${encodeURIComponent(where)}&outFields=GEOID20,DAC20&returnGeometry=false&f=json`;
-      const j = await fetch(dacUrl).then((r) => r.json());
-      const dac = [];
-      for (const f of j.features || []) {
-        const attrs = f.attributes || {};
-        const geoid = String(attrs.GEOID20);
-        const status = String(attrs.DAC20 || "").toUpperCase();
-        if (status === "Y") {
-          const name =
-            (s.census_tract_map && s.census_tract_map[geoid]) || geoid;
-          dac.push(name);
-        }
+      const dacFips = await fetchDacFips(s.census_tracts_fips);
+      const names = [];
+      for (const f of dacFips) {
+        const name = (s.census_tract_map && s.census_tract_map[f]) || f;
+        names.push(name);
       }
-      s.dac_tracts = dac;
-      if (dac.length) {
-        const set = new Set([...(s.census_tracts || []), ...dac]);
+      s.dac_tracts = names;
+      s.dac_tracts_fips = dacFips;
+      if (names.length) {
+        const set = new Set([...(s.census_tracts || []), ...names]);
         s.census_tracts = Array.from(set);
       }
-    } catch (e) {
+    } catch {
       // ignore errors
     }
   }
@@ -756,13 +773,7 @@ async function enrichSurrounding(data = {}) {
       const lookup = await fetchUnemploymentForTracts(s.census_tracts_fips);
       let totalPop = 0;
       let dacPop = 0;
-      const dacFips = new Set();
-      const map = s.census_tract_map || {};
-      if (Array.isArray(s.dac_tracts)) {
-        for (const [fips, name] of Object.entries(map)) {
-          if (s.dac_tracts.includes(name)) dacFips.add(String(fips));
-        }
-      }
+      const dacFips = new Set(s.dac_tracts_fips || []);
       for (const f of s.census_tracts_fips) {
         const info = lookup[f];
         if (info && Number.isFinite(info.population)) {
@@ -773,7 +784,7 @@ async function enrichSurrounding(data = {}) {
       if (totalPop > 0) s.dac_population_pct = (dacPop / totalPop) * 100;
       if (s.census_tracts_fips.length > 0)
         s.dac_tracts_pct = (dacFips.size / s.census_tracts_fips.length) * 100;
-    } catch (e) {
+    } catch {
       // ignore errors
     }
   }
@@ -943,33 +954,19 @@ async function enrichWaterDistrict(data = {}, address = "") {
 
   if (Array.isArray(w.census_tracts_fips) && w.census_tracts_fips.length) {
     try {
-      const where = `GEOID20 IN (${w.census_tracts_fips
-        .map((f) => `'${f}'`)
-        .join(',')})`;
-      const dacUrl =
-        "https://gis.water.ca.gov/arcgis/rest/services/Society/i16_Census_Tract_DisadvantagedCommunities_2020/MapServer/0/query" +
-        `?where=${encodeURIComponent(where)}&outFields=GEOID20,DAC20&returnGeometry=false&f=json`;
-      const j = await fetch(dacUrl).then((r) => r.json());
-      const dac = [];
-      const dacFips = new Set();
-      for (const f of j.features || []) {
-        const attrs = f.attributes || {};
-        const geoid = String(attrs.GEOID20);
-        const status = String(attrs.DAC20 || '').toUpperCase();
-        if (status === 'Y') {
-          const name =
-            (w.census_tract_map && w.census_tract_map[geoid]) || geoid;
-          dac.push(name);
-          dacFips.add(geoid);
-        }
+      const dacFips = await fetchDacFips(w.census_tracts_fips);
+      const names = [];
+      for (const f of dacFips) {
+        const name = (w.census_tract_map && w.census_tract_map[f]) || f;
+        names.push(name);
       }
-      w.dac_tracts = dac;
-      w.dac_tracts_fips = Array.from(dacFips);
-      if (dac.length) {
-        const set = new Set([...(w.census_tracts || []), ...dac]);
+      w.dac_tracts = names;
+      w.dac_tracts_fips = dacFips;
+      if (names.length) {
+        const set = new Set([...(w.census_tracts || []), ...names]);
         w.census_tracts = Array.from(set);
       }
-    } catch (e) {
+    } catch {
       // ignore errors
     }
   }
@@ -990,7 +987,7 @@ async function enrichWaterDistrict(data = {}, address = "") {
       if (w.census_tracts_fips.length > 0)
         w.dac_tracts_pct =
           (dacFips.size / w.census_tracts_fips.length) * 100;
-    } catch (e) {
+    } catch {
       // ignore errors
     }
   }
