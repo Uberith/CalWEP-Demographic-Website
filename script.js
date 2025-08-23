@@ -416,20 +416,21 @@ async function aggregateBasicDemographicsForTracts(fipsList = []) {
 
   for (const g of Object.values(groups)) {
     const url =
-      "https://api.census.gov/data/2022/acs/acs5/profile?get=DP05_0001E,DP05_0018E,DP03_0062E,DP03_0088E,DP03_0119E&for=tract:" +
+      "https://api.census.gov/data/2022/acs/acs5/profile?get=DP05_0001E,DP05_0018E,DP03_0062E,DP03_0088E,DP03_0128PE&for=tract:" +
       g.tracts.join(",") +
       `&in=state:${g.state}%20county:${g.county}`;
     try {
       const rows = await fetch(url).then((r) => r.json());
       if (!Array.isArray(rows) || rows.length < 2) continue;
       for (let i = 1; i < rows.length; i++) {
-        const [pop, age, income, perCapita, pov, state, county, tract] = rows[i].map(Number);
+        const [pop, age, income, perCapita, povPct, state, county, tract] = rows[i].map(Number);
         if (Number.isFinite(pop) && pop > 0) {
           totalPop += pop;
           if (Number.isFinite(age)) ageWeighted += age * pop;
           if (Number.isFinite(income)) incomeWeighted += income * pop;
           if (Number.isFinite(perCapita)) perCapitaWeighted += perCapita * pop;
-          if (Number.isFinite(pov)) povertyCount += pov;
+          if (Number.isFinite(povPct) && povPct >= 0)
+            povertyCount += (povPct / 100) * pop;
         }
       }
     } catch {
