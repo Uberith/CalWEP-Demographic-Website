@@ -887,11 +887,19 @@ async function enrichWaterDistrict(data = {}, address = "") {
         const t = await fetch(tractUrl).then((r) => r.json());
         const names = [];
         const fips = [];
+        const map = {};
         for (const f of t.features || []) {
           const attrs = f.attributes || {};
-          if (attrs.NAME)
-            names.push(attrs.NAME.replace(/^Census Tract\s+/i, ""));
-          if (attrs.GEOID) fips.push(String(attrs.GEOID));
+          let name = null;
+          if (attrs.NAME) {
+            name = attrs.NAME.replace(/^Census Tract\s+/i, "");
+            names.push(name);
+          }
+          if (attrs.GEOID) {
+            const geoid = String(attrs.GEOID);
+            fips.push(geoid);
+            if (name) map[geoid] = name;
+          }
         }
         if (names.length || fips.length) {
           const existing = Array.isArray(w.census_tracts)
@@ -900,12 +908,15 @@ async function enrichWaterDistrict(data = {}, address = "") {
           const existingFips = Array.isArray(w.census_tracts_fips)
             ? w.census_tracts_fips.map(String)
             : [];
+          const existingMap = w.census_tract_map || {};
           if (names.length)
             w.census_tracts = [...new Set([...existing, ...names])];
           if (fips.length)
             w.census_tracts_fips = [
               ...new Set([...existingFips, ...fips]),
             ];
+          if (Object.keys(map).length)
+            w.census_tract_map = { ...existingMap, ...map };
         }
       }
     } catch {
@@ -929,6 +940,60 @@ async function enrichWaterDistrict(data = {}, address = "") {
   if (state_fips && county_fips && tract_code)
     fipsList.unshift(`${state_fips}${county_fips}${tract_code}`);
   w.census_tracts_fips = [...new Set(fipsList)];
+
+  if (Array.isArray(w.census_tracts_fips) && w.census_tracts_fips.length) {
+    try {
+      const where = `GEOID20 IN (${w.census_tracts_fips
+        .map((f) => `'${f}'`)
+        .join(',')})`;
+      const dacUrl =
+        "https://gis.water.ca.gov/arcgis/rest/services/Society/i16_Census_Tract_DisadvantagedCommunities_2020/MapServer/0/query" +
+        `?where=${encodeURIComponent(where)}&outFields=GEOID20,DAC20&returnGeometry=false&f=json`;
+      const j = await fetch(dacUrl).then((r) => r.json());
+      const dac = [];
+      const dacFips = new Set();
+      for (const f of j.features || []) {
+        const attrs = f.attributes || {};
+        const geoid = String(attrs.GEOID20);
+        const status = String(attrs.DAC20 || '').toUpperCase();
+        if (status === 'Y') {
+          const name =
+            (w.census_tract_map && w.census_tract_map[geoid]) || geoid;
+          dac.push(name);
+          dacFips.add(geoid);
+        }
+      }
+      w.dac_tracts = dac;
+      w.dac_tracts_fips = Array.from(dacFips);
+      if (dac.length) {
+        const set = new Set([...(w.census_tracts || []), ...dac]);
+        w.census_tracts = Array.from(set);
+      }
+    } catch (e) {
+      // ignore errors
+    }
+  }
+  if (Array.isArray(w.census_tracts_fips) && w.census_tracts_fips.length) {
+    try {
+      const lookup = await fetchUnemploymentForTracts(w.census_tracts_fips);
+      let totalPop = 0;
+      let dacPop = 0;
+      const dacFips = new Set(w.dac_tracts_fips || []);
+      for (const f of w.census_tracts_fips) {
+        const info = lookup[f];
+        if (info && Number.isFinite(info.population)) {
+          totalPop += info.population;
+          if (dacFips.has(String(f))) dacPop += info.population;
+        }
+      }
+      if (totalPop > 0) w.dac_population_pct = (dacPop / totalPop) * 100;
+      if (w.census_tracts_fips.length > 0)
+        w.dac_tracts_pct =
+          (dacFips.size / w.census_tracts_fips.length) * 100;
+    } catch (e) {
+      // ignore errors
+    }
+  }
 
   // Hard-coded CalEnviroScreen indicators for the water district region
   w.environment = {
@@ -1832,7 +1897,9 @@ function renderResult(address, data, elapsedMs) {
     Array.isArray(s.dac_tracts)
       ? dacCallout(null, s.dac_tracts, s.dac_population_pct, s.dac_tracts_pct)
       : "",
-    "",
+    Array.isArray(w.dac_tracts)
+      ? dacCallout(null, w.dac_tracts, w.dac_population_pct, w.dac_tracts_pct)
+      : "",
     '<p class="section-description">This section indicates whether the selected area is designated as a Disadvantaged Community (DAC) using the California Department of Water Resources (DWR) mapping tool. DAC status is determined by household income and is shown as a simple yes/no outcome. This designation is important for identifying areas eligible for certain state and federal funding opportunities and for ensuring that equity considerations are included in outreach and program planning.</p>',
   );
 
