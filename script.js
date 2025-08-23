@@ -329,9 +329,10 @@ async function aggregateLanguageForTracts(fipsList = []) {
   let englishOnly = 0;
   let englishLess = 0;
   const langCounts = {};
-  for (const g of Object.values(groups)) {
+  const groupPromises = Object.values(groups).map(async (g) => {
     const tractStr = g.tracts.join(",");
     const chunkSize = 40;
+    const tasks = [];
     for (let i = 0; i < codes.length; i += chunkSize) {
       const chunk = codes.slice(i, i + chunkSize);
       const vars =
@@ -340,39 +341,68 @@ async function aggregateLanguageForTracts(fipsList = []) {
           : chunk;
       const url =
         `https://api.census.gov/data/2022/acs/acs5?get=${vars.join(",")}&for=tract:${tractStr}&in=state:${g.state}%20county:${g.county}`;
-      try {
-        const rows = await fetch(url).then((r) => r.json());
-        if (Array.isArray(rows) && rows.length > 1) {
-          const headers = rows[0];
-          for (let j = 1; j < rows.length; j++) {
-            const row = rows[j];
-            const rec = {};
-            headers.forEach((h, idx) => (rec[h] = Number(row[idx])));
-            total += rec.C16001_001E || 0;
-            englishOnly += rec.C16001_002E || 0;
-            for (const code of chunk) {
-              const name = names[code];
-              const val = rec[code] || 0;
-              if (name) langCounts[name] = (langCounts[name] || 0) + val;
-            }
-          }
-        }
-      } catch {}
+      tasks.push(
+        fetch(url)
+          .then((r) => r.json())
+          .then((rows) => ({ type: "lang", rows, chunk }))
+          .catch(() => null),
+      );
     }
     const url2 =
       `https://api.census.gov/data/2022/acs/acs5/profile?get=DP02_0115E&for=tract:${tractStr}&in=state:${g.state}%20county:${g.county}`;
-    try {
-      const rows2 = await fetch(url2).then((r) => r.json());
-      if (Array.isArray(rows2) && rows2.length > 1) {
-        const headers2 = rows2[0];
-        for (let i = 1; i < rows2.length; i++) {
-          const row2 = rows2[i];
+    tasks.push(
+      fetch(url2)
+        .then((r) => r.json())
+        .then((rows) => ({ type: "english", rows }))
+        .catch(() => null),
+    );
+    const results = await Promise.all(tasks);
+    let gTotal = 0;
+    let gEnglishOnly = 0;
+    let gEnglishLess = 0;
+    const gLangCounts = {};
+    for (const res of results) {
+      if (!res || !Array.isArray(res.rows) || res.rows.length <= 1) continue;
+      const { rows } = res;
+      if (res.type === "lang") {
+        const headers = rows[0];
+        for (let j = 1; j < rows.length; j++) {
+          const row = rows[j];
+          const rec = {};
+          headers.forEach((h, idx) => (rec[h] = Number(row[idx])));
+          gTotal += rec.C16001_001E || 0;
+          gEnglishOnly += rec.C16001_002E || 0;
+          for (const code of res.chunk) {
+            const name = names[code];
+            const val = rec[code] || 0;
+            if (name) gLangCounts[name] = (gLangCounts[name] || 0) + val;
+          }
+        }
+      } else if (res.type === "english") {
+        const headers2 = rows[0];
+        for (let i = 1; i < rows.length; i++) {
+          const row2 = rows[i];
           const rec2 = {};
           headers2.forEach((h, idx) => (rec2[h] = Number(row2[idx])));
-          englishLess += rec2.DP02_0115E || 0;
+          gEnglishLess += rec2.DP02_0115E || 0;
         }
       }
-    } catch {}
+    }
+    return {
+      total: gTotal,
+      englishOnly: gEnglishOnly,
+      englishLess: gEnglishLess,
+      langCounts: gLangCounts,
+    };
+  });
+  const groupResults = await Promise.all(groupPromises);
+  for (const res of groupResults) {
+    total += res.total;
+    englishOnly += res.englishOnly;
+    englishLess += res.englishLess;
+    for (const [lang, count] of Object.entries(res.langCounts)) {
+      langCounts[lang] = (langCounts[lang] || 0) + count;
+    }
   }
   langCounts.English = englishOnly;
   const spanishCount = langCounts.Spanish || 0;
@@ -2108,6 +2138,9 @@ function loadGoogleMaps() {
   script.async = true;
   document.head.appendChild(script);
 }
+
+// Warm language metadata so the first lookup is faster
+getLanguageMeta().catch(() => {});
 
 window.onload = () => {
   loadGoogleMaps();
