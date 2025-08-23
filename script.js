@@ -894,84 +894,76 @@ async function enrichWaterDistrict(data = {}, address = "") {
     }
   }
 
-  // If the census tract list looks incomplete, overlay the water district shape
-  const needsOverlay =
-    !Array.isArray(w.census_tracts) ||
-    w.census_tracts.length < 2 ||
-    (census_tract &&
-      w.census_tracts.length === 1 &&
-      w.census_tracts[0] === String(census_tract));
-
-  if (needsOverlay) {
-    try {
-      const geoUrl =
-        "https://services.arcgis.com/8DFNJhY7CUN8E0bX/ArcGIS/rest/services/Public_Water_System_Boundaries/FeatureServer/0/query" +
-        `?geometry=${lon}%2C${lat}&geometryType=esriGeometryPoint&inSR=4326&spatialRel=esriSpatialRelIntersects&outFields=PWS_NAME&returnGeometry=true&outSR=4326&f=json`;
-      const j = await fetch(geoUrl).then((r) => r.json());
-      const geom = j?.features?.[0]?.geometry;
-      if (geom) {
-        const tractUrl =
-          "https://tigerweb.geo.census.gov/arcgis/rest/services/TIGERweb/Tracts_Blocks/MapServer/10/query";
-        const tractParams = new URLSearchParams({
-          where: "1=1",
-          geometry: JSON.stringify(geom),
-          geometryType: "esriGeometryPolygon",
-          inSR: "4326",
-          spatialRel: "esriSpatialRelIntersects",
-          outFields: "NAME,GEOID",
-          returnGeometry: "false",
-          f: "json",
-        });
-        let t;
-        try {
-          t = await fetch(tractUrl, {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/x-www-form-urlencoded",
-            },
-            body: tractParams.toString(),
-          }).then((r) => r.json());
-        } catch {
-          const fallbackUrl = `${tractUrl}?${tractParams.toString()}`;
-          t = await fetch(fallbackUrl).then((r) => r.json());
+  // Overlay the water district shape to include any intersecting census tracts
+  // (be generous and include tracts that only partially overlap the boundary)
+  try {
+    const geoUrl =
+      "https://services.arcgis.com/8DFNJhY7CUN8E0bX/ArcGIS/rest/services/Public_Water_System_Boundaries/FeatureServer/0/query" +
+      `?geometry=${lon}%2C${lat}&geometryType=esriGeometryPoint&inSR=4326&spatialRel=esriSpatialRelIntersects&outFields=PWS_NAME&returnGeometry=true&outSR=4326&f=json`;
+    const j = await fetch(geoUrl).then((r) => r.json());
+    const geom = j?.features?.[0]?.geometry;
+    if (geom) {
+      const tractUrl =
+        "https://tigerweb.geo.census.gov/arcgis/rest/services/TIGERweb/Tracts_Blocks/MapServer/10/query";
+      const tractParams = new URLSearchParams({
+        where: "1=1",
+        geometry: JSON.stringify(geom),
+        geometryType: "esriGeometryPolygon",
+        inSR: "4326",
+        spatialRel: "esriSpatialRelIntersects",
+        outFields: "NAME,GEOID",
+        returnGeometry: "false",
+        f: "json",
+      });
+      let t;
+      try {
+        t = await fetch(tractUrl, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/x-www-form-urlencoded",
+          },
+          body: tractParams.toString(),
+        }).then((r) => r.json());
+      } catch {
+        const fallbackUrl = `${tractUrl}?${tractParams.toString()}`;
+        t = await fetch(fallbackUrl).then((r) => r.json());
+      }
+      const names = [];
+      const fips = [];
+      const map = {};
+      for (const f of t.features || []) {
+        const attrs = f.attributes || {};
+        let name = null;
+        if (attrs.NAME) {
+          name = attrs.NAME.replace(/^Census Tract\s+/i, "");
+          names.push(name);
         }
-        const names = [];
-        const fips = [];
-        const map = {};
-        for (const f of t.features || []) {
-          const attrs = f.attributes || {};
-          let name = null;
-          if (attrs.NAME) {
-            name = attrs.NAME.replace(/^Census Tract\s+/i, "");
-            names.push(name);
-          }
-          if (attrs.GEOID) {
-            const geoid = String(attrs.GEOID);
-            fips.push(geoid);
-            if (name) map[geoid] = name;
-          }
-        }
-        if (names.length || fips.length) {
-          const existing = Array.isArray(w.census_tracts)
-            ? w.census_tracts.map(String)
-            : [];
-          const existingFips = Array.isArray(w.census_tracts_fips)
-            ? w.census_tracts_fips.map(String)
-            : [];
-          const existingMap = w.census_tract_map || {};
-          if (names.length)
-            w.census_tracts = [...new Set([...existing, ...names])];
-          if (fips.length)
-            w.census_tracts_fips = [
-              ...new Set([...existingFips, ...fips]),
-            ];
-          if (Object.keys(map).length)
-            w.census_tract_map = { ...existingMap, ...map };
+        if (attrs.GEOID) {
+          const geoid = String(attrs.GEOID);
+          fips.push(geoid);
+          if (name) map[geoid] = name;
         }
       }
-    } catch {
-      // ignore errors
+      if (names.length || fips.length) {
+        const existing = Array.isArray(w.census_tracts)
+          ? w.census_tracts.map(String)
+          : [];
+        const existingFips = Array.isArray(w.census_tracts_fips)
+          ? w.census_tracts_fips.map(String)
+          : [];
+        const existingMap = w.census_tract_map || {};
+        if (names.length)
+          w.census_tracts = [...new Set([...existing, ...names])];
+        if (fips.length)
+          w.census_tracts_fips = [
+            ...new Set([...existingFips, ...fips]),
+          ];
+        if (Object.keys(map).length)
+          w.census_tract_map = { ...existingMap, ...map };
+      }
     }
+  } catch {
+    // ignore errors
   }
 
   let tracts = [];
