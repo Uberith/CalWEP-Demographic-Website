@@ -409,6 +409,17 @@ button:focus-visible {
   font-size: 0.9rem;
 }
 
+.toggle-tracts {
+  background: none;
+  border: none;
+  color: var(--brand);
+  cursor: pointer;
+  padding: 0;
+  margin-left: 4px;
+  font-size: 0.9rem;
+  text-decoration: underline;
+}
+
 .map-image {
   max-width: 100%;
   height: auto;
