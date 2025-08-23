@@ -101,6 +101,21 @@ function fmtPct(n) {
 function titleCase(str = "") {
   return str.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
 }
+
+function deepMerge(target = {}, ...sources) {
+  const isObj = (v) => v && typeof v === "object" && !Array.isArray(v);
+  for (const src of sources) {
+    if (!isObj(src)) continue;
+    for (const [key, val] of Object.entries(src)) {
+      if (isObj(val)) {
+        target[key] = deepMerge(isObj(target[key]) ? target[key] : {}, val);
+      } else {
+        target[key] = val;
+      }
+    }
+  }
+  return target;
+}
 const CES_LABELS = {
   pm25: "PM2.5",
   diesel: "Diesel PM",
@@ -2008,16 +2023,27 @@ async function lookup() {
     if (!data || typeof data !== "object")
       throw new Error("Malformed response.");
     data = await enrichLocation(data);
-    const lang = await fetchLanguageAcs(data);
-    data = { ...data, ...lang };
-    data = await enrichSurrounding(data);
-    data = await enrichWaterDistrict(data, address);
-    data = await enrichRegionBasics(data);
+    const [
+      lang,
+      surround,
+      water,
+      english,
+      alerts,
+    ] = await Promise.all([
+      fetchLanguageAcs(data),
+      enrichSurrounding(data),
+      enrichWaterDistrict(data, address),
+      enrichEnglishProficiency(data),
+      enrichNwsAlerts(data),
+    ]);
+    deepMerge(data, lang, surround, water, english, alerts);
+    const regionResults = await Promise.all([
+      enrichRegionBasics(data),
+      enrichRegionLanguages(data),
+      enrichRegionHardships(data),
+    ]);
+    deepMerge(data, ...regionResults);
     data = await enrichUnemployment(data);
-    data = await enrichRegionLanguages(data);
-    data = await enrichRegionHardships(data);
-    data = await enrichEnglishProficiency(data);
-    data = await enrichNwsAlerts(data);
     lastReport = { address, data };
     const locUrl = new URL(window.location);
     locUrl.searchParams.set("address", address);
