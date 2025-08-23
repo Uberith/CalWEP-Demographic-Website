@@ -910,9 +910,30 @@ async function enrichWaterDistrict(data = {}, address = "") {
       const geom = j?.features?.[0]?.geometry;
       if (geom) {
         const tractUrl =
-          "https://tigerweb.geo.census.gov/arcgis/rest/services/TIGERweb/Tracts_Blocks/MapServer/10/query" +
-          `?where=1%3D1&geometry=${encodeURIComponent(JSON.stringify(geom))}&geometryType=esriGeometryPolygon&inSR=4326&spatialRel=esriSpatialRelIntersects&outFields=NAME,GEOID&returnGeometry=false&f=json`;
-        const t = await fetch(tractUrl).then((r) => r.json());
+          "https://tigerweb.geo.census.gov/arcgis/rest/services/TIGERweb/Tracts_Blocks/MapServer/10/query";
+        const tractParams = new URLSearchParams({
+          where: "1=1",
+          geometry: JSON.stringify(geom),
+          geometryType: "esriGeometryPolygon",
+          inSR: "4326",
+          spatialRel: "esriSpatialRelIntersects",
+          outFields: "NAME,GEOID",
+          returnGeometry: "false",
+          f: "json",
+        });
+        let t;
+        try {
+          t = await fetch(tractUrl, {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/x-www-form-urlencoded",
+            },
+            body: tractParams.toString(),
+          }).then((r) => r.json());
+        } catch {
+          const fallbackUrl = `${tractUrl}?${tractParams.toString()}`;
+          t = await fetch(fallbackUrl).then((r) => r.json());
+        }
         const names = [];
         const fips = [];
         const map = {};
