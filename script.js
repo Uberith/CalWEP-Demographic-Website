@@ -190,16 +190,19 @@ function formatDuration(ms = 0) {
 }
 function startSearchTimer() {
   searchTimerStart = Date.now();
-  const el = document.getElementById("searchTimer");
-  if (el) el.textContent = "0m 00s";
+  const setText = (text) => {
+    const timerEl = document.getElementById("searchTimer");
+    if (timerEl) timerEl.textContent = text;
+    const spinnerEl = document.getElementById("spinnerTime");
+    if (spinnerEl) spinnerEl.textContent = text;
+  };
+  setText("0m 00s");
   searchTimerInterval = setInterval(() => {
     if (!searchTimerStart) return;
     const elapsed = Date.now() - searchTimerStart;
     const secs = Math.floor((elapsed / 1000) % 60);
     const mins = Math.floor(elapsed / 60000);
-    const timerEl = document.getElementById("searchTimer");
-    if (timerEl)
-      timerEl.textContent = `${mins}m ${secs.toString().padStart(2, "0")}s`;
+    setText(`${mins}m ${secs.toString().padStart(2, "0")}s`);
   }, 1000);
 }
 function stopSearchTimer() {
@@ -2099,6 +2102,8 @@ async function lookup() {
 
   resultBox.setAttribute("aria-busy", "true");
   renderLoading(address);
+  const overlay = document.getElementById("spinnerOverlay");
+  if (overlay) overlay.style.display = "flex";
   startSearchTimer();
   let elapsed = 0;
 
@@ -2144,6 +2149,8 @@ async function lookup() {
     if (!elapsed) elapsed = stopSearchTimer();
     renderError(String(err), address, elapsed);
   } finally {
+    const overlay = document.getElementById("spinnerOverlay");
+    if (overlay) overlay.style.display = "none";
     resultBox.removeAttribute("aria-busy");
   }
 }
