@@ -336,7 +336,9 @@ async function aggregateLanguageForTracts(fipsList = []) {
     for (let i = 0; i < codes.length; i += chunkSize) {
       const chunk = codes.slice(i, i + chunkSize);
       const vars =
-        i === 0 ? ["C16001_001E", "C16001_002E", ...chunk] : chunk;
+        i === 0
+          ? ["C16001_001E", "C16001_002E", ...chunk]
+          : chunk;
       const url =
         `https://api.census.gov/data/2022/acs/acs5?get=${vars.join(",")}&for=tract:${tractStr}&in=state:${g.state}%20county:${g.county}`;
       tasks.push(
@@ -415,4 +417,1741 @@ async function aggregateLanguageForTracts(fipsList = []) {
   };
 }
 
-// ... rest of your file continues unchanged ...
+async function fetchLanguageAcs({ state_fips, county_fips, tract_code } = {}) {
+  if (!state_fips || !county_fips || !tract_code) return {};
+  const fips = `${state_fips}${county_fips}${tract_code}`;
+  return aggregateLanguageForTracts([fips]);
+}
+
+// Aggregate basic demographic fields for a set of census tracts using
+// population-weighted averages.
+async function aggregateBasicDemographicsForTracts(fipsList = []) {
+  const groups = {};
+  for (const f of fipsList) {
+    const code = String(f).replace(/[^0-9]/g, "").padStart(11, "0");
+    if (code.length !== 11) continue;
+    const state = code.slice(0, 2);
+    const county = code.slice(2, 5);
+    const tract = code.slice(5);
+    const key = `${state}${county}`;
+    if (!groups[key]) groups[key] = { state, county, tracts: [] };
+    groups[key].tracts.push(tract);
+  }
+
+  let totalPop = 0;
+  let ageWeighted = 0;
+  let incomeWeighted = 0;
+  let perCapitaWeighted = 0;
+  let povertyCount = 0;
+
+  for (const g of Object.values(groups)) {
+    const url =
+      "https://api.census.gov/data/2022/acs/acs5/profile?get=DP05_0001E,DP05_0018E,DP03_0062E,DP03_0088E,DP03_0128PE&for=tract:" +
+      g.tracts.join(",") +
+      `&in=state:${g.state}%20county:${g.county}`;
+    try {
+      const rows = await fetch(url).then((r) => r.json());
+      if (!Array.isArray(rows) || rows.length < 2) continue;
+      for (let i = 1; i < rows.length; i++) {
+        const [pop, age, income, perCapita, povPct, state, county, tract] = rows[i].map(Number);
+        if (Number.isFinite(pop) && pop > 0) {
+          totalPop += pop;
+          if (Number.isFinite(age)) ageWeighted += age * pop;
+          if (Number.isFinite(income)) incomeWeighted += income * pop;
+          if (Number.isFinite(perCapita)) perCapitaWeighted += perCapita * pop;
+          if (Number.isFinite(povPct) && povPct >= 0)
+            povertyCount += (povPct / 100) * pop;
+        }
+      }
+    } catch {
+      // ignore errors for this group
+    }
+  }
+
+  const result = {};
+  if (totalPop > 0) {
+    result.population = totalPop;
+    if (ageWeighted > 0) result.median_age = ageWeighted / totalPop;
+    if (incomeWeighted > 0)
+      result.median_household_income = incomeWeighted / totalPop;
+    if (perCapitaWeighted > 0)
+      result.per_capita_income = perCapitaWeighted / totalPop;
+    if (povertyCount > 0) result.poverty_rate = (povertyCount / totalPop) * 100;
+  }
+  return result;
+}
+
+// Fetch unemployment rate and population for one or more census tracts
+async function fetchUnemploymentForTracts(fipsList = []) {
+  const groups = {};
+  for (const f of fipsList) {
+    const code = String(f).replace(/[^0-9]/g, "").padStart(11, "0");
+    if (code.length !== 11) continue;
+    const state = code.slice(0, 2);
+    const county = code.slice(2, 5);
+    const tract = code.slice(5);
+    const key = `${state}${county}`;
+    if (!groups[key]) groups[key] = { state, county, tracts: [] };
+    groups[key].tracts.push(tract);
+  }
+  const results = {};
+  for (const g of Object.values(groups)) {
+    const url =
+      "https://api.census.gov/data/2022/acs/acs5/profile?get=DP03_0009PE,DP05_0001E&for=tract:" +
+      g.tracts.join(",") +
+      `&in=state:${g.state}%20county:${g.county}`;
+    try {
+      const rows = await fetch(url).then((r) => r.json());
+      if (!Array.isArray(rows) || rows.length < 2) continue;
+      for (let i = 1; i < rows.length; i++) {
+        const [unemp, pop, state, county, tract] = rows[i];
+        const geoid = `${state}${county}${tract}`;
+        results[geoid] = {
+          unemployment_rate: Number(unemp),
+          population: Number(pop),
+        };
+      }
+    } catch {
+      // ignore errors for this group
+    }
+  }
+  return results;
+}
+
+// Fetch a list of census tract FIPS codes flagged as disadvantaged communities
+async function fetchDacFips(fipsList = []) {
+  const baseUrl =
+    "https://gis.water.ca.gov/arcgis/rest/services/Society/i16_Census_Tract_DisadvantagedCommunities_2020/MapServer/0/query";
+  const out = new Set();
+  const chunkSize = 50;
+  for (let i = 0; i < fipsList.length; i += chunkSize) {
+    const chunk = fipsList.slice(i, i + chunkSize);
+    if (!chunk.length) continue;
+    const where = `GEOID20 IN (${chunk.map((f) => `'${f}'`).join(",")})`;
+    const url =
+      baseUrl +
+      `?where=${encodeURIComponent(where)}&outFields=GEOID20,DAC20&returnGeometry=false&f=json`;
+    try {
+      const j = await fetch(url).then((r) => r.json());
+      for (const f of j.features || []) {
+        const attrs = f.attributes || {};
+        const geoid = String(attrs.GEOID20);
+        const status = String(attrs.DAC20 || "").toUpperCase();
+        if (status === "Y") out.add(geoid);
+      }
+    } catch {
+      // ignore errors for this chunk
+    }
+  }
+  return Array.from(out);
+}
+
+// Fetch environmental hardships for one or more census tracts and merge them
+async function aggregateHardshipsForTracts(fipsList = []) {
+  const set = new Set();
+  await Promise.all(
+    fipsList.map(async (f) => {
+      try {
+        const url = buildApiUrl(API_PATH, { fips: f, census_tract: f, geoid: f });
+        const j = await fetchJsonWithDiagnostics(url);
+        if (Array.isArray(j.environmental_hardships)) {
+          j.environmental_hardships.forEach((h) => set.add(h));
+        }
+      } catch {
+        // ignore errors for this tract
+      }
+    }),
+  );
+  return Array.from(set).sort();
+}
+
+// Populate basic demographic fields for surrounding and district regions using
+// population-weighted averages.
+async function enrichRegionBasics(data = {}) {
+  const { surrounding_10_mile, water_district } = data || {};
+  const out = { ...data };
+  const s = surrounding_10_mile || {};
+  if (
+    Array.isArray(s.census_tracts_fips) &&
+    s.census_tracts_fips.length
+  ) {
+    const basics = await aggregateBasicDemographicsForTracts(
+      s.census_tracts_fips,
+    );
+    const d = s.demographics || {};
+    out.surrounding_10_mile = {
+      ...s,
+      demographics: { ...d, ...basics },
+    };
+  }
+  const w = water_district || {};
+  const wFips = Array.isArray(w.census_tracts_fips) && w.census_tracts_fips.length
+    ? w.census_tracts_fips
+    : Array.isArray(w.census_tracts)
+      ? w.census_tracts
+      : [];
+  if (wFips.length) {
+    const basics = await aggregateBasicDemographicsForTracts(wFips);
+    const d = w.demographics || {};
+    out.water_district = { ...w, demographics: { ...d, ...basics } };
+  }
+  return out;
+}
+
+// Ensure unemployment rates are populated for local, surrounding, and water regions
+async function enrichUnemployment(data = {}) {
+  const {
+    state_fips,
+    county_fips,
+    tract_code,
+    unemployment_rate,
+    surrounding_10_mile,
+    water_district,
+  } = data || {};
+
+  const s = surrounding_10_mile || {};
+  const w = water_district || {};
+  const needed = [];
+  const localFips = state_fips && county_fips && tract_code ? `${state_fips}${county_fips}${tract_code}` : null;
+  if (isMissing(unemployment_rate) && localFips) needed.push(localFips);
+  const sFips = Array.isArray(s.census_tracts_fips) ? s.census_tracts_fips : [];
+  if (s.demographics && isMissing(s.demographics.unemployment_rate) && sFips.length)
+    needed.push(...sFips);
+  const wFips = Array.isArray(w.census_tracts_fips)
+    ? w.census_tracts_fips.map(String)
+    : Array.isArray(w.census_tracts)
+      ? w.census_tracts.map(String)
+      : [];
+  if (w.demographics && isMissing(w.demographics.unemployment_rate) && wFips.length)
+    needed.push(...wFips);
+
+  const fipsSet = Array.from(new Set(needed));
+  if (!fipsSet.length) return data;
+  const lookup = await fetchUnemploymentForTracts(fipsSet);
+
+  const out = { ...data };
+  if (isMissing(unemployment_rate) && localFips && lookup[localFips])
+    out.unemployment_rate = lookup[localFips].unemployment_rate;
+
+  if (s.demographics && isMissing(s.demographics.unemployment_rate) && sFips.length) {
+    let totPop = 0;
+    let totWeighted = 0;
+    for (const f of sFips) {
+      const item = lookup[f];
+      if (item && Number.isFinite(item.unemployment_rate) && Number.isFinite(item.population)) {
+        totPop += item.population;
+        totWeighted += item.unemployment_rate * item.population;
+      }
+    }
+    if (totPop > 0)
+      out.surrounding_10_mile = {
+        ...s,
+        demographics: { ...s.demographics, unemployment_rate: totWeighted / totPop },
+      };
+  }
+
+  if (w.demographics && isMissing(w.demographics.unemployment_rate) && wFips.length) {
+    let totPop = 0;
+    let totWeighted = 0;
+    for (const f of wFips) {
+      const item = lookup[f];
+      if (item && Number.isFinite(item.unemployment_rate) && Number.isFinite(item.population)) {
+        totPop += item.population;
+        totWeighted += item.unemployment_rate * item.population;
+      }
+    }
+    if (totPop > 0)
+      out.water_district = {
+        ...w,
+        demographics: { ...w.demographics, unemployment_rate: totWeighted / totPop },
+      };
+  }
+
+  return out;
+}
+
+async function enrichRegionLanguages(data = {}) {
+  const { surrounding_10_mile, water_district } = data || {};
+  const out = { ...data };
+  const s = surrounding_10_mile || {};
+  if (
+    Array.isArray(s.census_tracts_fips) &&
+    s.census_tracts_fips.length
+  ) {
+    const lang = await aggregateLanguageForTracts(s.census_tracts_fips);
+    const d = s.demographics || {};
+    out.surrounding_10_mile = { ...s, demographics: { ...d, ...lang } };
+  }
+  const w = water_district || {};
+  const wFips = Array.isArray(w.census_tracts_fips) && w.census_tracts_fips.length
+    ? w.census_tracts_fips
+    : Array.isArray(w.census_tracts)
+      ? w.census_tracts
+      : [];
+  if (wFips.length) {
+    const lang = await aggregateLanguageForTracts(wFips);
+    const d = w.demographics || {};
+    out.water_district = { ...w, demographics: { ...d, ...lang } };
+  }
+  return out;
+}
+
+// Populate environmental hardships for surrounding and district regions
+async function enrichRegionHardships(data = {}) {
+  const { surrounding_10_mile, water_district } = data || {};
+  const out = { ...data };
+  const s = surrounding_10_mile || {};
+  const sFips = Array.isArray(s.census_tracts_fips) && s.census_tracts_fips.length
+    ? s.census_tracts_fips
+    : Array.isArray(s.census_tracts)
+      ? s.census_tracts
+      : [];
+  if (
+    (!Array.isArray(s.environmental_hardships) || !s.environmental_hardships.length) &&
+    sFips.length
+  ) {
+    const hardships = await aggregateHardshipsForTracts(sFips);
+    out.surrounding_10_mile = { ...s, environmental_hardships: hardships };
+  }
+  const w = water_district || {};
+  const wFips = Array.isArray(w.census_tracts_fips) && w.census_tracts_fips.length
+    ? w.census_tracts_fips
+    : Array.isArray(w.census_tracts)
+      ? w.census_tracts.map(String)
+      : [];
+  if (
+    (!Array.isArray(w.environmental_hardships) || !w.environmental_hardships.length) &&
+    wFips.length
+  ) {
+    const hardships = await aggregateHardshipsForTracts(wFips);
+    out.water_district = { ...w, environmental_hardships: hardships };
+  }
+  return out;
+}
+
+// Fetch surrounding cities and census tracts if API didn't provide them
+async function enrichSurrounding(data = {}) {
+  const { lat, lon, census_tract, surrounding_10_mile } = data || {};
+  if (lat == null || lon == null) return data;
+  const radiusMeters = 1609.34 * 10; // 10 miles
+  const s = { ...(surrounding_10_mile || {}) };
+  const tasks = [];
+  if (!Array.isArray(s.cities) || !s.cities.length) {
+    const query = `[out:json];(node[place=city](around:${radiusMeters},${lat},${lon});node[place=town](around:${radiusMeters},${lat},${lon}););out;`;
+    const url =
+      "https://overpass-api.de/api/interpreter?data=" +
+      encodeURIComponent(query);
+    tasks.push(
+      fetch(url)
+        .then((r) => r.json())
+        .then((j) => {
+          const names = (j.elements || [])
+            .map((e) => e.tags?.name)
+            .filter(Boolean);
+          s.cities = Array.from(new Set(names)).slice(0, 10);
+        })
+        .catch(() => {}),
+    );
+  }
+  const existingTracts = Array.isArray(s.census_tracts) ? s.census_tracts.map(String) : [];
+  const existingFips = Array.isArray(s.census_tracts_fips) ? s.census_tracts_fips.map(String) : [];
+  const existingMap = { ...(s.census_tract_map || {}) };
+  const tractUrl =
+    "https://tigerweb.geo.census.gov/arcgis/rest/services/TIGERweb/Tracts_Blocks/MapServer/10/query" +
+    `?where=1=1&geometry=${lon},${lat}&geometryType=esriGeometryPoint&inSR=4326&spatialRel=esriSpatialRelIntersects&distance=${radiusMeters}&units=esriSRUnit_Meter&outFields=NAME,GEOID&f=json`;
+  tasks.push(
+    fetch(tractUrl)
+      .then((r) => r.json())
+      .then((j) => {
+        const features = j.features || [];
+        const names = [];
+        const fips = [];
+        const map = {};
+        for (const f of features) {
+          const attrs = f.attributes || {};
+          let name = null;
+          if (attrs.NAME) {
+            name = attrs.NAME.replace(/^Census Tract\s+/i, "");
+            names.push(name);
+          }
+          if (attrs.GEOID) {
+            const geoid = String(attrs.GEOID);
+            fips.push(geoid);
+            if (name) map[geoid] = name;
+          }
+        }
+        s.census_tracts = Array.from(new Set([...existingTracts, ...names]));
+        s.census_tracts_fips = Array.from(new Set([...existingFips, ...fips]));
+        s.census_tract_map = { ...existingMap, ...map };
+      })
+      .catch(() => {}),
+  );
+  if (tasks.length) await Promise.all(tasks);
+  if (!Array.isArray(s.cities)) s.cities = [];
+  const tractSet = new Set(Array.isArray(s.census_tracts) ? s.census_tracts : []);
+  if (census_tract) tractSet.add(String(census_tract));
+  s.census_tracts = Array.from(tractSet);
+  if (Array.isArray(s.census_tracts_fips)) {
+    const fipsSet = new Set(s.census_tracts_fips);
+    const { state_fips, county_fips, tract_code } = data || {};
+    if (state_fips && county_fips && tract_code)
+      fipsSet.add(`${state_fips}${county_fips}${tract_code}`);
+    s.census_tracts_fips = Array.from(fipsSet);
+  }
+  if (Array.isArray(s.census_tracts_fips) && s.census_tracts_fips.length) {
+    try {
+      const dacFips = await fetchDacFips(s.census_tracts_fips);
+      const names = [];
+      for (const f of dacFips) {
+        const name = (s.census_tract_map && s.census_tract_map[f]) || f;
+        names.push(name);
+      }
+      s.dac_tracts = names;
+      s.dac_tracts_fips = dacFips;
+      if (names.length) {
+        const set = new Set([...(s.census_tracts || []), ...names]);
+        s.census_tracts = Array.from(set);
+      }
+    } catch {
+      // ignore errors
+    }
+  }
+  if (Array.isArray(s.census_tracts_fips) && s.census_tracts_fips.length) {
+    try {
+      const lookup = await fetchUnemploymentForTracts(s.census_tracts_fips);
+      let totalPop = 0;
+      let dacPop = 0;
+      const dacFips = new Set(s.dac_tracts_fips || []);
+      for (const f of s.census_tracts_fips) {
+        const info = lookup[f];
+        if (info && Number.isFinite(info.population)) {
+          totalPop += info.population;
+          if (dacFips.has(String(f))) dacPop += info.population;
+        }
+      }
+      if (totalPop > 0) s.dac_population_pct = (dacPop / totalPop) * 100;
+      if (s.census_tracts_fips.length > 0)
+        s.dac_tracts_pct = (dacFips.size / s.census_tracts_fips.length) * 100;
+    } catch {
+      // ignore errors
+    }
+  }
+  return { ...data, surrounding_10_mile: s };
+}
+
+// Fill in missing water district basics if the API doesn't provide them
+async function enrichWaterDistrict(data = {}, address = "") {
+  const {
+    lat,
+    lon,
+    city,
+    census_tract,
+    state_fips,
+    county_fips,
+    tract_code,
+    water_district,
+  } = data || {};
+  if (lat == null || lon == null) return data;
+  const w = { ...water_district };
+  const tasks = [];
+
+  // Primary lookup using the NFT API (includes service-area shape info)
+  if (address) {
+    const url = buildApiUrl("/lookup", { address });
+    tasks.push(
+      fetchJsonWithDiagnostics(url)
+        .then((j) => {
+          w.name =
+            j?.agency?.agency_name ||
+            j?.agency?.name ||
+            j?.agency_name ||
+            j?.name ||
+            w.name;
+          const tracts =
+            j?.agency?.service_area_tracts ||
+            j?.service_area_tracts ||
+            j?.census_tracts ||
+            j?.agency?.census_tracts;
+          if (typeof tracts === "string") {
+            const arr = tracts.split(/\s*,\s*/).filter(Boolean);
+            w.census_tracts = arr;
+            const fipsArr = arr.filter((t) => /^\d{11}$/.test(t));
+            if (fipsArr.length) w.census_tracts_fips = fipsArr;
+          } else if (Array.isArray(tracts)) {
+            const arr = [...new Set(tracts.map(String))];
+            w.census_tracts = arr;
+            const fipsArr = arr.filter((t) => /^\d{11}$/.test(t));
+            if (fipsArr.length)
+              w.census_tracts_fips = [...new Set([...(w.census_tracts_fips || []), ...fipsArr])];
+          }
+        })
+        .catch(() => {}),
+    );
+  }
+
+  // Fallback: look up a district name from the state water board service
+  if (!w.name) {
+    const url =
+      "https://services.arcgis.com/8DFNJhY7CUN8E0bX/ArcGIS/rest/services/Public_Water_System_Boundaries/FeatureServer/0/query" +
+      `?geometry=${lon}%2C${lat}&geometryType=esriGeometryPoint&inSR=4326&spatialRel=esriSpatialRelIntersects&outFields=PWS_NAME&returnGeometry=false&f=json`;
+    tasks.push(
+      fetch(url)
+        .then((r) => r.json())
+        .then((j) => {
+          w.name = j?.features?.[0]?.attributes?.PWS_NAME || w.name;
+        })
+        .catch(() => {}),
+    );
+  }
+
+  if (!Array.isArray(w.cities) || !w.cities.length) {
+    if (city) w.cities = [city];
+  }
+
+  if (tasks.length) await Promise.all(tasks);
+
+  // Fetch census tracts from the API if we have a name but no tract list
+  if (w.name && (!Array.isArray(w.census_tracts) || !w.census_tracts.length)) {
+    try {
+      const url = buildApiUrl("/census-tracts", { agency_name: w.name });
+      const j = await fetchJsonWithDiagnostics(url);
+      const tracts = j?.census_tracts;
+      if (Array.isArray(tracts)) {
+        w.census_tracts = [...new Set(tracts.map(String))];
+      }
+    } catch {
+      // ignore errors
+    }
+  }
+
+  // Overlay the water district shape to include any intersecting census tracts
+  // (be generous and include tracts that only partially overlap the boundary)
+  try {
+    const geoUrl =
+      "https://services.arcgis.com/8DFNJhY7CUN8E0bX/ArcGIS/rest/services/Public_Water_System_Boundaries/FeatureServer/0/query" +
+      `?geometry=${lon}%2C${lat}&geometryType=esriGeometryPoint&inSR=4326&spatialRel=esriSpatialRelIntersects&outFields=PWS_NAME&returnGeometry=true&outSR=4326&f=json`;
+    const j = await fetch(geoUrl).then((r) => r.json());
+    const geom = j?.features?.[0]?.geometry;
+    if (geom) {
+      const tractUrl =
+        "https://tigerweb.geo.census.gov/arcgis/rest/services/TIGERweb/Tracts_Blocks/MapServer/10/query";
+      const tractParams = new URLSearchParams({
+        where: "1=1",
+        geometry: JSON.stringify(geom),
+        geometryType: "esriGeometryPolygon",
+        inSR: "4326",
+        spatialRel: "esriSpatialRelIntersects",
+        outFields: "NAME,GEOID",
+        returnGeometry: "false",
+        f: "json",
+      });
+      let t;
+      try {
+        t = await fetch(tractUrl, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/x-www-form-urlencoded",
+          },
+          body: tractParams.toString(),
+        }).then((r) => r.json());
+      } catch {
+        const fallbackUrl = `${tractUrl}?${tractParams.toString()}`;
+        t = await fetch(fallbackUrl).then((r) => r.json());
+      }
+      const names = [];
+      const fips = [];
+      const map = {};
+      for (const f of t.features || []) {
+        const attrs = f.attributes || {};
+        let name = null;
+        if (attrs.NAME) {
+          name = attrs.NAME.replace(/^Census Tract\s+/i, "");
+          names.push(name);
+        }
+        if (attrs.GEOID) {
+          const geoid = String(attrs.GEOID);
+          fips.push(geoid);
+          if (name) map[geoid] = name;
+        }
+      }
+      if (names.length || fips.length) {
+        const existing = Array.isArray(w.census_tracts)
+          ? w.census_tracts.map(String)
+          : [];
+        const existingFips = Array.isArray(w.census_tracts_fips)
+          ? w.census_tracts_fips.map(String)
+          : [];
+        const existingMap = w.census_tract_map || {};
+        if (names.length)
+          w.census_tracts = [...new Set([...existing, ...names])];
+        if (fips.length)
+          w.census_tracts_fips = [
+            ...new Set([...existingFips, ...fips]),
+          ];
+        if (Object.keys(map).length)
+          w.census_tract_map = { ...existingMap, ...map };
+      }
+    }
+  } catch {
+    // ignore errors
+  }
+
+  let tracts = [];
+  if (Array.isArray(w.census_tracts)) tracts = w.census_tracts.map(String);
+  else if (typeof w.census_tracts === "string")
+    tracts = w.census_tracts.split(/\s*,\s*/).filter(Boolean);
+  if (census_tract) tracts.unshift(String(census_tract));
+  w.census_tracts = [...new Set(tracts)];
+
+  let fipsList = Array.isArray(w.census_tracts_fips)
+    ? w.census_tracts_fips.map(String)
+    : [];
+  for (const t of w.census_tracts) {
+    if (/^\d{11}$/.test(t)) fipsList.push(t);
+  }
+  if (state_fips && county_fips && tract_code)
+    fipsList.unshift(`${state_fips}${county_fips}${tract_code}`);
+  w.census_tracts_fips = [...new Set(fipsList)];
+
+  if (Array.isArray(w.census_tracts_fips) && w.census_tracts_fips.length) {
+    try {
+      const dacFips = await fetchDacFips(w.census_tracts_fips);
+      const names = [];
+      for (const f of dacFips) {
+        const name = (w.census_tract_map && w.census_tract_map[f]) || f;
+        names.push(name);
+      }
+      w.dac_tracts = names;
+      w.dac_tracts_fips = dacFips;
+      if (names.length) {
+        const set = new Set([...(w.census_tracts || []), ...names]);
+        w.census_tracts = Array.from(set);
+      }
+    } catch {
+      // ignore errors
+    }
+  }
+  if (Array.isArray(w.census_tracts_fips) && w.census_tracts_fips.length) {
+    try {
+      const lookup = await fetchUnemploymentForTracts(w.census_tracts_fips);
+      let totalPop = 0;
+      let dacPop = 0;
+      const dacFips = new Set(w.dac_tracts_fips || []);
+      for (const f of w.census_tracts_fips) {
+        const info = lookup[f];
+        if (info && Number.isFinite(info.population)) {
+          totalPop += info.population;
+          if (dacFips.has(String(f))) dacPop += info.population;
+        }
+      }
+      if (totalPop > 0) w.dac_population_pct = (dacPop / totalPop) * 100;
+      if (w.census_tracts_fips.length > 0)
+        w.dac_tracts_pct =
+          (dacFips.size / w.census_tracts_fips.length) * 100;
+    } catch {
+      // ignore errors
+    }
+  }
+
+  // Hard-coded CalEnviroScreen indicators for the water district region
+  w.environment = {
+    percentile: 48.5,
+    overall_percentiles: {
+      pollution_burden: 37.2,
+      population_characteristics: 56.5,
+    },
+    exposures: {
+      ozone: 98.8,
+      pm25: 34.0,
+      diesel: 24.2,
+      toxic_releases: 32.7,
+      traffic: 12.3,
+      pesticides: 22.7,
+      drinking_water: 61.8,
+      lead: 49.1,
+    },
+    environmental_effects: {
+      cleanup_sites: 25.2,
+      groundwater_threats: 20.4,
+      hazardous_waste: 27.8,
+      impaired_waters: 23.0,
+      solid_waste: 45.7,
+    },
+    sensitive_populations: {
+      asthma: 58.9,
+      low_birth_weight: 52.8,
+      cardiovascular_disease: 81.6,
+    },
+    socioeconomic_factors: {
+      education: 45.5,
+      linguistic_isolation: 17.0,
+      poverty: 54.5,
+      unemployment: 63.2,
+      housing_burden: 38.8,
+    },
+  };
+
+  return { ...data, water_district: w };
+}
+
+// Fetch English proficiency percentage if missing
+async function enrichEnglishProficiency(data = {}) {
+  const { lat, lon, english_less_than_very_well_pct } = data || {};
+  if (!isMissing(english_less_than_very_well_pct) || lat == null || lon == null)
+    return data;
+  try {
+    const geo = await fetch(
+      `https://geo.fcc.gov/api/census/block/find?latitude=${lat}&longitude=${lon}&format=json`,
+    ).then((r) => r.json());
+    const fips = geo?.Block?.FIPS;
+    if (fips && fips.length >= 11) {
+      const state = fips.slice(0, 2);
+      const county = fips.slice(2, 5);
+      const tract = fips.slice(5, 11);
+      const url =
+        `https://api.census.gov/data/2022/acs/acs5/profile?get=DP02_0111PE&for=tract:${tract}&in=state:${state}+county:${county}`;
+      const acs = await fetch(url).then((r) => r.json());
+      const val = acs?.[1]?.[0];
+      const num = Number(val);
+      if (Number.isFinite(num) && num >= 0) {
+        return { ...data, english_less_than_very_well_pct: num };
+      }
+    }
+  } catch (e) {
+    // Ignore errors and fall through
+  }
+  return data;
+}
+
+// Fetch NWS alerts for the given coordinates and append to data
+async function enrichNwsAlerts(data = {}) {
+  const { lat, lon } = data || {};
+  if (lat == null || lon == null) return { ...data, alerts: [] };
+  try {
+    const url = `https://api.weather.gov/alerts/active?point=${lat},${lon}`;
+    const res = await fetch(url, {
+      headers: {
+        Accept: "application/geo+json",
+        "User-Agent": "CalWEP-Demographic-Website (info@calwep.org)",
+      },
+    });
+    if (!res.ok) throw new Error("NWS response not ok");
+    const j = await res.json();
+    const alerts = Array.isArray(j?.features)
+      ? j.features
+          .map((f) => f?.properties?.headline)
+          .filter(Boolean)
+      : [];
+    return { ...data, alerts };
+  } catch {
+    return { ...data, alerts: [] };
+  }
+}
+
+// CalEnviroScreen color helper
+function cesColor(percentile) {
+  const p = Number(percentile);
+  if (!Number.isFinite(p)) return { bg: "#fff", fg: "#000" };
+  const scale = [
+    { max: 10, color: "#006837", fg: "#fff" },
+    { max: 20, color: "#1A9850", fg: "#fff" },
+    { max: 30, color: "#66BD63" },
+    { max: 40, color: "#A6D96A" },
+    { max: 50, color: "#FEE08B" },
+    { max: 60, color: "#FDAE61" },
+    { max: 70, color: "#F46D43", fg: "#fff" },
+    { max: 80, color: "#D73027", fg: "#fff" },
+    { max: 90, color: "#A50026", fg: "#fff" },
+    { max: 100, color: "#6E0000", fg: "#fff" },
+  ];
+  for (const r of scale) {
+    if (p <= r.max) return { bg: r.color, fg: r.fg || "#000" };
+  }
+  return { bg: "#6E0000", fg: "#fff" };
+}
+
+function renderEnviroscreenSection(title, data, includeDescription = false) {
+  if (!data || typeof data !== "object") return "";
+  const badge = (v) => {
+    const { bg, fg } = cesColor(v);
+    const val = Number.isFinite(Number(v)) ? Number(v).toFixed(1) : "—";
+    return `<span class="ces-badge" style="background:${bg};color:${fg};">${val}</span>`;
+  };
+  const overall = data.percentile;
+  const pb = data.overall_percentiles?.pollution_burden;
+  const pc = data.overall_percentiles?.population_characteristics;
+  const renderGroup = (groupTitle, obj, order = []) => {
+    if (!obj || typeof obj !== "object") return "";
+    const entries = Object.entries(obj).sort(([a], [b]) => {
+      const ia = order.indexOf(a);
+      const ib = order.indexOf(b);
+      if (ia !== -1 && ib !== -1) return ia - ib;
+      if (ia !== -1) return -1;
+      if (ib !== -1) return 1;
+      return a.localeCompare(b);
+    });
+    const kv = entries
+      .map(
+        ([k, v]) =>
+          `<div class="key">${escapeHTML(
+            CES_LABELS[k] || titleCase(k),
+          )}</div><div class="val">${badge(v)}</div>`,
+      )
+      .join("");
+    return `<h4 class="sub-section-header">${groupTitle}</h4><div class="kv">${kv}</div>`;
+  };
+  const desc = includeDescription
+    ? `
+        <p class="section-description">This section shows environmental and community health indicators from California’s Enviroscreen tool. Results are presented as percentiles, with higher numbers (and darker colors) indicating greater environmental burdens compared to other areas in the state. These measures include factors such as air quality, traffic pollution, and access to safe drinking water.</p>
+        <p class="section-description">Staff can use this information to understand potential environmental challenges facing a neighborhood, strengthen grant applications that require equity or environmental justice considerations, and design outreach that addresses local concerns. For example, if an event is planned in an area with a high Enviroscreen percentile, staff may want to highlight programs or benefits related to clean water, pollution reduction, or community health.</p>
+        <p class="section-description"><strong>How to Read This</strong><br>Green = Low burden (fewer environmental and health challenges)<br>Yellow/Orange = Moderate burden<br>Red = High burden (greater environmental and health challenges)<br>Percentile score shows how the community compares to others across California.</p>
+      `
+    : "";
+  return `
+      <section class="section-block">
+        <h3 class="section-header">${title}</h3>
+        ${desc}
+        <div class="kv">
+          <div class="key">Overall percentile</div><div class="val">${badge(overall)}</div>
+          <div class="key">Pollution burden</div><div class="val">${badge(pb)}</div>
+          <div class="key">Population characteristics</div><div class="val">${badge(pc)}</div>
+        </div>
+        ${renderGroup("Exposures", data.exposures, CES_GROUP_ORDER.exposures)}
+        ${renderGroup("Environmental effects", data.environmental_effects, CES_GROUP_ORDER.environmental_effects)}
+        ${renderGroup("Sensitive populations", data.sensitive_populations, CES_GROUP_ORDER.sensitive_populations)}
+        ${renderGroup("Socioeconomic factors", data.socioeconomic_factors, CES_GROUP_ORDER.socioeconomic_factors)}
+      </section>
+    `;
+}
+
+// ---------- Places Autocomplete ----------
+function initAutocomplete() {
+  const input = document.getElementById("autocomplete");
+  if (!input || typeof google === "undefined" || !google.maps) return;
+
+  autocomplete = new google.maps.places.Autocomplete(input, {
+    types: ["address"],
+    componentRestrictions: { country: "us" },
+    fields: ["address_components", "formatted_address"],
+  });
+
+  autocomplete.addListener("place_changed", () => {
+    const p = autocomplete.getPlace();
+    let street = "",
+      city = "",
+      state = "",
+      zip = "";
+    for (const comp of p.address_components || []) {
+      const t = comp.types || [];
+      if (t.includes("street_number")) street = comp.long_name + " ";
+      else if (t.includes("route")) street += comp.long_name;
+      else if (t.includes("locality")) city = comp.long_name;
+      else if (t.includes("administrative_area_level_1"))
+        state = comp.short_name;
+      else if (t.includes("postal_code")) zip = comp.long_name;
+    }
+    if (!zip && p.formatted_address) {
+      const m = p.formatted_address.match(/\b\d{5}(?:-\d{4})?\b/);
+      if (m) zip = m[0];
+    }
+    const parts = [street.trim(), city, state, zip].filter(Boolean);
+    if (parts.length) input.value = parts.join(", ");
+  });
+
+  // Enter triggers lookup
+  input.addEventListener("keydown", (e) => {
+    if (e.key === "Enter") {
+      e.preventDefault();
+      document.getElementById("lookupBtn")?.click();
+    }
+  });
+}
+
+// ---------- Rendering ----------
+function renderLoading(address) {
+  document.getElementById("result").innerHTML = `
+    <div class="card">
+      <div class="card__header">
+        <h2 class="card__title">Looking up demographics…</h2>
+        <span class="updated">Started ${nowStamp()}</span>
+      </div>
+      ${address ? `<p class="note">Address: <strong>${escapeHTML(address)}</strong></p>` : ""}
+      <div class="callout">Fetching county, languages, English proficiency, population, income, DAC, and alerts…</div>
+      <p class="note">Elapsed: <span id="searchTimer">0m 00s</span></p>
+    </div>
+  `;
+}
+function renderError(message, address, elapsedMs) {
+  document.getElementById("result").innerHTML = `
+    <div class="card" role="alert">
+      <div class="card__header">
+        <h2 class="card__title">Unable to retrieve data</h2>
+        <span class="updated">${nowStamp()}</span>
+      </div>
+      ${address ? `<p class="note">Address: <strong>${escapeHTML(address)}</strong></p>` : ""}
+      <div class="callout" style="border-left-color:#b45309;">
+        ${escapeHTML(message || "Please try again with a different address.")}
+      </div>
+      <p class="note">Search took ${formatDuration(elapsedMs)}.</p>
+      <p class="note">API base: <code>${escapeHTML(API_BASE)}</code>. If your API has a prefix, adjust <code>API_PATH</code>.</p>
+    </div>
+  `;
+}
+
+function buildComparisonRow(
+  title,
+  localHtml,
+  surroundingHtml,
+  districtHtml,
+  descriptionHtml = "",
+) {
+  const cell = (html) =>
+    html && String(html).trim() ? html : '<p class="note">No data</p>';
+  return `
+    <section class="section-block">
+      <h3 class="section-header">${title}</h3>
+      ${descriptionHtml}
+      <div class="comparison-grid">
+        <div class="col local">${cell(localHtml)}</div>
+        <div class="col surrounding">${cell(surroundingHtml)}</div>
+        <div class="col district">${cell(districtHtml)}</div>
+      </div>
+    </section>
+  `;
+}
+
+function renderEnviroscreenContent(data) {
+  if (!data || typeof data !== "object")
+    return "<p class=\"note\">No data</p>";
+  const badge = (v) => {
+    const { bg, fg } = cesColor(v);
+    const val = Number.isFinite(Number(v)) ? Number(v).toFixed(1) : "—";
+    return `<span class="ces-badge" style="background:${bg};color:${fg};">${val}</span>`;
+  };
+  const overall = data.percentile;
+  const pb = data.overall_percentiles?.pollution_burden;
+  const pc = data.overall_percentiles?.population_characteristics;
+  const renderGroup = (title, obj, order = []) => {
+    if (!obj || typeof obj !== "object") return "";
+    const entries = Object.entries(obj).sort(([a], [b]) => {
+      const ia = order.indexOf(a);
+      const ib = order.indexOf(b);
+      if (ia !== -1 && ib !== -1) return ia - ib;
+      if (ia !== -1) return -1;
+      if (ib !== -1) return 1;
+      return a.localeCompare(b);
+    });
+    const kv = entries
+      .map(
+        ([k, v]) =>
+          `<div class=\"key\">${escapeHTML(
+            CES_LABELS[k] || titleCase(k),
+          )}</div><div class=\"val\">${badge(v)}</div>`,
+      )
+      .join("");
+    return `<h4 class=\"sub-section-header\">${title}</h4><div class=\"kv\">${kv}</div>`;
+  };
+  return `
+    <div class="kv">
+      <div class="key">Overall percentile</div><div class="val">${badge(overall)}</div>
+      <div class="key">Pollution burden</div><div class="val">${badge(pb)}</div>
+      <div class="key">Population characteristics</div><div class="val">${badge(pc)}</div>
+    </div>
+    ${renderGroup("Exposures", data.exposures, CES_GROUP_ORDER.exposures)}
+    ${renderGroup("Environmental effects", data.environmental_effects, CES_GROUP_ORDER.environmental_effects)}
+    ${renderGroup("Sensitive populations", data.sensitive_populations, CES_GROUP_ORDER.sensitive_populations)}
+    ${renderGroup("Socioeconomic factors", data.socioeconomic_factors, CES_GROUP_ORDER.socioeconomic_factors)}
+  `;
+}
+function renderResultOld(address, data, elapsedMs) {
+  const {
+    city,
+    zip,
+    county,
+    census_tract,
+    lat,
+    lon,
+    primary_language,
+    secondary_language,
+    english_less_than_very_well_pct,
+    language_other_than_english_pct,
+    spanish_at_home_pct,
+    median_household_income,
+    per_capita_income,
+    median_age,
+    poverty_rate,
+    unemployment_rate,
+    population,
+    people_below_poverty,
+    dac_status,
+    environmental_hardships,
+    white_pct,
+    black_pct,
+    native_pct,
+    asian_pct,
+    pacific_pct,
+    other_race_pct,
+    two_or_more_races_pct,
+    hispanic_pct,
+    not_hispanic_pct,
+    owner_occupied_pct,
+    renter_occupied_pct,
+    median_home_value,
+    high_school_or_higher_pct,
+    bachelors_or_higher_pct,
+    alerts,
+    enviroscreen,
+    surrounding_10_mile,
+    water_district,
+  } = data || {};
+
+  const hardshipList = Array.isArray(environmental_hardships)
+    ? Array.from(new Set(environmental_hardships))
+    : [];
+  const alertList = Array.isArray(alerts) ? alerts : [];
+  const cesSection = renderEnviroscreenSection(
+    "Environmental Indicators (CalEPA Enviroscreen)",
+    enviroscreen,
+    true,
+  );
+  const coords =
+    lat != null && lon != null
+      ? `${Number(lat).toFixed(6)}, ${Number(lon).toFixed(6)}`
+      : "—";
+  const mapImgHtml =
+    lat != null && lon != null
+      ? `<img class="map-image" src="https://maps.googleapis.com/maps/api/staticmap?center=${lat},${lon}&zoom=13&size=600x300&markers=color:red|${lat},${lon}&key=${GOOGLE_MAPS_KEY}" alt="Map of location" />`
+      : "";
+
+const hardshipSection = `
+    <section class="section-block">
+      <h3 class="section-header">Environmental hardships</h3>
+      ${hardshipList.length ? `<div class="stats">${hardshipList.map((h) => `<span class="pill">${escapeHTML(h)}</span>`).join("")}</div>` : `<p class="note">No environmental hardships recorded.</p>`}
+    </section>
+  `;
+
+  const raceSection = `
+    <section class="section-block">
+      <h3 class="section-header">Race &amp; Ethnicity (ACS)</h3>
+      <p class="section-description">This section shows the racial and ethnic composition of the community, expressed as percentages of the total population using American Community Survey (ACS) data. These insights help identify the diversity of the area and support efforts to ensure programs, outreach, and engagement strategies reflect and serve all community groups.</p>
+      <div class="kv">
+        <div class="key">White</div><div class="val">${fmtPct(white_pct)}</div>
+        <div class="key">Black or African American</div><div class="val">${fmtPct(black_pct)}</div>
+        <div class="key">American Indian / Alaska Native</div><div class="val">${fmtPct(native_pct)}</div>
+        <div class="key">Asian</div><div class="val">${fmtPct(asian_pct)}</div>
+        <div class="key">Native Hawaiian / Pacific Islander</div><div class="val">${fmtPct(pacific_pct)}</div>
+        <div class="key">Other race</div><div class="val">${fmtPct(other_race_pct)}</div>
+        <div class="key">Two or more races</div><div class="val">${fmtPct(two_or_more_races_pct)}</div>
+        <div class="key">Hispanic</div><div class="val">${fmtPct(hispanic_pct)}</div>
+        <div class="key">Not Hispanic</div><div class="val">${fmtPct(not_hispanic_pct)}</div>
+      </div>
+    </section>
+  `;
+
+  const housingSection = `
+    <section class="section-block">
+      <h3 class="section-header">Housing &amp; Education (ACS)</h3>
+      <p class="section-description">This section combines information on housing and educational attainment in the community. It includes the percentage of owner-occupied and renter-occupied homes, median home value, and levels of education such as high school completion and bachelor’s degree or higher. These indicators provide insight into community stability, affordability, and educational opportunities, helping inform outreach strategies and program planning.</p>
+      <div class="kv">
+        <div class="key">Owner occupied</div><div class="val">${fmtPct(owner_occupied_pct)}</div>
+        <div class="key">Renter occupied</div><div class="val">${fmtPct(renter_occupied_pct)}</div>
+        <div class="key">Median home value</div><div class="val">${fmtCurrency(median_home_value)}</div>
+        <div class="key">High school or higher</div><div class="val">${fmtPct(high_school_or_higher_pct)}</div>
+        <div class="key">Bachelor's degree or higher</div><div class="val">${fmtPct(bachelors_or_higher_pct)}</div>
+      </div>
+    </section>
+  `;
+
+  const surroundingSection = (() => {
+    const s = surrounding_10_mile || {};
+    let html = "";
+    const d = s.demographics || {};
+    if (Object.keys(d).length) {
+      const tractList = Array.isArray(s.census_tracts)
+        ? s.census_tracts.join(", ")
+        : escapeHTML(s.census_tracts) || "—";
+      const cityList = Array.isArray(s.cities)
+        ? s.cities.join(", ")
+        : escapeHTML(s.cities) || "—";
+      html += `
+      <section class="section-block">
+        <h3 class="section-header">Surrounding 10‑Mile Area (ACS)</h3>
+        <div class="kv">
+          <div class="key">Cities</div><div class="val">${cityList}</div>
+          <div class="key">Census tracts</div><div class="val">${tractList}</div>
+          <div class="key">Population</div><div class="val">${fmtInt(d.population)}</div>
+          <div class="key">Median age</div><div class="val">${fmtNumber(d.median_age)}</div>
+          <div class="key">Median household income</div><div class="val">${fmtCurrency(d.median_household_income)}</div>
+          <div class="key">Per capita income</div><div class="val">${fmtCurrency(d.per_capita_income)}</div>
+          <div class="key">Poverty rate</div><div class="val">${fmtPct(d.poverty_rate)}</div>
+          <div class="key">Unemployment rate</div><div class="val">${fmtPct(d.unemployment_rate)}</div>
+          <div class="key">Owner occupied</div><div class="val">${fmtPct(d.owner_occupied_pct)}</div>
+          <div class="key">Renter occupied</div><div class="val">${fmtPct(d.renter_occupied_pct)}</div>
+          <div class="key">Median home value</div><div class="val">${fmtCurrency(d.median_home_value)}</div>
+          <div class="key">High school or higher</div><div class="val">${fmtPct(d.high_school_or_higher_pct)}</div>
+          <div class="key">Bachelor's degree or higher</div><div class="val">${fmtPct(d.bachelors_or_higher_pct)}</div>
+          <div class="key">Primary language</div><div class="val">${escapeHTML(d.primary_language) || "—"}</div>
+          <div class="key">Second most common</div><div class="val">${escapeHTML(d.secondary_language) || "—"}</div>
+          <div class="key">People who speak a language other than English at home</div><div class="val">${fmtPct(d.language_other_than_english_pct)}</div>
+          <div class="key">People who speak English less than \"very well\"</div><div class="val">${fmtPct(d.english_less_than_very_well_pct)}</div>
+          <div class="key">People who speak Spanish at home</div><div class="val">${fmtPct(d.spanish_at_home_pct)}</div>
+          <div class="key">White</div><div class="val">${fmtPct(d.white_pct)}</div>
+          <div class="key">Black or African American</div><div class="val">${fmtPct(d.black_pct)}</div>
+          <div class="key">American Indian / Alaska Native</div><div class="val">${fmtPct(d.native_pct)}</div>
+          <div class="key">Asian</div><div class="val">${fmtPct(d.asian_pct)}</div>
+          <div class="key">Native Hawaiian / Pacific Islander</div><div class="val">${fmtPct(d.pacific_pct)}</div>
+          <div class="key">Other race</div><div class="val">${fmtPct(d.other_race_pct)}</div>
+          <div class="key">Two or more races</div><div class="val">${fmtPct(d.two_or_more_races_pct)}</div>
+          <div class="key">Hispanic</div><div class="val">${fmtPct(d.hispanic_pct)}</div>
+          <div class="key">Not Hispanic</div><div class="val">${fmtPct(d.not_hispanic_pct)}</div>
+        </div>
+      </section>
+    `;
+    }
+    if (s.environment)
+      html += renderEnviroscreenSection(
+        "Surrounding 10‑Mile Area Environment (CalEPA Enviroscreen)",
+        s.environment,
+      );
+    return html;
+  })();
+
+  const waterDistrictSection = (() => {
+    const w = water_district || {};
+    let html = "";
+    const d = w.demographics || {};
+    const tractList = Array.isArray(w.census_tracts)
+      ? w.census_tracts.join(", ")
+      : escapeHTML(w.census_tracts) || "—";
+    const cityList = Array.isArray(w.cities)
+      ? w.cities.join(", ")
+      : escapeHTML(w.cities) || "—";
+    if (w.name || w.census_tracts || w.cities)
+      html += `
+      <section class="section-block">
+        <h3 class="section-header">Location Summary</h3>
+        <div class="kv">
+          <div class="key">District</div><div class="val">${escapeHTML(w.name) || "—"}</div>
+          <div class="key">Cities</div><div class="val">${cityList}</div>
+          <div class="key">Census tracts</div><div class="val">${tractList}</div>
+        </div>
+      </section>
+    `;
+    if (Object.keys(d).length) {
+      html += `
+      <section class="section-block">
+        <h3 class="section-header">${escapeHTML(w.name) || "Water District Region"} (ACS)</h3>
+        <div class="kv">
+          <div class="key">Population</div><div class="val">${fmtInt(d.population)}</div>
+          <div class="key">Median age</div><div class="val">${fmtNumber(d.median_age)}</div>
+          <div class="key">Median household income</div><div class="val">${fmtCurrency(d.median_household_income)}</div>
+          <div class="key">Per capita income</div><div class="val">${fmtCurrency(d.per_capita_income)}</div>
+          <div class="key">Poverty rate</div><div class="val">${fmtPct(d.poverty_rate)}</div>
+          <div class="key">Unemployment rate</div><div class="val">${fmtPct(d.unemployment_rate)}</div>
+          <div class="key">Owner occupied</div><div class="val">${fmtPct(d.owner_occupied_pct)}</div>
+          <div class="key">Renter occupied</div><div class="val">${fmtPct(d.renter_occupied_pct)}</div>
+          <div class="key">Median home value</div><div class="val">${fmtCurrency(d.median_home_value)}</div>
+          <div class="key">High school or higher</div><div class="val">${fmtPct(d.high_school_or_higher_pct)}</div>
+          <div class="key">Bachelor's degree or higher</div><div class="val">${fmtPct(d.bachelors_or_higher_pct)}</div>
+          <div class="key">Primary language</div><div class="val">${escapeHTML(d.primary_language) || "—"}</div>
+          <div class="key">Second most common</div><div class="val">${escapeHTML(d.secondary_language) || "—"}</div>
+          <div class="key">People who speak a language other than English at home</div><div class="val">${fmtPct(d.language_other_than_english_pct)}</div>
+          <div class="key">People who speak Spanish at home</div><div class="val">${fmtPct(d.spanish_at_home_pct)}</div>
+          <div class="key">Speak English less than \"very well\"</div><div class="val">${fmtPct(d.english_less_than_very_well_pct)}</div>
+          <div class="key">White</div><div class="val">${fmtPct(d.white_pct)}</div>
+          <div class="key">Black or African American</div><div class="val">${fmtPct(d.black_pct)}</div>
+          <div class="key">American Indian / Alaska Native</div><div class="val">${fmtPct(d.native_pct)}</div>
+          <div class="key">Asian</div><div class="val">${fmtPct(d.asian_pct)}</div>
+          <div class="key">Native Hawaiian / Pacific Islander</div><div class="val">${fmtPct(d.pacific_pct)}</div>
+          <div class="key">Other race</div><div class="val">${fmtPct(d.other_race_pct)}</div>
+          <div class="key">Two or more races</div><div class="val">${fmtPct(d.two_or_more_races_pct)}</div>
+          <div class="key">Hispanic</div><div class="val">${fmtPct(d.hispanic_pct)}</div>
+          <div class="key">Not Hispanic</div><div class="val">${fmtPct(d.not_hispanic_pct)}</div>
+        </div>
+      </section>
+    `;
+    }
+    if (w.environment && Object.keys(w.environment).length)
+      html += renderEnviroscreenSection(
+        "Water District Region Environment (CalEPA Enviroscreen)",
+        w.environment,
+      );
+    return html;
+  })();
+
+
+  const localInfo = `
+    <section class="section-block">
+      <h3 class="section-header">Location Summary</h3>
+      <div class="kv">
+        <div class="key">City</div><div class="val">${escapeHTML(city) || "—"}</div>
+        <div class="key">Census tract</div><div class="val">${escapeHTML(census_tract) || "—"}</div>
+        <div class="key">ZIP code</div><div class="val">${escapeHTML(zip) || "—"}</div>
+        <div class="key">County</div><div class="val">${escapeHTML(county) || "—"}</div>
+        <div class="key">Coordinates</div><div class="val">${coords}</div>
+      </div>
+      ${mapImgHtml}
+    </section>
+      <p class="note">Search took ${formatDuration(elapsedMs)}.</p>
+
+    <section class="section-block">
+      <h3 class="section-header">Population &amp; Income (ACS)</h3>
+      <p class="section-description">This section provides a snapshot of the people living in the selected area, drawn from the American Community Survey (ACS). It includes the total population, median age, household income, poverty rate, and unemployment rate. These indicators offer a quick view of community size, economic stability, and social conditions.</p>
+      <div class="kv">
+        ${(() => {
+          const popEntries = [
+            ["Total population", fmtInt(population)],
+            ["Median age", fmtNumber(median_age)],
+            ["Median household income", fmtCurrency(median_household_income)],
+            ["Per capita income", fmtCurrency(per_capita_income)],
+            ["People below poverty", fmtInt(people_below_poverty)],
+            ["Poverty rate", fmtPct(poverty_rate)],
+            ["Unemployment rate", fmtPct(unemployment_rate)],
+          ];
+          return popEntries
+            .filter(([, v]) => v !== "—")
+            .map(
+              ([k, v]) =>
+                `<div class="key">${k}</div><div class="val">${v}</div>`,
+            )
+            .join("");
+        })()}
+      </div>
+    </section>
+
+    <section class="section-block">
+      <h3 class="section-header">Language (ACS)</h3>
+      <p class="section-description">This section highlights the primary and secondary languages spoken in the community and key language indicators based on American Community Survey (ACS) 5‑year estimates.</p>
+      <div class="kv">
+        <div class="key">Primary language</div><div class="val">${escapeHTML(primary_language) || "—"}</div>
+        <div class="key">Second most common</div><div class="val">${escapeHTML(secondary_language) || "—"}</div>
+        <div class="key">People who speak a language other than English at home</div><div class="val">${fmtPct(language_other_than_english_pct)}</div>
+        <div class="key">People who speak English less than \"very well\"</div><div class="val">${fmtPct(english_less_than_very_well_pct)}</div>
+        <div class="key">People who speak Spanish at home</div><div class="val">${fmtPct(spanish_at_home_pct)}</div>
+      </div>
+      <p class="note">Source: Latest ACS 5-Year Estimates<br>Data Profiles/Social Characteristics</p>
+    </section>
+
+    ${raceSection}
+    ${housingSection}
+    <section class="section-block">
+      <h3 class="section-header">Disadvantaged Community (DAC) Status</h3>
+      <p class="section-description">This section indicates whether the selected area is designated as a Disadvantaged Community (DAC) using the California Department of Water Resources (DWR) mapping tool. DAC status is determined by household income and is shown as a simple yes/no outcome. This designation is important for identifying areas eligible for certain state and federal funding opportunities and for ensuring that equity considerations are included in outreach and program planning.</p>
+      <div class="callout" style="border-left-color:${
+        dac_status ? "var(--success)" : "var(--border-strong)"
+      }">
+        Disadvantaged community: <strong>${dac_status ? "Yes" : "No"}</strong>
+      </div>
+    </section>
+
+    ${cesSection}
+    ${hardshipSection}
+    <section class="section-block">
+      <h3 class="section-header">Active Alerts (National Weather Service)</h3>
+      <p class="section-description">This section displays any current weather alerts issued by the National Weather Service (NWS) for the selected location. Alerts may include warnings for extreme heat, flooding, wildfire smoke, or other hazardous conditions. Having this information alongside demographic and environmental data helps staff anticipate safety concerns for events, tailor outreach, and ensure programs are responsive to current community conditions.</p>
+      ${
+        alertList.length
+          ? `
+        <div class="stats">
+          ${alertList.map((a) => `<span class="pill">${escapeHTML(a)}</span>`).join("")}
+        </div>
+      `
+          : `<p class="note">No active alerts found for this location.</p>`
+      }
+    </section>
+  `;
+
+  document.getElementById("result").innerHTML = `
+    <article class="card">
+      <div class="card__header">
+        <div class="card__head-left">
+          <h2 class="card__title">Results for: ${escapeHTML(address)}</h2>
+          <div class="card__actions">
+            <button type="button" onclick="printReport()">Print</button>
+            <button type="button" onclick="downloadPdf()">Download PDF</button>
+            <button type="button" onclick="downloadRawData()">Raw Data</button>
+            <button type="button" onclick="shareReport()">Share Link</button>
+          </div>
+        </div>
+        <span class="updated">Updated ${nowStamp()}</span>
+      </div>
+      <div class="comparison-grid">
+        <div class="col local">
+          ${localInfo}
+        </div>
+        ${
+          surroundingSection
+            ? `<div class="col surrounding">${surroundingSection}</div>`
+            : ""
+        }
+        ${
+          waterDistrictSection
+            ? `<div class="col district">${waterDistrictSection}</div>`
+            : ""
+        }
+      </div>
+      <span class="updated--footer">
+        Sources: FCC Block for county &amp; tract; US Census ACS 5‑year (languages, population, median income); CalEnviroScreen 4.0; NWS alerts.
+      </span>
+    </article>
+  `;
+}
+
+// New row-based renderer
+function renderResult(address, data, elapsedMs) {
+  const {
+    city,
+    zip,
+    county,
+    census_tract,
+    lat,
+    lon,
+    english_less_than_very_well_pct,
+    language_other_than_english_pct,
+    spanish_at_home_pct,
+    primary_language,
+    secondary_language,
+    median_household_income,
+    per_capita_income,
+    median_age,
+    poverty_rate,
+    unemployment_rate,
+    population,
+    dac_status,
+    environmental_hardships,
+    white_pct,
+    black_pct,
+    native_pct,
+    asian_pct,
+    pacific_pct,
+    other_race_pct,
+    two_or_more_races_pct,
+    hispanic_pct,
+    not_hispanic_pct,
+    owner_occupied_pct,
+    renter_occupied_pct,
+    median_home_value,
+    high_school_or_higher_pct,
+    bachelors_or_higher_pct,
+    alerts,
+    enviroscreen,
+    surrounding_10_mile,
+    water_district,
+  } = data || {};
+
+  const hardshipList = Array.isArray(environmental_hardships)
+    ? Array.from(new Set(environmental_hardships))
+    : [];
+  const alertList = Array.isArray(alerts) ? alerts : [];
+
+  const coords =
+    lat != null && lon != null
+      ? `${Number(lat).toFixed(6)}, ${Number(lon).toFixed(6)}`
+      : "—";
+  const mapImgHtml =
+    lat != null && lon != null
+      ? `<img class="map-image" src="https://maps.googleapis.com/maps/api/staticmap?center=${lat},${lon}&zoom=13&size=600x300&markers=color:red|${lat},${lon}&key=${GOOGLE_MAPS_KEY}" alt="Map of location" />`
+      : "";
+
+  const s = surrounding_10_mile || {};
+  const w = water_district || {};
+  const sHardships = Array.isArray(s.environmental_hardships)
+    ? Array.from(new Set(s.environmental_hardships))
+    : [];
+  const wHardships = Array.isArray(w.environmental_hardships)
+    ? Array.from(new Set(w.environmental_hardships))
+    : [];
+  const sTracts = Array.isArray(s.census_tracts)
+    ? s.census_tracts.join(", ")
+    : escapeHTML(s.census_tracts) || "—";
+  const sCities = Array.isArray(s.cities)
+    ? s.cities.join(", ")
+    : escapeHTML(s.cities) || "—";
+  const wTracts = Array.isArray(w.census_tracts)
+    ? w.census_tracts.join(", ")
+    : escapeHTML(w.census_tracts) || "—";
+  const wCities = Array.isArray(w.cities)
+    ? w.cities.join(", ")
+    : escapeHTML(w.cities) || "—";
+
+  const locLocal = `
+    <div class="kv">
+      <div class="key">City</div><div class="val">${escapeHTML(city) || "—"}</div>
+      <div class="key">Census tract</div><div class="val">${escapeHTML(census_tract) || "—"}</div>
+      <div class="key">ZIP code</div><div class="val">${escapeHTML(zip) || "—"}</div>
+      <div class="key">County</div><div class="val">${escapeHTML(county) || "—"}</div>
+      <div class="key">Coordinates</div><div class="val">${coords}</div>
+    </div>
+    ${mapImgHtml}
+  `;
+  const locSurround = `
+    <div class="kv">
+      <div class="key">Cities</div><div class="val">${sCities}</div>
+      <div class="key">Census tracts</div><div class="val">${sTracts}</div>
+    </div>
+  `;
+  const locDistrict = `
+    <div class="kv">
+      <div class="key">District</div><div class="val">${escapeHTML(w.name) || "—"}</div>
+      <div class="key">Cities</div><div class="val">${wCities}</div>
+      <div class="key">Census tracts</div><div class="val">${wTracts}</div>
+    </div>
+  `;
+  const locationRow = buildComparisonRow(
+    "Location Summary",
+    locLocal,
+    locSurround,
+    locDistrict,
+    '<p class="section-description">This section lists basic geographic information for the census tract, surrounding 10&#8209;mile area, and water district, such as city, ZIP code, county, and coordinates.</p>',
+  );
+
+  const popFields = (d = {}) => {
+    const entries = [
+      ["Total population", fmtInt(d.population)],
+      ["Median age", fmtNumber(d.median_age)],
+      ["Median household income", fmtCurrency(d.median_household_income)],
+      ["Per capita income", fmtCurrency(d.per_capita_income)],
+      ["Poverty rate", fmtPct(d.poverty_rate)],
+      ["Unemployment rate", fmtPct(d.unemployment_rate)],
+    ];
+    return `<div class="kv">${entries
+      .map(([k, v]) => `<div class="key">${k}</div><div class="val">${v}</div>`)
+      .join("")}</div>`;
+  };
+  const populationRow = buildComparisonRow(
+    "Population &amp; Income (ACS)",
+    popFields({
+      population,
+      median_age,
+      median_household_income,
+      per_capita_income,
+      poverty_rate,
+      unemployment_rate,
+    }),
+    popFields(s.demographics || {}),
+    popFields(w.demographics || {}),
+    '<p class="section-description">This section provides a snapshot of the people living in the selected area, drawn from the American Community Survey (ACS). It includes the total population, median age, household income, poverty rate, and unemployment rate. These indicators offer a quick view of community size, economic stability, and social conditions.</p><p class="section-description"><em>Values for the surrounding 10-mile area and water district are population-weighted averages.</em></p>',
+  );
+  const languageFields = (d = {}) => {
+    const entries = [
+      ["Primary language", escapeHTML(d.primary_language) || "—"],
+      ["Second most common", escapeHTML(d.secondary_language) || "—"],
+      [
+        "People who speak a language other than English at home",
+        fmtPct(d.language_other_than_english_pct),
+      ],
+      [
+        'People who speak English less than "very well"',
+        fmtPct(d.english_less_than_very_well_pct),
+      ],
+      ["People who speak Spanish at home", fmtPct(d.spanish_at_home_pct)],
+    ];
+    return `<div class="kv">${entries
+      .map(([k, v]) => `<div class="key">${k}</div><div class="val">${v}</div>`)
+      .join("")}</div>`;
+  };
+  const languageRow = buildComparisonRow(
+    "Language (ACS)",
+    languageFields({
+      primary_language,
+      secondary_language,
+      language_other_than_english_pct,
+      english_less_than_very_well_pct,
+      spanish_at_home_pct,
+    }),
+    languageFields(s.demographics || {}),
+    languageFields(w.demographics || {}),
+    '<p class="section-description">This section highlights the primary and secondary languages spoken in the community and key language indicators based on American Community Survey (ACS) 5&#8209;year estimates.</p><p class="section-description"><em>Values for the surrounding 10-mile area and water district are population-weighted averages.</em></p>',
+  );
+
+  const raceContent = (d = {}) => {
+    const entries = [
+      ["White", fmtPct(d.white_pct)],
+      ["Black or African American", fmtPct(d.black_pct)],
+      ["American Indian / Alaska Native", fmtPct(d.native_pct)],
+      ["Asian", fmtPct(d.asian_pct)],
+      ["Native Hawaiian / Pacific Islander", fmtPct(d.pacific_pct)],
+      ["Other race", fmtPct(d.other_race_pct)],
+      ["Two or more races", fmtPct(d.two_or_more_races_pct)],
+      ["Hispanic", fmtPct(d.hispanic_pct)],
+      ["Not Hispanic", fmtPct(d.not_hispanic_pct)],
+    ];
+    return `<div class="kv">${entries
+      .map(([k, v]) => `<div class="key">${k}</div><div class="val">${v}</div>`)
+      .join("")}</div>`;
+  };
+  const raceRow = buildComparisonRow(
+    "Race &amp; Ethnicity (ACS)",
+    raceContent({
+      white_pct,
+      black_pct,
+      native_pct,
+      asian_pct,
+      pacific_pct,
+      other_race_pct,
+      two_or_more_races_pct,
+      hispanic_pct,
+      not_hispanic_pct,
+    }),
+    raceContent(s.demographics || {}),
+    raceContent(w.demographics || {}),
+    '<p class="section-description">This section shows the racial and ethnic composition of the community, expressed as percentages of the total population using American Community Survey (ACS) data. These insights help identify the diversity of the area and support efforts to ensure programs, outreach, and engagement strategies reflect and serve all community groups.</p><p class="section-description"><em>Values for the surrounding 10-mile area and water district are population-weighted averages.</em></p>',
+  );
+
+  const housingContent = (d = {}) => {
+    const entries = [
+      ["Owner occupied", fmtPct(d.owner_occupied_pct)],
+      ["Renter occupied", fmtPct(d.renter_occupied_pct)],
+      ["Median home value", fmtCurrency(d.median_home_value)],
+      ["High school or higher", fmtPct(d.high_school_or_higher_pct)],
+      ["Bachelor's degree or higher", fmtPct(d.bachelors_or_higher_pct)],
+    ];
+    return `<div class="kv">${entries
+      .map(([k, v]) => `<div class="key">${k}</div><div class="val">${v}</div>`)
+      .join("")}</div>`;
+  };
+  const housingRow = buildComparisonRow(
+    "Housing &amp; Education (ACS)",
+    housingContent({
+      owner_occupied_pct,
+      renter_occupied_pct,
+      median_home_value,
+      high_school_or_higher_pct,
+      bachelors_or_higher_pct,
+    }),
+    housingContent(s.demographics || {}),
+    housingContent(w.demographics || {}),
+    '<p class="section-description">This section combines information on housing and educational attainment in the community. It includes the percentage of owner&#8209;occupied and renter&#8209;occupied homes, median home value, and levels of education such as high school completion and bachelor’s degree or higher. These indicators provide insight into community stability, affordability, and educational opportunities, helping inform outreach strategies and program planning.</p><p class="section-description"><em>Values for the surrounding 10-mile area and water district are population-weighted averages.</em></p>',
+  );
+
+  const dacCallout = (status, tracts, popPct, tractPct) => {
+    const yes = Array.isArray(tracts) ? tracts.length > 0 : !!status;
+    const border = yes ? "var(--success)" : "var(--border-strong)";
+
+    const lines = [
+      `Disadvantaged community: <strong>${yes ? "Yes" : "No"}</strong>`,
+    ];
+
+    const stats = [];
+    if (Number.isFinite(popPct))
+      stats.push(`<li><strong>${fmtPct(popPct)}</strong> of population</li>`);
+    if (Number.isFinite(tractPct))
+      stats.push(`<li><strong>${fmtPct(tractPct)}</strong> of tracts</li>`);
+    if (stats.length) lines.push(`<ul class="dac-stats">${stats.join("")}</ul>`);
+
+    if (Array.isArray(tracts) && tracts.length)
+      lines.push(
+        `<div class="dac-tracts">Tracts ${tracts
+          .map((t) => escapeHTML(t))
+          .join(", ")}</div>`,
+      );
+
+    return `<div class="callout" style="border-left-color:${border}">${lines.join("")}</div>`;
+  };
+
+  const dacRow = buildComparisonRow(
+    "Disadvantaged Community (DAC) Status",
+    dacCallout(dac_status),
+    Array.isArray(s.dac_tracts)
+      ? dacCallout(null, s.dac_tracts, s.dac_population_pct, s.dac_tracts_pct)
+      : "",
+    Array.isArray(w.dac_tracts)
+      ? dacCallout(null, w.dac_tracts, w.dac_population_pct, w.dac_tracts_pct)
+      : "",
+    '<p class="section-description">This section indicates whether the selected area is designated as a Disadvantaged Community (DAC) using the California Department of Water Resources (DWR) mapping tool. DAC status is determined by household income and is shown as a simple yes/no outcome. This designation is important for identifying areas eligible for certain state and federal funding opportunities and for ensuring that equity considerations are included in outreach and program planning.</p>',
+  );
+
+  const enviroscreenRow = buildComparisonRow(
+    "Environmental Indicators (CalEPA Enviroscreen)",
+    renderEnviroscreenContent(enviroscreen),
+    renderEnviroscreenContent(s.environment),
+    renderEnviroscreenContent(w.environment),
+    '<p class="section-description">This section shows environmental and community health indicators from California’s Enviroscreen tool. Results are presented as percentiles, with higher numbers (and darker colors) indicating greater environmental burdens compared to other areas in the state. These measures include factors such as air quality, traffic pollution, and access to safe drinking water.</p><p class="section-description">Staff can use this information to understand potential environmental challenges facing a neighborhood, strengthen grant applications that require equity or environmental justice considerations, and design outreach that addresses local concerns. For example, if an event is planned in an area with a high Enviroscreen percentile, staff may want to highlight programs or benefits related to clean water, pollution reduction, or community health.</p><p class="section-description"><strong>How to Read This</strong><br>Green = Low burden (fewer environmental and health challenges)<br>Yellow/Orange = Moderate burden<br>Red = High burden (greater environmental and health challenges)<br>Percentile score shows how the community compares to others across California.</p>',
+  );
+
+  const hardshipRow = buildComparisonRow(
+    "Environmental Hardships",
+    hardshipList.length
+      ? `<div class="stats">${hardshipList
+          .map((h) => `<span class="pill">${escapeHTML(h)}</span>`)
+          .join("")}</div>`
+      : "",
+    sHardships.length
+      ? `<div class="stats">${sHardships
+          .map((h) => `<span class="pill">${escapeHTML(h)}</span>`)
+          .join("")}</div>`
+      : "",
+    wHardships.length
+      ? `<div class="stats">${wHardships
+          .map((h) => `<span class="pill">${escapeHTML(h)}</span>`)
+          .join("")}</div>`
+      : "",
+    '<p class="section-description">This section lists environmental hardships reported for the selected location, highlighting challenges that may affect residents and program planning.</p>',
+  );
+
+  const alertsRow = `
+    <section class="section-block">
+      <h3 class="section-header">Active Alerts (National Weather Service)</h3>
+      <p class="section-description">This section displays any current weather alerts issued by the National Weather Service (NWS) for the selected location. Alerts may include warnings for extreme heat, flooding, wildfire smoke, or other hazardous conditions. Having this information alongside demographic and environmental data helps staff anticipate safety concerns for events, tailor outreach, and ensure programs are responsive to current community conditions.</p>
+      ${
+        alertList.length
+          ? `<div class="stats">${alertList
+              .map((a) => `<span class="pill">${escapeHTML(a)}</span>`)
+              .join("")}</div>`
+          : '<p class="note">No active alerts found for this location.</p>'
+      }
+    </section>
+  `;
+
+  const columnHeaders = `
+    <div class="comparison-grid column-headers">
+      <div class="col">Census tract</div>
+      <div class="col">10 mile radius</div>
+      <div class="col">Water district</div>
+    </div>
+  `;
+
+  document.getElementById("result").innerHTML = `
+    <article class="card">
+      <div class="card__header">
+        <div class="card__head-left">
+          <h2 class="card__title">Results for: ${escapeHTML(address)}</h2>
+          <div class="card__actions">
+            <button type="button" onclick="printReport()">Print</button>
+            <button type="button" onclick="downloadPdf()">Download PDF</button>
+            <button type="button" onclick="downloadRawData()">Raw Data</button>
+            <button type="button" onclick="shareReport()">Share Link</button>
+          </div>
+        </div>
+        <span class="updated">Updated ${nowStamp()}</span>
+      </div>
+      ${columnHeaders}
+      ${locationRow}
+      ${populationRow}
+      ${languageRow}
+      ${raceRow}
+      ${housingRow}
+      ${dacRow}
+      ${enviroscreenRow}
+      ${hardshipRow}
+      ${alertsRow}
+      <p class="note">Search took ${formatDuration(elapsedMs)}.</p>
+      <p class="note">Values for the surrounding 10-mile area and water district are population-weighted averages.</p>
+      <span class="updated--footer">
+        Sources: FCC Block for county &amp; tract; US Census ACS 5‑year (languages, population, median income); CalEnviroScreen 4.0; NWS alerts.
+      </span>
+    </article>
+  `;
+}
+// ---------- Flow ----------
+async function lookup() {
+  const input = document.getElementById("autocomplete");
+  const resultBox = document.getElementById("result");
+  const address = (input?.value || "").trim();
+
+  if (address.length < 4) {
+    renderError(
+      "Please enter a more complete address (at least 4 characters).",
+      address,
+      0,
+    );
+    return;
+  }
+
+  const cacheKey = address.toLowerCase();
+  if (lookupCache.has(cacheKey)) {
+    const cached = lookupCache.get(cacheKey);
+    lastReport = { address, data: cached };
+    const locUrl = new URL(window.location);
+    locUrl.searchParams.set("address", address);
+    window.history.replaceState(null, "", locUrl.toString());
+    renderResult(address, cached, 0);
+    return;
+  }
+
+  resultBox.setAttribute("aria-busy", "true");
+  renderLoading(address);
+  startSearchTimer();
+  let elapsed = 0;
+
+  try {
+    const url = buildApiUrl(API_PATH, { address });
+    let data = await fetchJsonWithDiagnostics(url);
+    if (!data || typeof data !== "object")
+      throw new Error("Malformed response.");
+    data = await enrichLocation(data);
+    const [
+      lang,
+      surround,
+      water,
+      english,
+      alerts,
+    ] = await Promise.all([
+      fetchLanguageAcs(data),
+      enrichSurrounding(data),
+      enrichWaterDistrict(data, address),
+      enrichEnglishProficiency(data),
+      enrichNwsAlerts(data),
+    ]);
+    deepMerge(data, lang, surround, water, english, alerts);
+
+    const basics = await enrichRegionBasics(data);
+    deepMerge(data, basics);
+
+    const [regionLangs, regionHard, unemployment] = await Promise.all([
+      enrichRegionLanguages(data),
+      enrichRegionHardships(data),
+      enrichUnemployment(data),
+    ]);
+    deepMerge(data, regionLangs, regionHard, unemployment);
+
+    lastReport = { address, data };
+    lookupCache.set(cacheKey, data);
+    const locUrl = new URL(window.location);
+    locUrl.searchParams.set("address", address);
+    window.history.replaceState(null, "", locUrl.toString());
+    elapsed = stopSearchTimer();
+    renderResult(address, data, elapsed);
+  } catch (err) {
+    if (!elapsed) elapsed = stopSearchTimer();
+    renderError(String(err), address, elapsed);
+  } finally {
+    resultBox.removeAttribute("aria-busy");
+  }
+}
+
+// ---------- Init ----------
+function bindLookupTrigger() {
+  const btn = document.getElementById("lookupBtn");
+  if (!btn) return;
+  const clone = btn.cloneNode(true);
+  btn.replaceWith(clone);
+  clone.addEventListener("click", (e) => {
+    e.preventDefault();
+    lookup().catch(console.error);
+  });
+}
+
+function loadGoogleMaps() {
+  const script = document.createElement("script");
+  script.src = `https://maps.googleapis.com/maps/api/js?key=${GOOGLE_MAPS_KEY}&libraries=places&callback=initAutocomplete`;
+  script.async = true;
+  document.head.appendChild(script);
+}
+
+// Warm language metadata so the first lookup is faster
+getLanguageMeta().catch(() => {});
+
+window.onload = () => {
+  loadGoogleMaps();
+  bindLookupTrigger();
+  const params = new URLSearchParams(window.location.search);
+  const addr = params.get("address");
+  if (addr) {
+    const input = document.getElementById("autocomplete");
+    if (input) {
+      input.value = addr;
+      lookup().catch(console.error);
+    }
+  }
+};
