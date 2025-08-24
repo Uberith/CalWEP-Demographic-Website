@@ -1,5 +1,5 @@
 /* script.js — Demographics Lookup (API-base aware)
-   - Reads API base from <meta name="api-base"> (https://calwep-nft-api.onrender.com)
+   - Reads API base from <meta name="api-base"> (https://nftapi.cyberwiz.io)
    - Calls GET /demographics?address=...
    - Robust fetch diagnostics, Google Places autocomplete, Enter-to-search, aria-busy
 */
@@ -64,7 +64,7 @@ function shareReport() {
 }
 
 // ---------- Config ----------
-const API_BASE = "https://calwep-nft-api.onrender.com";
+const API_BASE = "https://nftapi.cyberwiz.io";
 const API_PATH = "/demographics"; // see section 2 for why '/api' is safest
 
 // ---------- Utilities ----------
