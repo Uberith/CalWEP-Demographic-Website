@@ -10,6 +10,23 @@ let lastReport = null;
 // Cache previously retrieved results to avoid redundant network requests
 const lookupCache = new Map();
 
+let googleMapsKey = "";
+let mapsKeyPromise = null;
+function fetchMapsKey() {
+  if (!mapsKeyPromise) {
+    mapsKeyPromise = fetch("/api/maps-key")
+      .then((r) => {
+        if (!r.ok) throw new Error("Failed to load Maps key");
+        return r.json();
+      })
+      .then((data) => {
+        googleMapsKey = data.key || "";
+        return googleMapsKey;
+      });
+  }
+  return mapsKeyPromise;
+}
+
 function printReport() {
   window.print();
 }
@@ -1606,7 +1623,7 @@ function renderResultOld(address, data, elapsedMs) {
       : "—";
   const mapImgHtml =
     lat != null && lon != null
-      ? `<img class="map-image" src="https://maps.googleapis.com/maps/api/staticmap?center=${lat},${lon}&zoom=13&size=600x300&markers=color:red|${lat},${lon}&key=${GOOGLE_MAPS_KEY}" alt="Map of location" />`
+      ? `<img class="map-image" src="https://maps.googleapis.com/maps/api/staticmap?center=${lat},${lon}&zoom=13&size=600x300&markers=color:red|${lat},${lon}&key=${googleMapsKey}" alt="Map of location" />`
       : "";
 
 const hardshipSection = `
@@ -1936,7 +1953,7 @@ function renderResult(address, data, elapsedMs) {
       : "—";
   const mapImgHtml =
     lat != null && lon != null
-      ? `<img class="map-image" src="https://maps.googleapis.com/maps/api/staticmap?center=${lat},${lon}&zoom=13&size=600x300&markers=color:red|${lat},${lon}&key=${GOOGLE_MAPS_KEY}" alt="Map of location" />`
+      ? `<img class="map-image" src="https://maps.googleapis.com/maps/api/staticmap?center=${lat},${lon}&zoom=13&size=600x300&markers=color:red|${lat},${lon}&key=${googleMapsKey}" alt="Map of location" />`
       : "";
 
   const s = surrounding_10_mile || {};
@@ -2244,6 +2261,7 @@ async function lookup() {
     return;
   }
 
+  await fetchMapsKey();
   const cacheKey = address.toLowerCase();
   if (lookupCache.has(cacheKey)) {
     const cached = lookupCache.get(cacheKey);
@@ -2323,11 +2341,16 @@ function bindLookupTrigger() {
   });
 }
 
-function loadGoogleMaps() {
-  const script = document.createElement("script");
-  script.src = `https://maps.googleapis.com/maps/api/js?key=${GOOGLE_MAPS_KEY}&libraries=places&callback=initAutocomplete`;
-  script.async = true;
-  document.head.appendChild(script);
+async function loadGoogleMaps() {
+  try {
+    const key = await fetchMapsKey();
+    const script = document.createElement("script");
+    script.src = `https://maps.googleapis.com/maps/api/js?key=${encodeURIComponent(key)}&libraries=places&callback=initAutocomplete`;
+    script.async = true;
+    document.head.appendChild(script);
+  } catch (err) {
+    console.error("Failed to load Google Maps", err);
+  }
 }
 
 // Warm language metadata so the first lookup is faster
