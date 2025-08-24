@@ -118,6 +118,13 @@ function deepMerge(target = {}, ...sources) {
   }
   return target;
 }
+
+// Split an array into chunks so API requests stay within URL limits
+function chunk(arr = [], size = 50) {
+  const out = [];
+  for (let i = 0; i < arr.length; i += size) out.push(arr.slice(i, i + size));
+  return out;
+}
 const CES_LABELS = {
   pm25: "PM2.5",
   diesel: "Diesel PM",
@@ -330,70 +337,85 @@ async function aggregateLanguageForTracts(fipsList = []) {
   let englishLess = 0;
   const langCounts = {};
   const groupPromises = Object.values(groups).map(async (g) => {
-    const tractStr = g.tracts.join(",");
-    const chunkSize = 40;
-    const tasks = [];
-    for (let i = 0; i < codes.length; i += chunkSize) {
-      const chunk = codes.slice(i, i + chunkSize);
-      const vars =
-        i === 0
-          ? ["C16001_001E", "C16001_002E", ...chunk]
-          : chunk;
-      const url =
-        `https://api.census.gov/data/2022/acs/acs5?get=${vars.join(",")}&for=tract:${tractStr}&in=state:${g.state}%20county:${g.county}`;
-      tasks.push(
-        fetch(url)
-          .then((r) => r.json())
-          .then((rows) => ({ type: "lang", rows, chunk }))
-          .catch(() => null),
-      );
-    }
-    const url2 =
-      `https://api.census.gov/data/2022/acs/acs5/profile?get=DP02_0115E&for=tract:${tractStr}&in=state:${g.state}%20county:${g.county}`;
-    tasks.push(
-      fetch(url2)
-        .then((r) => r.json())
-        .then((rows) => ({ type: "english", rows }))
-        .catch(() => null),
-    );
-    const results = await Promise.all(tasks);
-    let gTotal = 0;
-    let gEnglishOnly = 0;
-    let gEnglishLess = 0;
-    const gLangCounts = {};
-    for (const res of results) {
-      if (!res || !Array.isArray(res.rows) || res.rows.length <= 1) continue;
-      const { rows } = res;
-      if (res.type === "lang") {
-        const headers = rows[0];
-        for (let j = 1; j < rows.length; j++) {
-          const row = rows[j];
-          const rec = {};
-          headers.forEach((h, idx) => (rec[h] = Number(row[idx])));
-          gTotal += rec.C16001_001E || 0;
-          gEnglishOnly += rec.C16001_002E || 0;
-          for (const code of res.chunk) {
-            const name = names[code];
-            const val = rec[code] || 0;
-            if (name) gLangCounts[name] = (gLangCounts[name] || 0) + val;
+    const tractChunks = chunk(g.tracts, 50);
+    const chunkResults = await Promise.all(
+      tractChunks.map(async (tChunk) => {
+        const tractStr = tChunk.join(",");
+        const chunkSize = 40;
+        const tasks = [];
+        for (let i = 0; i < codes.length; i += chunkSize) {
+          const varChunk = codes.slice(i, i + chunkSize);
+          const vars =
+            i === 0
+              ? ["C16001_001E", "C16001_002E", ...varChunk]
+              : varChunk;
+          const url =
+            `https://api.census.gov/data/2022/acs/acs5?get=${vars.join(",")}&for=tract:${tractStr}&in=state:${g.state}%20county:${g.county}`;
+          tasks.push(
+            fetch(url)
+              .then((r) => r.json())
+              .then((rows) => ({ type: "lang", rows, chunk: varChunk }))
+              .catch(() => null),
+          );
+        }
+        const url2 =
+          `https://api.census.gov/data/2022/acs/acs5/profile?get=DP02_0115E&for=tract:${tractStr}&in=state:${g.state}%20county:${g.county}`;
+        tasks.push(
+          fetch(url2)
+            .then((r) => r.json())
+            .then((rows) => ({ type: "english", rows }))
+            .catch(() => null),
+        );
+        const results = await Promise.all(tasks);
+        let gTotal = 0;
+        let gEnglishOnly = 0;
+        let gEnglishLess = 0;
+        const gLangCounts = {};
+        for (const res of results) {
+          if (!res || !Array.isArray(res.rows) || res.rows.length <= 1) continue;
+          const { rows } = res;
+          if (res.type === "lang") {
+            const headers = rows[0];
+            for (let j = 1; j < rows.length; j++) {
+              const row = rows[j];
+              const rec = {};
+              headers.forEach((h, idx) => (rec[h] = Number(row[idx])));
+              gTotal += rec.C16001_001E || 0;
+              gEnglishOnly += rec.C16001_002E || 0;
+              for (const code of res.chunk) {
+                const name = names[code];
+                const val = rec[code] || 0;
+                if (name) gLangCounts[name] = (gLangCounts[name] || 0) + val;
+              }
+            }
+          } else if (res.type === "english") {
+            const headers2 = rows[0];
+            for (let i = 1; i < rows.length; i++) {
+              const row2 = rows[i];
+              const rec2 = {};
+              headers2.forEach((h, idx) => (rec2[h] = Number(row2[idx])));
+              gEnglishLess += rec2.DP02_0115E || 0;
+            }
           }
         }
-      } else if (res.type === "english") {
-        const headers2 = rows[0];
-        for (let i = 1; i < rows.length; i++) {
-          const row2 = rows[i];
-          const rec2 = {};
-          headers2.forEach((h, idx) => (rec2[h] = Number(row2[idx])));
-          gEnglishLess += rec2.DP02_0115E || 0;
-        }
+        return {
+          total: gTotal,
+          englishOnly: gEnglishOnly,
+          englishLess: gEnglishLess,
+          langCounts: gLangCounts,
+        };
+      }),
+    );
+    const agg = { total: 0, englishOnly: 0, englishLess: 0, langCounts: {} };
+    for (const res of chunkResults) {
+      agg.total += res.total;
+      agg.englishOnly += res.englishOnly;
+      agg.englishLess += res.englishLess;
+      for (const [lang, count] of Object.entries(res.langCounts)) {
+        agg.langCounts[lang] = (agg.langCounts[lang] || 0) + count;
       }
     }
-    return {
-      total: gTotal,
-      englishOnly: gEnglishOnly,
-      englishLess: gEnglishLess,
-      langCounts: gLangCounts,
-    };
+    return agg;
   });
   const groupResults = await Promise.all(groupPromises);
   for (const res of groupResults) {
@@ -445,26 +467,29 @@ async function aggregateBasicDemographicsForTracts(fipsList = []) {
   let povertyCount = 0;
 
   for (const g of Object.values(groups)) {
-    const url =
-      "https://api.census.gov/data/2022/acs/acs5/profile?get=DP05_0001E,DP05_0018E,DP03_0062E,DP03_0088E,DP03_0128PE&for=tract:" +
-      g.tracts.join(",") +
-      `&in=state:${g.state}%20county:${g.county}`;
-    try {
-      const rows = await fetch(url).then((r) => r.json());
-      if (!Array.isArray(rows) || rows.length < 2) continue;
-      for (let i = 1; i < rows.length; i++) {
-        const [pop, age, income, perCapita, povPct, state, county, tract] = rows[i].map(Number);
-        if (Number.isFinite(pop) && pop > 0) {
-          totalPop += pop;
-          if (Number.isFinite(age)) ageWeighted += age * pop;
-          if (Number.isFinite(income)) incomeWeighted += income * pop;
-          if (Number.isFinite(perCapita)) perCapitaWeighted += perCapita * pop;
-          if (Number.isFinite(povPct) && povPct >= 0)
-            povertyCount += (povPct / 100) * pop;
+    const tractChunks = chunk(g.tracts, 50);
+    for (const ch of tractChunks) {
+      const url =
+        "https://api.census.gov/data/2022/acs/acs5/profile?get=DP05_0001E,DP05_0018E,DP03_0062E,DP03_0088E,DP03_0128PE&for=tract:" +
+        ch.join(",") +
+        `&in=state:${g.state}%20county:${g.county}`;
+      try {
+        const rows = await fetch(url).then((r) => r.json());
+        if (!Array.isArray(rows) || rows.length < 2) continue;
+        for (let i = 1; i < rows.length; i++) {
+          const [pop, age, income, perCapita, povPct] = rows[i].map(Number);
+          if (Number.isFinite(pop) && pop > 0) {
+            totalPop += pop;
+            if (Number.isFinite(age)) ageWeighted += age * pop;
+            if (Number.isFinite(income)) incomeWeighted += income * pop;
+            if (Number.isFinite(perCapita)) perCapitaWeighted += perCapita * pop;
+            if (Number.isFinite(povPct) && povPct >= 0)
+              povertyCount += (povPct / 100) * pop;
+          }
         }
+      } catch {
+        // ignore errors for this chunk
       }
-    } catch {
-      // ignore errors for this group
     }
   }
 
@@ -496,23 +521,26 @@ async function fetchUnemploymentForTracts(fipsList = []) {
   }
   const results = {};
   for (const g of Object.values(groups)) {
-    const url =
-      "https://api.census.gov/data/2022/acs/acs5/profile?get=DP03_0009PE,DP05_0001E&for=tract:" +
-      g.tracts.join(",") +
-      `&in=state:${g.state}%20county:${g.county}`;
-    try {
-      const rows = await fetch(url).then((r) => r.json());
-      if (!Array.isArray(rows) || rows.length < 2) continue;
-      for (let i = 1; i < rows.length; i++) {
-        const [unemp, pop, state, county, tract] = rows[i];
-        const geoid = `${state}${county}${tract}`;
-        results[geoid] = {
-          unemployment_rate: Number(unemp),
-          population: Number(pop),
-        };
+    const tractChunks = chunk(g.tracts, 50);
+    for (const ch of tractChunks) {
+      const url =
+        "https://api.census.gov/data/2022/acs/acs5/profile?get=DP03_0009PE,DP05_0001E&for=tract:" +
+        ch.join(",") +
+        `&in=state:${g.state}%20county:${g.county}`;
+      try {
+        const rows = await fetch(url).then((r) => r.json());
+        if (!Array.isArray(rows) || rows.length < 2) continue;
+        for (let i = 1; i < rows.length; i++) {
+          const [unemp, pop, state, county, tract] = rows[i];
+          const geoid = `${state}${county}${tract}`;
+          results[geoid] = {
+            unemployment_rate: Number(unemp),
+            population: Number(pop),
+          };
+        }
+      } catch {
+        // ignore errors for this chunk
       }
-    } catch {
-      // ignore errors for this group
     }
   }
   return results;
