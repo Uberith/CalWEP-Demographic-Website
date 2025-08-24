@@ -616,11 +616,9 @@ async function enrichRegionBasics(data = {}) {
     };
   }
   const w = water_district || {};
-  const wFips = Array.isArray(w.census_tracts_fips) && w.census_tracts_fips.length
-    ? w.census_tracts_fips
-    : Array.isArray(w.census_tracts)
-      ? w.census_tracts
-      : [];
+  const wFips = Array.isArray(w.census_tracts_fips)
+    ? w.census_tracts_fips.map(String)
+    : [];
   if (wFips.length) {
     const basics = await aggregateBasicDemographicsForTracts(wFips);
     const d = w.demographics || {};
@@ -650,9 +648,7 @@ async function enrichUnemployment(data = {}) {
     needed.push(...sFips);
   const wFips = Array.isArray(w.census_tracts_fips)
     ? w.census_tracts_fips.map(String)
-    : Array.isArray(w.census_tracts)
-      ? w.census_tracts.map(String)
-      : [];
+    : [];
   if (w.demographics && isMissing(w.demographics.unemployment_rate) && wFips.length)
     needed.push(...wFips);
 
@@ -714,11 +710,9 @@ async function enrichRegionLanguages(data = {}) {
     out.surrounding_10_mile = { ...s, demographics: { ...d, ...lang } };
   }
   const w = water_district || {};
-  const wFips = Array.isArray(w.census_tracts_fips) && w.census_tracts_fips.length
-    ? w.census_tracts_fips
-    : Array.isArray(w.census_tracts)
-      ? w.census_tracts
-      : [];
+  const wFips = Array.isArray(w.census_tracts_fips)
+    ? w.census_tracts_fips.map(String)
+    : [];
   if (wFips.length) {
     const lang = await aggregateLanguageForTracts(wFips);
     const d = w.demographics || {};
@@ -745,11 +739,9 @@ async function enrichRegionHardships(data = {}) {
     out.surrounding_10_mile = { ...s, environmental_hardships: hardships };
   }
   const w = water_district || {};
-  const wFips = Array.isArray(w.census_tracts_fips) && w.census_tracts_fips.length
-    ? w.census_tracts_fips
-    : Array.isArray(w.census_tracts)
-      ? w.census_tracts.map(String)
-      : [];
+  const wFips = Array.isArray(w.census_tracts_fips)
+    ? w.census_tracts_fips.map(String)
+    : [];
   if (
     (!Array.isArray(w.environmental_hardships) || !w.environmental_hardships.length) &&
     wFips.length
