@@ -1,0 +1,8 @@
+<manifest xmlns:android="http://schemas.android.com/apk/res/android" package="com.example.admob">
+    <application>
+        <!-- Initialize Google Mobile Ads SDK with application ID -->
+        <meta-data
+            android:name="com.google.android.gms.ads.APPLICATION_ID"
+            android:value="CookifyAIca-app-pub-4657770701639357~9545690594" />
+    </application>
+</manifest>
