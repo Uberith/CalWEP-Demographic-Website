@@ -622,7 +622,17 @@ async function enrichRegionBasics(data = {}) {
   if (wFips.length) {
     const basics = await aggregateBasicDemographicsForTracts(wFips);
     const d = w.demographics || {};
-    out.water_district = { ...w, demographics: { ...d, ...basics } };
+    const surroundMedian =
+      out.surrounding_10_mile?.demographics?.median_household_income;
+    const merged = { ...d, ...basics };
+    if (
+      surroundMedian != null &&
+      (!Number.isFinite(merged.median_household_income) ||
+        merged.median_household_income < 0)
+    ) {
+      merged.median_household_income = surroundMedian;
+    }
+    out.water_district = { ...w, demographics: merged };
   }
   return out;
 }
