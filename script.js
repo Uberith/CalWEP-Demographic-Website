@@ -1030,7 +1030,15 @@ async function enrichWaterDistrict(data = {}, address = "") {
     ? w.census_tracts_fips.map(String)
     : [];
   for (const t of w.census_tracts) {
-    if (/^\d{11}$/.test(t)) fipsList.push(t);
+    if (/^\d{11}$/.test(t)) {
+      fipsList.push(t);
+    } else if (state_fips && county_fips) {
+      const digits = String(t).replace(/[^0-9]/g, "");
+      if (digits) {
+        const tract = digits.padStart(6, "0").slice(-6);
+        fipsList.push(`${state_fips}${county_fips}${tract}`);
+      }
+    }
   }
   if (state_fips && county_fips && tract_code)
     fipsList.unshift(`${state_fips}${county_fips}${tract_code}`);
