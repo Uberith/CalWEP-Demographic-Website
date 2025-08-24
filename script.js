@@ -509,6 +509,95 @@ async function aggregateBasicDemographicsForTracts(fipsList = []) {
   return result;
 }
 
+// Aggregate housing and education fields for a set of census tracts using
+// population- or unit-weighted averages.
+async function aggregateHousingEducationForTracts(fipsList = []) {
+  const groups = {};
+  for (const f of fipsList) {
+    const code = String(f).replace(/[^0-9]/g, "").padStart(11, "0");
+    if (code.length !== 11) continue;
+    const state = code.slice(0, 2);
+    const county = code.slice(2, 5);
+    const tract = code.slice(5);
+    const key = `${state}${county}`;
+    if (!groups[key]) groups[key] = { state, county, tracts: [] };
+    groups[key].tracts.push(tract);
+  }
+
+  let occTotal = 0;
+  let ownerTotal = 0;
+  let renterTotal = 0;
+  let homeValueWeighted = 0;
+  let pop25Total = 0;
+  let hsGradTotal = 0;
+  let bachTotal = 0;
+
+  for (const g of Object.values(groups)) {
+    const tractChunks = chunk(g.tracts, 50);
+    for (const ch of tractChunks) {
+      const url =
+        "https://api.census.gov/data/2022/acs/acs5/profile?get=" +
+        [
+          "DP04_0045E",
+          "DP04_0046E",
+          "DP04_0047E",
+          "DP04_0089E",
+          "DP02_0059E",
+          "DP02_0067E",
+          "DP02_0068E",
+        ].join(",") +
+        "&for=tract:" +
+        ch.join(",") +
+        `&in=state:${g.state}%20county:${g.county}`;
+      try {
+        const rows = await fetch(url).then((r) => r.json());
+        if (!Array.isArray(rows) || rows.length < 2) continue;
+        for (let i = 1; i < rows.length; i++) {
+          const [
+            occ,
+            owner,
+            renter,
+            homeVal,
+            pop25,
+            hsGrad,
+            bach,
+          ] = rows[i].slice(0, 7).map(Number);
+          if (Number.isFinite(occ) && occ > 0) occTotal += occ;
+          if (Number.isFinite(owner) && owner > 0) {
+            ownerTotal += owner;
+            if (Number.isFinite(homeVal) && homeVal > 0)
+              homeValueWeighted += homeVal * owner;
+          }
+          if (Number.isFinite(renter) && renter > 0) renterTotal += renter;
+          if (Number.isFinite(pop25) && pop25 > 0) {
+            pop25Total += pop25;
+            if (Number.isFinite(hsGrad) && hsGrad > 0)
+              hsGradTotal += hsGrad;
+            if (Number.isFinite(bach) && bach > 0) bachTotal += bach;
+          }
+        }
+      } catch {
+        // ignore errors for this chunk
+      }
+    }
+  }
+
+  const res = {};
+  const occUnits = ownerTotal + renterTotal;
+  if (occUnits > 0) {
+    res.owner_occupied_pct = (ownerTotal / occUnits) * 100;
+    res.renter_occupied_pct = (renterTotal / occUnits) * 100;
+  }
+  if (ownerTotal > 0 && homeValueWeighted > 0) {
+    res.median_home_value = homeValueWeighted / ownerTotal;
+  }
+  if (pop25Total > 0) {
+    res.high_school_or_higher_pct = (hsGradTotal / pop25Total) * 100;
+    res.bachelors_or_higher_pct = (bachTotal / pop25Total) * 100;
+  }
+  return res;
+}
+
 // Fetch unemployment rate and population for one or more census tracts
 async function fetchUnemploymentForTracts(fipsList = []) {
   const groups = {};
@@ -633,6 +722,62 @@ async function enrichRegionBasics(data = {}) {
       merged.median_household_income = surroundMedian;
     }
     out.water_district = { ...w, demographics: merged };
+  }
+  return out;
+}
+
+// Populate housing and education fields for surrounding and district regions
+// using population- or unit-weighted averages.
+async function enrichRegionHousingEducation(data = {}) {
+  const { surrounding_10_mile, water_district } = data || {};
+  const out = { ...data };
+  const s = surrounding_10_mile || {};
+  if (Array.isArray(s.census_tracts_fips) && s.census_tracts_fips.length) {
+    const d = s.demographics || {};
+    const needed = [
+      d.owner_occupied_pct,
+      d.renter_occupied_pct,
+      d.median_home_value,
+      d.high_school_or_higher_pct,
+      d.bachelors_or_higher_pct,
+    ].some((v) => isMissing(v) || (typeof v === "number" && v < 0));
+    if (needed) {
+      const stats = await aggregateHousingEducationForTracts(
+        s.census_tracts_fips,
+      );
+      out.surrounding_10_mile = {
+        ...s,
+        demographics: { ...d, ...stats },
+      };
+    }
+  }
+  const w = water_district || {};
+  const wFips = Array.isArray(w.census_tracts_fips)
+    ? w.census_tracts_fips.map(String)
+    : [];
+  if (wFips.length) {
+    const d = w.demographics || {};
+    const needed = [
+      d.owner_occupied_pct,
+      d.renter_occupied_pct,
+      d.median_home_value,
+      d.high_school_or_higher_pct,
+      d.bachelors_or_higher_pct,
+    ].some((v) => isMissing(v) || (typeof v === "number" && v < 0));
+    if (needed) {
+      const stats = await aggregateHousingEducationForTracts(wFips);
+      let merged = { ...d, ...stats };
+      const surroundMedianHome =
+        out.surrounding_10_mile?.demographics?.median_home_value;
+      if (
+        surroundMedianHome != null &&
+        (!Number.isFinite(merged.median_home_value) ||
+          merged.median_home_value < 0)
+      ) {
+        merged.median_home_value = surroundMedianHome;
+      }
+      out.water_district = { ...w, demographics: merged };
+    }
   }
   return out;
 }
@@ -2139,7 +2284,8 @@ async function lookup() {
     deepMerge(data, lang, surround, water, english, alerts);
 
     const basics = await enrichRegionBasics(data);
-    deepMerge(data, basics);
+    const housingEd = await enrichRegionHousingEducation(data);
+    deepMerge(data, basics, housingEd);
 
     const [regionLangs, regionHard, unemployment] = await Promise.all([
       enrichRegionLanguages(data),
