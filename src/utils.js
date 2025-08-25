@@ -18,3 +18,18 @@ export function formatDuration(ms = 0) {
   const sLabel = seconds === 1 ? "Second" : "Seconds";
   return `${minutes} ${mLabel} and ${seconds} ${sLabel}`;
 }
+
+export function deepMerge(target = {}, ...sources) {
+  const isObj = (v) => v && typeof v === "object" && !Array.isArray(v);
+  for (const src of sources) {
+    if (!isObj(src)) continue;
+    for (const [key, val] of Object.entries(src)) {
+      if (isObj(val)) {
+        target[key] = deepMerge(isObj(target[key]) ? target[key] : {}, val);
+      } else {
+        target[key] = val;
+      }
+    }
+  }
+  return target;
+}
