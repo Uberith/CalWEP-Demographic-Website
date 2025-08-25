@@ -64,7 +64,9 @@ function shareReport() {
 }
 
 // ---------- Config ----------
-const API_BASE = "https://nftapi.cyberwiz.io";
+const API_BASE =
+  document.querySelector('meta[name="api-base"]')?.content ||
+  window.location.origin;
 const API_PATH = "/demographics"; // see section 2 for why '/api' is safest
 
 // ---------- Utilities ----------
