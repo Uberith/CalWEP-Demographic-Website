@@ -13,26 +13,26 @@ This project helps water agency staff explore neighborhood-level demographics an
 
 ## Google Maps API Key
 
-Google Maps is accessed through server-side proxies that append the secret key from the `MAPS_API_KEY` environment variable. The frontend never receives the raw key.
+Google Maps is accessed through server-side proxies that append the secret key from the `MAPS_API_KEY` (or `GOOGLE_MAPS_API_KEY`) environment variable. The frontend never receives the raw key.
 
 ### Local development
 
 1. Copy `.env.example` to `.env` and set your key:
    ```bash
-   MAPS_API_KEY=your_google_maps_api_key
+   MAPS_API_KEY=your_google_maps_api_key # or GOOGLE_MAPS_API_KEY
    ```
 2. Run `npm run dev` for a development server or `npm run build` to generate static assets. The proxy endpoints `/api/autocomplete` and `/api/staticmap` inject the key at runtime; the frontend should never embed it directly.
 
 ### Production (Render, Heroku, etc.)
 
-- Configure an environment variable named `MAPS_API_KEY` before building the site.
+- Configure an environment variable named `MAPS_API_KEY` (or `GOOGLE_MAPS_API_KEY`) before building the site.
 - Do **not** commit real keys to Git. `.env` is already ignored by `.gitignore`.
 
 ### Security considerations
 
 - Restrict the Google Maps key to allowed domains/IPs and enable usage quotas in the Google Cloud Console.
 - Monitor usage and regenerate the key if it becomes compromised.
-- All requests for Google Maps data should go through the provided server routes. These endpoints append `MAPS_API_KEY` on the server so the browser never sees the secret.
+- All requests for Google Maps data should go through the provided server routes. These endpoints append `MAPS_API_KEY` (or `GOOGLE_MAPS_API_KEY`) on the server so the browser never sees the secret.
 
 ## Accessing environment variables
 

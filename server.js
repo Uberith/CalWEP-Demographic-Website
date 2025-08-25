@@ -1,10 +1,12 @@
 const express = require("express");
 
 const app = express();
-const mapsApiKey = process.env.MAPS_API_KEY;
+const mapsApiKey = process.env.GOOGLE_MAPS_API_KEY || process.env.MAPS_API_KEY;
 
 if (!mapsApiKey) {
-  console.warn("MAPS_API_KEY is not set. Google Maps features will not work.");
+  console.warn(
+    "GOOGLE_MAPS_API_KEY is not set. Google Maps features will not work.",
+  );
 }
 
 app.get("/api/autocomplete", async (req, res) => {
@@ -39,25 +41,31 @@ app.get("/api/autocomplete", async (req, res) => {
 
 app.get("/api/staticmap", async (req, res) => {
   if (!mapsApiKey) {
-    res.status(500).json({ error: "MAPS_API_KEY is not configured" });
+    res.status(500).json({ error: "GOOGLE_MAPS_API_KEY is not configured" });
     return;
   }
-  const { lat, lon } = req.query;
-  if (!lat || !lon) {
-    res.status(400).json({ error: "Missing lat or lon parameter" });
+  const lat = parseFloat(req.query.lat);
+  const lon = parseFloat(req.query.lon);
+  if (Number.isNaN(lat) || Number.isNaN(lon)) {
+    res.status(400).json({ error: "Missing or invalid lat/lon parameter" });
     return;
   }
   try {
     const params = new URLSearchParams({
       center: `${lat},${lon}`,
-      zoom: "13",
-      size: "600x300",
+      zoom: "15",
+      size: "600x400",
       markers: `color:red|${lat},${lon}`,
       key: mapsApiKey,
     });
     const url = `https://maps.googleapis.com/maps/api/staticmap?${params}`;
     const resp = await fetch(url);
-    if (!resp.ok) throw new Error(`Google API responded ${resp.status}`);
+    if (!resp.ok) {
+      const text = await resp.text();
+      console.error("Google Static Map error", resp.status, text);
+      res.status(resp.status).json({ error: "Google Maps Static API error" });
+      return;
+    }
     res.set("Content-Type", resp.headers.get("content-type") || "image/png");
     const buf = await resp.arrayBuffer();
     res.send(Buffer.from(buf));
