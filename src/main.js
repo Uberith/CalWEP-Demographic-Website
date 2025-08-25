@@ -103,22 +103,22 @@ function isMissing(n) {
 function fmtInt(n) {
   return !isMissing(n) && Number.isFinite(Number(n))
     ? Number(n).toLocaleString()
-    : "—";
+    : "Not available";
 }
 function fmtCurrency(n) {
-  if (isMissing(n) || !Number.isFinite(Number(n))) return "—";
+  if (isMissing(n) || !Number.isFinite(Number(n))) return "Not available";
   const r = Math.round(Number(n));
   return `$${r.toLocaleString()}`;
 }
 function fmtNumber(n) {
   return !isMissing(n) && Number.isFinite(Number(n))
     ? Number(n).toLocaleString(undefined, { maximumFractionDigits: 1 })
-    : "—";
+    : "Not available";
 }
 function fmtPct(n) {
   return !isMissing(n) && Number.isFinite(Number(n))
     ? `${Number(n).toFixed(1)}%`
-    : "—";
+    : "Not available";
 }
 function titleCase(str = "") {
   return str.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
@@ -1501,13 +1501,7 @@ function renderResultOld(address, data, elapsedMs) {
     english_less_than_very_well_pct,
     language_other_than_english_pct,
     spanish_at_home_pct,
-    median_household_income,
-    per_capita_income,
-    median_age,
-    poverty_rate,
-    unemployment_rate,
-    population,
-    people_below_poverty,
+    demographics: tractDemo = {},
     dac_status,
     environmental_hardships,
     white_pct,
@@ -1529,6 +1523,18 @@ function renderResultOld(address, data, elapsedMs) {
     surrounding_10_mile,
     water_district,
   } = data || {};
+
+  const population = data.population ?? tractDemo.population;
+  const median_age = data.median_age ?? tractDemo.median_age;
+  const median_household_income =
+    data.median_household_income ?? tractDemo.median_household_income;
+  const per_capita_income =
+    data.per_capita_income ?? tractDemo.per_capita_income;
+  const poverty_rate = data.poverty_rate ?? tractDemo.poverty_rate;
+  const unemployment_rate =
+    data.unemployment_rate ?? tractDemo.unemployment_rate;
+  const people_below_poverty =
+    data.people_below_poverty ?? tractDemo.people_below_poverty;
 
   const hardshipList = Array.isArray(environmental_hardships)
     ? Array.from(new Set(environmental_hardships))
@@ -1838,12 +1844,7 @@ function renderResult(address, data, elapsedMs) {
     spanish_at_home_pct,
     primary_language,
     secondary_language,
-    median_household_income,
-    per_capita_income,
-    median_age,
-    poverty_rate,
-    unemployment_rate,
-    population,
+    demographics: tractDemo = {},
     dac_status,
     environmental_hardships,
     white_pct,
@@ -1865,6 +1866,16 @@ function renderResult(address, data, elapsedMs) {
     surrounding_10_mile,
     water_district,
   } = data || {};
+
+  const population = data.population ?? tractDemo.population;
+  const median_age = data.median_age ?? tractDemo.median_age;
+  const median_household_income =
+    data.median_household_income ?? tractDemo.median_household_income;
+  const per_capita_income =
+    data.per_capita_income ?? tractDemo.per_capita_income;
+  const poverty_rate = data.poverty_rate ?? tractDemo.poverty_rate;
+  const unemployment_rate =
+    data.unemployment_rate ?? tractDemo.unemployment_rate;
 
   const hardshipList = Array.isArray(environmental_hardships)
     ? Array.from(new Set(environmental_hardships))
