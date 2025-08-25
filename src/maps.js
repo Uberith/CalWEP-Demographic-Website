@@ -1,6 +1,6 @@
 let autocomplete = null;
-const databaseUrl = process.env.MAPS_API_KEY || "";
-export const GOOGLE_MAPS_KEY = databaseUrl;
+const mapsApiKey = import.meta.env.MAPS_API_KEY || "";
+export const GOOGLE_MAPS_KEY = mapsApiKey;
 
 export function initAutocomplete() {
   const input = document.getElementById("autocomplete");
