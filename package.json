@@ -23,7 +23,7 @@
     "jsdom": "^24.0.0",
     "vitest": "^1.4.0",
     "eslint": "^8.57.0",
-    "eslint-config-prettier": "^9.0.0",
+    "eslint-config-prettier": "^10.1.8",
     "eslint-plugin-prettier": "^5.0.0",
     "prettier": "^3.2.5",
     "husky": "^9.0.0",
