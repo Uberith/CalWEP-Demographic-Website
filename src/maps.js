@@ -1,41 +1,34 @@
-let autocomplete = null;
-
-// The Google Maps API key is injected from the environment at build/run time.
-// Never commit a real key to source control. Use MAPS_API_KEY in your
-// deployment environment instead.
-export const databaseUrl = (process.env.MAPS_API_KEY || "").toString().trim();
-
-export function initAutocomplete() {
+export function setupAutocomplete() {
   const input = document.getElementById("autocomplete");
-  if (!input || typeof google === "undefined" || !google.maps) return;
+  const list = document.getElementById("autocomplete-list");
+  if (!input || !list) return;
 
-  autocomplete = new google.maps.places.Autocomplete(input, {
-    types: ["address"],
-    componentRestrictions: { country: "us" },
-    fields: ["address_components", "formatted_address"],
-  });
-
-  autocomplete.addListener("place_changed", () => {
-    const p = autocomplete.getPlace();
-    let street = "",
-      city = "",
-      state = "",
-      zip = "";
-    for (const comp of p.address_components || []) {
-      const t = comp.types || [];
-      if (t.includes("street_number")) street = comp.long_name + " ";
-      else if (t.includes("route")) street += comp.long_name;
-      else if (t.includes("locality")) city = comp.long_name;
-      else if (t.includes("administrative_area_level_1"))
-        state = comp.short_name;
-      else if (t.includes("postal_code")) zip = comp.long_name;
+  // Fetch address suggestions from the server-side proxy
+  input.addEventListener("input", async () => {
+    const query = input.value.trim();
+    if (query.length < 3) {
+      list.innerHTML = "";
+      return;
     }
-    if (!zip && p.formatted_address) {
-      const m = p.formatted_address.match(/\b\d{5}(?:-\d{4})?\b/);
-      if (m) zip = m[0];
+    try {
+      const resp = await fetch(
+        `/api/autocomplete?input=${encodeURIComponent(query)}`,
+      );
+      if (!resp.ok) throw new Error("Autocomplete request failed");
+      const data = await resp.json();
+      const predictions = Array.isArray(data.predictions)
+        ? data.predictions
+        : [];
+      list.innerHTML = "";
+      for (const p of predictions.slice(0, 5)) {
+        const opt = document.createElement("option");
+        opt.value = p.description;
+        list.appendChild(opt);
+      }
+    } catch (err) {
+      console.error("Autocomplete error", err);
+      list.innerHTML = "";
     }
-    const parts = [street.trim(), city, state, zip].filter(Boolean);
-    if (parts.length) input.value = parts.join(", ");
   });
 
   // Enter triggers lookup
@@ -46,23 +39,3 @@ export function initAutocomplete() {
     }
   });
 }
-
-export async function loadGoogleMaps() {
-  if (!databaseUrl) {
-    // Fail fast if the key is missing so we don't attempt unauthenticated requests.
-    console.error("Google Maps API key not configured");
-    return;
-  }
-  try {
-    const script = document.createElement("script");
-    script.src = `https://maps.googleapis.com/maps/api/js?key=${encodeURIComponent(
-      databaseUrl,
-    )}&libraries=places&callback=initAutocomplete`;
-    script.async = true;
-    document.head.appendChild(script);
-  } catch (err) {
-    console.error("Failed to load Google Maps", err);
-  }
-}
-
-window.initAutocomplete = initAutocomplete;

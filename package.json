@@ -3,7 +3,7 @@
   "version": "1.0.0",
   "description": "CalWEP Demographic Website",
   "scripts": {
-    "start": "vite preview",
+    "start": "node server.js",
     "dev": "vite",
     "build": "vite build",
     "test": "vitest run",
@@ -14,7 +14,8 @@
   "dependencies": {
     "@sentry/browser": "^10.5.0",
     "html2pdf.js": "^0.11.1",
-    "dompurify": "^3.0.6"
+    "dompurify": "^3.0.6",
+    "express": "^4.19.2"
   },
   "devDependencies": {
     "vite": "^5.0.0",
