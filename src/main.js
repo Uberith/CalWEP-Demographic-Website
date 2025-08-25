@@ -578,6 +578,63 @@ async function aggregateHousingEducationForTracts(fipsList = []) {
   return res;
 }
 
+// Fetch detailed demographics for one or more census tracts
+async function fetchTractDemographics(fipsList = []) {
+  const groups = {};
+  for (const f of fipsList) {
+    const code = String(f)
+      .replace(/[^0-9]/g, "")
+      .padStart(11, "0");
+    if (code.length !== 11) continue;
+    const state = code.slice(0, 2);
+    const county = code.slice(2, 5);
+    const tract = code.slice(5);
+    const key = `${state}${county}`;
+    if (!groups[key]) groups[key] = { state, county, tracts: [] };
+    groups[key].tracts.push(tract);
+  }
+  const results = {};
+  for (const g of Object.values(groups)) {
+    const tractChunks = chunk(g.tracts, 50);
+    for (const ch of tractChunks) {
+      const url =
+        "https://api.census.gov/data/2022/acs/acs5/profile?get=" +
+        "DP05_0001E,DP05_0018E,DP03_0062E,DP03_0088E,DP03_0128PE,DP03_0009PE&for=tract:" +
+        ch.join(",") +
+        `&in=state:${g.state}%20county:${g.county}`;
+      try {
+        const rows = await fetch(url).then((r) => r.json());
+        if (!Array.isArray(rows) || rows.length < 2) continue;
+        for (let i = 1; i < rows.length; i++) {
+          const [
+            pop,
+            age,
+            income,
+            perCap,
+            povPct,
+            unemp,
+            state,
+            county,
+            tract,
+          ] = rows[i];
+          const geoid = `${state}${county}${tract}`;
+          results[geoid] = {
+            population: Number(pop),
+            median_age: Number(age),
+            median_household_income: Number(income),
+            per_capita_income: Number(perCap),
+            poverty_rate: Number(povPct),
+            unemployment_rate: Number(unemp),
+          };
+        }
+      } catch {
+        // ignore errors for this chunk
+      }
+    }
+  }
+  return results;
+}
+
 // Fetch unemployment rate and population for one or more census tracts
 async function fetchUnemploymentForTracts(fipsList = []) {
   const groups = {};
@@ -669,6 +726,34 @@ async function aggregateHardshipsForTracts(fipsList = []) {
     }),
   );
   return Array.from(set).sort();
+}
+
+// Populate missing basic demographics for the local census tract
+async function enrichTractDemographics(data = {}) {
+  const { state_fips, county_fips, tract_code } = data || {};
+  const localFips =
+    state_fips && county_fips && tract_code
+      ? `${state_fips}${county_fips}${tract_code}`
+      : null;
+  const fields = [
+    "population",
+    "median_age",
+    "median_household_income",
+    "per_capita_income",
+    "poverty_rate",
+    "unemployment_rate",
+  ];
+  const needsData = localFips && fields.some((k) => isMissing(data[k]));
+  if (!needsData) return data;
+  const lookup = await fetchTractDemographics([localFips]);
+  const info = lookup[localFips];
+  if (!info) return data;
+  const out = { ...data };
+  out.demographics = { ...out.demographics, ...info };
+  for (const [k, v] of Object.entries(info)) {
+    if (isMissing(out[k])) out[k] = v;
+  }
+  return out;
 }
 
 // Populate basic demographic fields for surrounding and district regions using
@@ -2248,6 +2333,11 @@ async function lookup() {
       monitorAsync("enrichNwsAlerts", () => enrichNwsAlerts(data)),
     ]);
     deepMerge(data, lang, surround, water, english, alerts);
+
+    const tractBasics = await monitorAsync("enrichTractDemographics", () =>
+      enrichTractDemographics(data),
+    );
+    deepMerge(data, tractBasics);
 
     const basics = await monitorAsync("enrichRegionBasics", () =>
       enrichRegionBasics(data),
