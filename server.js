@@ -1,6 +1,7 @@
 const http = require('http');
 const zlib = require('zlib');
 const Sentry = require('@sentry/node');
+require('dotenv').config();
 
 const port = process.env.PORT || 3000;
 
@@ -43,7 +44,7 @@ const server = http.createServer((req, res) => {
     res.setHeader(k, v);
   }
   if (req.url === '/api/maps-key') {
-    const key = process.env.GOOGLE_MAPS_API_KEY;
+    const key = process.env.MAPS_API_KEY;
     if (!key) {
       compressAndSend(
         req,
