@@ -13,7 +13,7 @@ This project helps water agency staff explore neighborhood-level demographics an
 
 ## Google Maps API Key
 
-The site uses the Google Maps JavaScript API and reads the key from the `MAPS_API_KEY` environment variable at build time.
+The site uses the Google Maps JavaScript API and reads the key from the `MAPS_API_KEY` environment variable at build time. Vite is configured to expose variables starting with `MAPS_` or `VITE_` to the frontend.
 
 ### Local development
 
@@ -25,7 +25,7 @@ The site uses the Google Maps JavaScript API and reads the key from the `MAPS_AP
 
 ### Production (Render, Heroku, etc.)
 
-- Configure an environment variable named `MAPS_API_KEY` before building the site.
+- Configure an environment variable named `MAPS_API_KEY` (or `VITE_MAPS_API_KEY`) before building the site.
 - Do **not** commit real keys to Git. `.env` is already ignored by `.gitignore`.
 
 ### Security considerations
@@ -39,7 +39,7 @@ Environment variables can be read from the local machine in many languages:
 
 - **JavaScript**
   ```js
-  const databaseUrl = process.env.MAPS_API_KEY;
+  const mapsApiKey = import.meta.env.MAPS_API_KEY;
   ```
 - **Python**
   ```python

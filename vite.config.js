@@ -1,9 +1,7 @@
 import { defineConfig } from "vite";
 
 export default defineConfig({
-  define: {
-    "process.env.MAPS_API_KEY": JSON.stringify(process.env.MAPS_API_KEY || ""),
-  },
+  envPrefix: ["VITE_", "MAPS_"],
   build: {
     rollupOptions: {
       input: "src/main.js",
