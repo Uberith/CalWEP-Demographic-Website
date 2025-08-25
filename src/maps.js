@@ -1,5 +1,6 @@
 let autocomplete = null;
-export const GOOGLE_MAPS_KEY = import.meta.env.VITE_MAPS_API_KEY || "";
+const databaseUrl = process.env.MAPS_API_KEY || "";
+export const GOOGLE_MAPS_KEY = databaseUrl;
 
 export function initAutocomplete() {
   const input = document.getElementById("autocomplete");
