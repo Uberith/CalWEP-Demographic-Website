@@ -55,6 +55,11 @@ const unemploymentCache = new Map();
 const dacCache = new Map();
 const hardshipCache = new Map();
 
+// Latest ACS release year
+const ACS_YEAR = 2023;
+const ACS5_BASE = `https://api.census.gov/data/${ACS_YEAR}/acs/acs5`;
+const ACS5_PROFILE_BASE = `${ACS5_BASE}/profile`;
+
 function printReport() {
   window.print();
 }
@@ -276,7 +281,7 @@ async function getLanguageMeta() {
   if (LANGUAGE_META) return LANGUAGE_META;
   try {
     const meta = await fetchJsonWithDiagnostics(
-      "https://api.census.gov/data/2022/acs/acs5/groups/C16001.json",
+      `${ACS5_BASE}/groups/C16001.json`,
     );
     const vars = meta?.variables || {};
     const codes = [];
@@ -330,7 +335,7 @@ async function aggregateLanguageForTracts(fipsList = []) {
           const varChunk = codes.slice(i, i + chunkSize);
           const vars =
             i === 0 ? ["C16001_001E", "C16001_002E", ...varChunk] : varChunk;
-          const url = `https://api.census.gov/data/2022/acs/acs5?get=${vars.join(",")}&for=tract:${tractStr}&in=state:${g.state}%20county:${g.county}`;
+          const url = `${ACS5_BASE}?get=${vars.join(",")}&for=tract:${tractStr}&in=state:${g.state}%20county:${g.county}`;
           tasks.push(
             fetch(url)
               .then((r) => r.json())
@@ -338,7 +343,7 @@ async function aggregateLanguageForTracts(fipsList = []) {
               .catch(() => null),
           );
         }
-        const url2 = `https://api.census.gov/data/2022/acs/acs5/profile?get=DP02_0115E&for=tract:${tractStr}&in=state:${g.state}%20county:${g.county}`;
+        const url2 = `${ACS5_PROFILE_BASE}?get=DP02_0115E&for=tract:${tractStr}&in=state:${g.state}%20county:${g.county}`;
         tasks.push(
           fetch(url2)
             .then((r) => r.json())
@@ -465,28 +470,25 @@ async function aggregateBasicDemographicsForTracts(fipsList = []) {
   for (const g of Object.values(groups)) {
     const tractChunks = chunk(g.tracts, 50);
     for (const ch of tractChunks) {
-      const url =
-        "https://api.census.gov/data/2022/acs/acs5/profile?get=" +
-        [
-          "DP05_0001E",
-          "DP05_0018E",
-          "DP03_0062E",
-          "DP03_0088E",
-          "DP03_0128PE",
-          // Race and ethnicity percentages
-          "DP05_0037PE",
-          "DP05_0038PE",
-          "DP05_0039PE",
-          "DP05_0044PE",
-          "DP05_0052PE",
-          "DP05_0057PE",
-          "DP05_0035PE",
-          "DP05_0073PE",
-          "DP05_0078PE",
-        ].join(",") +
-        "&for=tract:" +
-        ch.join(",") +
-        `&in=state:${g.state}%20county:${g.county}`;
+      const url = `${ACS5_PROFILE_BASE}?get=${[
+        "DP05_0001E",
+        "DP05_0018E",
+        "DP03_0062E",
+        "DP03_0088E",
+        "DP03_0128PE",
+        // Race and ethnicity percentages
+        "DP05_0037PE",
+        "DP05_0038PE",
+        "DP05_0039PE",
+        "DP05_0044PE",
+        "DP05_0052PE",
+        "DP05_0057PE",
+        "DP05_0035PE",
+        "DP05_0073PE",
+        "DP05_0078PE",
+      ].join(
+        ",",
+      )}&for=tract:${ch.join(",")}&in=state:${g.state}%20county:${g.county}`;
       try {
         const rows = await fetch(url).then((r) => r.json());
         if (!Array.isArray(rows) || rows.length < 2) continue;
@@ -592,20 +594,17 @@ async function aggregateHousingEducationForTracts(fipsList = []) {
   for (const g of Object.values(groups)) {
     const tractChunks = chunk(g.tracts, 50);
     for (const ch of tractChunks) {
-      const url =
-        "https://api.census.gov/data/2022/acs/acs5/profile?get=" +
-        [
-          "DP04_0045E",
-          "DP04_0046E",
-          "DP04_0047E",
-          "DP04_0089E",
-          "DP02_0059E",
-          "DP02_0067E",
-          "DP02_0068E",
-        ].join(",") +
-        "&for=tract:" +
-        ch.join(",") +
-        `&in=state:${g.state}%20county:${g.county}`;
+      const url = `${ACS5_PROFILE_BASE}?get=${[
+        "DP04_0045E",
+        "DP04_0046E",
+        "DP04_0047E",
+        "DP04_0089E",
+        "DP02_0059E",
+        "DP02_0067E",
+        "DP02_0068E",
+      ].join(
+        ",",
+      )}&for=tract:${ch.join(",")}&in=state:${g.state}%20county:${g.county}`;
       try {
         const rows = await fetch(url).then((r) => r.json());
         if (!Array.isArray(rows) || rows.length < 2) continue;
@@ -668,29 +667,26 @@ async function fetchTractDemographics(fipsList = []) {
   for (const g of Object.values(groups)) {
     const tractChunks = chunk(g.tracts, 50);
     for (const ch of tractChunks) {
-      const url =
-        "https://api.census.gov/data/2022/acs/acs5/profile?get=" +
-        [
-          "DP05_0001E", // total population
-          "DP05_0018E", // median age
-          "DP03_0062E", // median household income
-          "DP03_0088E", // per capita income
-          "DP03_0128PE", // poverty rate
-          "DP03_0009PE", // unemployment rate
-          // Race and ethnicity percentages
-          "DP05_0037PE", // White
-          "DP05_0038PE", // Black or African American
-          "DP05_0039PE", // American Indian/Alaska Native
-          "DP05_0044PE", // Asian
-          "DP05_0052PE", // Native Hawaiian/Pacific Islander
-          "DP05_0057PE", // Some other race
-          "DP05_0035PE", // Two or more races
-          "DP05_0073PE", // Hispanic or Latino
-          "DP05_0078PE", // Not Hispanic or Latino
-        ].join(",") +
-        "&for=tract:" +
-        ch.join(",") +
-        `&in=state:${g.state}%20county:${g.county}`;
+      const url = `${ACS5_PROFILE_BASE}?get=${[
+        "DP05_0001E", // total population
+        "DP05_0018E", // median age
+        "DP03_0062E", // median household income
+        "DP03_0088E", // per capita income
+        "DP03_0128PE", // poverty rate
+        "DP03_0009PE", // unemployment rate
+        // Race and ethnicity percentages
+        "DP05_0037PE", // White
+        "DP05_0038PE", // Black or African American
+        "DP05_0039PE", // American Indian/Alaska Native
+        "DP05_0044PE", // Asian
+        "DP05_0052PE", // Native Hawaiian/Pacific Islander
+        "DP05_0057PE", // Some other race
+        "DP05_0035PE", // Two or more races
+        "DP05_0073PE", // Hispanic or Latino
+        "DP05_0078PE", // Not Hispanic or Latino
+      ].join(
+        ",",
+      )}&for=tract:${ch.join(",")}&in=state:${g.state}%20county:${g.county}`;
       try {
         const rows = await fetch(url).then((r) => r.json());
         if (!Array.isArray(rows) || rows.length < 2) continue;
@@ -764,7 +760,7 @@ async function fetchUnemploymentForTracts(fipsList = []) {
     const tractChunks = chunk(g.tracts, 50);
     for (const ch of tractChunks) {
       const url =
-        "https://api.census.gov/data/2022/acs/acs5/profile?get=DP03_0009PE,DP05_0001E&for=tract:" +
+        `${ACS5_PROFILE_BASE}?get=DP03_0009PE,DP05_0001E&for=tract:` +
         ch.join(",") +
         `&in=state:${g.state}%20county:${g.county}`;
       try {
@@ -1527,7 +1523,7 @@ async function enrichEnglishProficiency(data = {}) {
       const state = fips.slice(0, 2);
       const county = fips.slice(2, 5);
       const tract = fips.slice(5, 11);
-      const url = `https://api.census.gov/data/2022/acs/acs5/profile?get=DP02_0111PE&for=tract:${tract}&in=state:${state}+county:${county}`;
+      const url = `${ACS5_PROFILE_BASE}?get=DP02_0111PE&for=tract:${tract}&in=state:${state}+county:${county}`;
       const acs = await fetch(url).then((r) => r.json());
       const val = acs?.[1]?.[0];
       const num = Number(val);
