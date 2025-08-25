@@ -1541,48 +1541,6 @@ function buildComparisonRow(
   `;
 }
 
-function renderEnviroscreenContent(data) {
-  if (!data || typeof data !== "object") return '<p class="note">No data</p>';
-  const badge = (v) => {
-    const { bg, fg } = cesColor(v);
-    const val = Number.isFinite(Number(v)) ? Number(v).toFixed(1) : "—";
-    return `<span class="ces-badge" style="background:${bg};color:${fg};">${val}</span>`;
-  };
-  const overall = data.percentile;
-  const pb = data.overall_percentiles?.pollution_burden;
-  const pc = data.overall_percentiles?.population_characteristics;
-  const renderGroup = (title, obj, order = []) => {
-    if (!obj || typeof obj !== "object") return "";
-    const entries = Object.entries(obj).sort(([a], [b]) => {
-      const ia = order.indexOf(a);
-      const ib = order.indexOf(b);
-      if (ia !== -1 && ib !== -1) return ia - ib;
-      if (ia !== -1) return -1;
-      if (ib !== -1) return 1;
-      return a.localeCompare(b);
-    });
-    const kv = entries
-      .map(
-        ([k, v]) =>
-          `<div class=\"key\">${sanitizeHTML(
-            CES_LABELS[k] || titleCase(k),
-          )}</div><div class=\"val\">${badge(v)}</div>`,
-      )
-      .join("");
-    return `<h4 class=\"sub-section-header\">${title}</h4><div class=\"kv\">${kv}</div>`;
-  };
-  return `
-    <div class="kv">
-      <div class="key">Overall percentile</div><div class="val">${badge(overall)}</div>
-      <div class="key">Pollution burden</div><div class="val">${badge(pb)}</div>
-      <div class="key">Population characteristics</div><div class="val">${badge(pc)}</div>
-    </div>
-    ${renderGroup("Exposures", data.exposures, CES_GROUP_ORDER.exposures)}
-    ${renderGroup("Environmental effects", data.environmental_effects, CES_GROUP_ORDER.environmental_effects)}
-    ${renderGroup("Sensitive populations", data.sensitive_populations, CES_GROUP_ORDER.sensitive_populations)}
-    ${renderGroup("Socioeconomic factors", data.socioeconomic_factors, CES_GROUP_ORDER.socioeconomic_factors)}
-  `;
-}
 function renderResultOld(address, data, elapsedMs) {
   const {
     city,
@@ -1938,8 +1896,7 @@ function renderResult(address, data, elapsedMs) {
     english_less_than_very_well_pct,
     language_other_than_english_pct,
     spanish_at_home_pct,
-    primary_language,
-    secondary_language,
+    languages,
     demographics: tractDemo = {},
     dac_status,
     environmental_hardships,
@@ -1965,13 +1922,23 @@ function renderResult(address, data, elapsedMs) {
 
   const population = data.population ?? tractDemo.population;
   const median_age = data.median_age ?? tractDemo.median_age;
-  const median_household_income =
-    data.median_household_income ?? tractDemo.median_household_income;
+  const median_income =
+    data.median_income ??
+    data.median_household_income ??
+    tractDemo.median_income ??
+    tractDemo.median_household_income;
   const per_capita_income =
     data.per_capita_income ?? tractDemo.per_capita_income;
   const poverty_rate = data.poverty_rate ?? tractDemo.poverty_rate;
   const unemployment_rate =
     data.unemployment_rate ?? tractDemo.unemployment_rate;
+  const language_list =
+    Array.isArray(languages) && languages.length
+      ? languages
+      : tractDemo.languages;
+  const enviroscreen_score = data.enviroscreen_score ?? enviroscreen?.score;
+  const enviroscreen_percentile =
+    data.enviroscreen_percentile ?? enviroscreen?.percentile;
 
   const hardshipList = Array.isArray(environmental_hardships)
     ? Array.from(new Set(environmental_hardships))
@@ -2046,7 +2013,10 @@ function renderResult(address, data, elapsedMs) {
     const entries = [
       ["Total population", fmtInt(d.population)],
       ["Median age", fmtNumber(d.median_age)],
-      ["Median household income", fmtCurrency(d.median_household_income)],
+      [
+        "Median household income",
+        fmtCurrency(d.median_income ?? d.median_household_income),
+      ],
       ["Per capita income", fmtCurrency(d.per_capita_income)],
       ["Poverty rate", fmtPct(d.poverty_rate)],
       ["Unemployment rate", fmtPct(d.unemployment_rate)],
@@ -2060,7 +2030,7 @@ function renderResult(address, data, elapsedMs) {
     popFields({
       population,
       median_age,
-      median_household_income,
+      median_income,
       per_capita_income,
       poverty_rate,
       unemployment_rate,
@@ -2070,9 +2040,12 @@ function renderResult(address, data, elapsedMs) {
     '<p class="section-description">This section provides a snapshot of the people living in the selected area, drawn from the American Community Survey (ACS). It includes the total population, median age, household income, poverty rate, and unemployment rate. These indicators offer a quick view of community size, economic stability, and social conditions.</p><p class="section-description"><em>Values for the surrounding 10-mile area and water district are population-weighted averages.</em></p>',
   );
   const languageFields = (d = {}) => {
+    const langList =
+      Array.isArray(d.languages) && d.languages.length
+        ? d.languages.map((l) => sanitizeHTML(l)).join(", ")
+        : "Not available";
     const entries = [
-      ["Primary language", sanitizeHTML(d.primary_language) || "—"],
-      ["Second most common", sanitizeHTML(d.secondary_language) || "—"],
+      ["Languages spoken", langList],
       [
         "People who speak a language other than English at home",
         fmtPct(d.language_other_than_english_pct),
@@ -2090,15 +2063,40 @@ function renderResult(address, data, elapsedMs) {
   const languageRow = buildComparisonRow(
     "Language (ACS)",
     languageFields({
-      primary_language,
-      secondary_language,
+      languages: language_list,
       language_other_than_english_pct,
       english_less_than_very_well_pct,
       spanish_at_home_pct,
     }),
     languageFields(s.demographics || {}),
     languageFields(w.demographics || {}),
-    '<p class="section-description">This section highlights the primary and secondary languages spoken in the community and key language indicators based on American Community Survey (ACS) 5&#8209;year estimates.</p><p class="section-description"><em>Values for the surrounding 10-mile area and water district are population-weighted averages.</em></p>',
+    '<p class="section-description">This section highlights the languages spoken in the community and key language indicators based on American Community Survey (ACS) 5&#8209;year estimates.</p><p class="section-description"><em>Values for the surrounding 10-mile area and water district are population-weighted averages.</em></p>',
+  );
+
+  const enviroscreenFields = (d = {}) => {
+    const score = d.enviroscreen_score ?? d.score;
+    const percentileRaw = d.enviroscreen_percentile ?? d.percentile;
+    const percentile =
+      Number.isFinite(Number(percentileRaw)) && Number(percentileRaw) <= 1
+        ? Number(percentileRaw) * 100
+        : percentileRaw;
+    const entries = [
+      ["Score", fmtNumber(score)],
+      ["Percentile", fmtPct(percentile)],
+    ];
+    return `<div class="kv">${entries
+      .map(([k, v]) => `<div class="key">${k}</div><div class="val">${v}</div>`)
+      .join("")}</div>`;
+  };
+  const enviroscreenRow = buildComparisonRow(
+    "EnviroScreen (CalEnviroScreen 4.0)",
+    enviroscreenFields({
+      enviroscreen_score,
+      enviroscreen_percentile,
+    }),
+    enviroscreenFields(s.environment || {}),
+    enviroscreenFields(w.environment || {}),
+    '<p class="section-description">This section shows the CalEnviroScreen 4.0 score and percentile for the selected area and comparison regions.</p>',
   );
 
   const raceContent = (d = {}) => {
@@ -2197,14 +2195,6 @@ function renderResult(address, data, elapsedMs) {
       ? dacCallout(null, w.dac_tracts, w.dac_population_pct, w.dac_tracts_pct)
       : "",
     '<p class="section-description">This section indicates whether the selected area is designated as a Disadvantaged Community (DAC) using the California Department of Water Resources (DWR) mapping tool. DAC status is determined by household income and is shown as a simple yes/no outcome. This designation is important for identifying areas eligible for certain state and federal funding opportunities and for ensuring that equity considerations are included in outreach and program planning.</p>',
-  );
-
-  const enviroscreenRow = buildComparisonRow(
-    "Environmental Indicators (CalEPA Enviroscreen)",
-    renderEnviroscreenContent(enviroscreen),
-    renderEnviroscreenContent(s.environment),
-    renderEnviroscreenContent(w.environment),
-    '<p class="section-description">This section shows environmental and community health indicators from California’s Enviroscreen tool. Results are presented as percentiles, with higher numbers (and darker colors) indicating greater environmental burdens compared to other areas in the state. These measures include factors such as air quality, traffic pollution, and access to safe drinking water.</p><p class="section-description">Staff can use this information to understand potential environmental challenges facing a neighborhood, strengthen grant applications that require equity or environmental justice considerations, and design outreach that addresses local concerns. For example, if an event is planned in an area with a high Enviroscreen percentile, staff may want to highlight programs or benefits related to clean water, pollution reduction, or community health.</p><p class="section-description"><strong>How to Read This</strong><br>Green = Low burden (fewer environmental and health challenges)<br>Yellow/Orange = Moderate burden<br>Red = High burden (greater environmental and health challenges)<br>Percentile score shows how the community compares to others across California.</p>',
   );
 
   const hardshipRow = buildComparisonRow(
