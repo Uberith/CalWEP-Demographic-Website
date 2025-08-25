@@ -33,6 +33,10 @@ self.addEventListener("fetch", (event) => {
   // stale data or misrouted requests when the base URL changes.
   const url = new URL(request.url);
   if (url.origin !== self.location.origin) return;
+  // Bypass caching for API requests so dynamic responses like static map
+  // images are always fetched from the network rather than the service worker
+  // cache.
+  if (url.pathname.startsWith("/api/")) return;
 
   event.respondWith(
     caches.match(request).then((cached) => {
