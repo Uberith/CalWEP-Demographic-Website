@@ -1,8 +1,18 @@
 const http = require('http');
+const Sentry = require('@sentry/node');
 
 const port = process.env.PORT || 3000;
 
-const CSP = "default-src 'self'; script-src 'self' https://cdnjs.cloudflare.com https://maps.googleapis.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; connect-src 'self' https://nftapi.cyberwiz.io https://api.bigdatacloud.net https://geo.fcc.gov https://api.census.gov https://tigerweb.geo.census.gov https://gis.water.ca.gov https://services.arcgis.com https://overpass-api.de https://api.weather.gov https://maps.googleapis.com; img-src 'self' https://maps.googleapis.com data:";
+Sentry.init({ dsn: process.env.SENTRY_DSN || '' });
+process.on('uncaughtException', (err) => {
+  Sentry.captureException(err);
+  throw err;
+});
+process.on('unhandledRejection', (err) => {
+  Sentry.captureException(err);
+});
+
+const CSP = "default-src 'self'; script-src 'self' https://cdnjs.cloudflare.com https://maps.googleapis.com https://browser.sentry-cdn.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; connect-src 'self' https://nftapi.cyberwiz.io https://api.bigdatacloud.net https://geo.fcc.gov https://api.census.gov https://tigerweb.geo.census.gov https://gis.water.ca.gov https://services.arcgis.com https://overpass-api.de https://api.weather.gov https://maps.googleapis.com https://o0.ingest.sentry.io; img-src 'self' https://maps.googleapis.com data:";
 const securityHeaders = {
   'Content-Security-Policy': CSP,
   'Strict-Transport-Security': 'max-age=63072000; includeSubDomains; preload',
