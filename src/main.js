@@ -12,7 +12,7 @@ import {
 } from "./api.js";
 import { renderLoading, renderError } from "./ui/error.js";
 import { setupAutocomplete } from "./maps.js";
-import { sanitizeHTML, nowStamp, formatDuration } from "./utils.js";
+import { sanitizeHTML, nowStamp, formatDuration, deepMerge } from "./utils.js";
 
 const SENTRY_DSN =
   document.querySelector('meta[name="sentry-dsn"]')?.content || "";
@@ -132,21 +132,6 @@ function fmtPct(n) {
 }
 function titleCase(str = "") {
   return str.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
-}
-
-function deepMerge(target = {}, ...sources) {
-  const isObj = (v) => v && typeof v === "object" && !Array.isArray(v);
-  for (const src of sources) {
-    if (!isObj(src)) continue;
-    for (const [key, val] of Object.entries(src)) {
-      if (isObj(val)) {
-        target[key] = deepMerge(isObj(target[key]) ? target[key] : {}, val);
-      } else {
-        target[key] = val;
-      }
-    }
-  }
-  return target;
 }
 
 // Split an array into chunks so API requests stay within URL limits
