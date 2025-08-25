@@ -14,7 +14,7 @@ import {
 } from "./api.js";
 import { renderLoading, renderError } from "./ui/error.js";
 import { fetchMapsKey, loadGoogleMaps, getGoogleMapsKey } from "./maps.js";
-import { escapeHTML, nowStamp, formatDuration } from "./utils.js";
+import { sanitizeHTML, nowStamp, formatDuration } from "./utils.js";
 
 const SENTRY_DSN =
   document.querySelector('meta[name="sentry-dsn"]')?.content || "";
@@ -1355,7 +1355,7 @@ function renderEnviroscreenSection(title, data, includeDescription = false) {
     const kv = entries
       .map(
         ([k, v]) =>
-          `<div class="key">${escapeHTML(
+          `<div class="key">${sanitizeHTML(
             CES_LABELS[k] || titleCase(k),
           )}</div><div class="val">${badge(v)}</div>`,
       )
@@ -1437,7 +1437,7 @@ function renderEnviroscreenContent(data) {
     const kv = entries
       .map(
         ([k, v]) =>
-          `<div class=\"key\">${escapeHTML(
+          `<div class=\"key\">${sanitizeHTML(
             CES_LABELS[k] || titleCase(k),
           )}</div><div class=\"val\">${badge(v)}</div>`,
       )
@@ -1519,7 +1519,7 @@ function renderResultOld(address, data, elapsedMs) {
 const hardshipSection = `
     <section class="section-block">
       <h3 class="section-header">Environmental hardships</h3>
-      ${hardshipList.length ? `<div class="stats">${hardshipList.map((h) => `<span class="pill">${escapeHTML(h)}</span>`).join("")}</div>` : `<p class="note">No environmental hardships recorded.</p>`}
+      ${hardshipList.length ? `<div class="stats">${hardshipList.map((h) => `<span class="pill">${sanitizeHTML(h)}</span>`).join("")}</div>` : `<p class="note">No environmental hardships recorded.</p>`}
     </section>
   `;
 
@@ -1562,10 +1562,10 @@ const hardshipSection = `
     if (Object.keys(d).length) {
       const tractList = Array.isArray(s.census_tracts)
         ? s.census_tracts.join(", ")
-        : escapeHTML(s.census_tracts) || "—";
+        : sanitizeHTML(s.census_tracts) || "—";
       const cityList = Array.isArray(s.cities)
         ? s.cities.join(", ")
-        : escapeHTML(s.cities) || "—";
+        : sanitizeHTML(s.cities) || "—";
       html += `
       <section class="section-block">
         <h3 class="section-header">Surrounding 10‑Mile Area (ACS)</h3>
@@ -1583,8 +1583,8 @@ const hardshipSection = `
           <div class="key">Median home value</div><div class="val">${fmtCurrency(d.median_home_value)}</div>
           <div class="key">High school or higher</div><div class="val">${fmtPct(d.high_school_or_higher_pct)}</div>
           <div class="key">Bachelor's degree or higher</div><div class="val">${fmtPct(d.bachelors_or_higher_pct)}</div>
-          <div class="key">Primary language</div><div class="val">${escapeHTML(d.primary_language) || "—"}</div>
-          <div class="key">Second most common</div><div class="val">${escapeHTML(d.secondary_language) || "—"}</div>
+          <div class="key">Primary language</div><div class="val">${sanitizeHTML(d.primary_language) || "—"}</div>
+          <div class="key">Second most common</div><div class="val">${sanitizeHTML(d.secondary_language) || "—"}</div>
           <div class="key">People who speak a language other than English at home</div><div class="val">${fmtPct(d.language_other_than_english_pct)}</div>
           <div class="key">People who speak English less than \"very well\"</div><div class="val">${fmtPct(d.english_less_than_very_well_pct)}</div>
           <div class="key">People who speak Spanish at home</div><div class="val">${fmtPct(d.spanish_at_home_pct)}</div>
@@ -1615,16 +1615,16 @@ const hardshipSection = `
     const d = w.demographics || {};
     const tractList = Array.isArray(w.census_tracts)
       ? w.census_tracts.join(", ")
-      : escapeHTML(w.census_tracts) || "—";
+      : sanitizeHTML(w.census_tracts) || "—";
     const cityList = Array.isArray(w.cities)
       ? w.cities.join(", ")
-      : escapeHTML(w.cities) || "—";
+      : sanitizeHTML(w.cities) || "—";
     if (w.name || w.census_tracts || w.cities)
       html += `
       <section class="section-block">
         <h3 class="section-header">Location Summary</h3>
         <div class="kv">
-          <div class="key">District</div><div class="val">${escapeHTML(w.name) || "—"}</div>
+          <div class="key">District</div><div class="val">${sanitizeHTML(w.name) || "—"}</div>
           <div class="key">Cities</div><div class="val">${cityList}</div>
           <div class="key">Census tracts</div><div class="val">${tractList}</div>
         </div>
@@ -1633,7 +1633,7 @@ const hardshipSection = `
     if (Object.keys(d).length) {
       html += `
       <section class="section-block">
-        <h3 class="section-header">${escapeHTML(w.name) || "Water District Region"} (ACS)</h3>
+        <h3 class="section-header">${sanitizeHTML(w.name) || "Water District Region"} (ACS)</h3>
         <div class="kv">
           <div class="key">Population</div><div class="val">${fmtInt(d.population)}</div>
           <div class="key">Median age</div><div class="val">${fmtNumber(d.median_age)}</div>
@@ -1646,8 +1646,8 @@ const hardshipSection = `
           <div class="key">Median home value</div><div class="val">${fmtCurrency(d.median_home_value)}</div>
           <div class="key">High school or higher</div><div class="val">${fmtPct(d.high_school_or_higher_pct)}</div>
           <div class="key">Bachelor's degree or higher</div><div class="val">${fmtPct(d.bachelors_or_higher_pct)}</div>
-          <div class="key">Primary language</div><div class="val">${escapeHTML(d.primary_language) || "—"}</div>
-          <div class="key">Second most common</div><div class="val">${escapeHTML(d.secondary_language) || "—"}</div>
+          <div class="key">Primary language</div><div class="val">${sanitizeHTML(d.primary_language) || "—"}</div>
+          <div class="key">Second most common</div><div class="val">${sanitizeHTML(d.secondary_language) || "—"}</div>
           <div class="key">People who speak a language other than English at home</div><div class="val">${fmtPct(d.language_other_than_english_pct)}</div>
           <div class="key">People who speak Spanish at home</div><div class="val">${fmtPct(d.spanish_at_home_pct)}</div>
           <div class="key">Speak English less than \"very well\"</div><div class="val">${fmtPct(d.english_less_than_very_well_pct)}</div>
@@ -1677,10 +1677,10 @@ const hardshipSection = `
     <section class="section-block">
       <h3 class="section-header">Location Summary</h3>
       <div class="kv">
-        <div class="key">City</div><div class="val">${escapeHTML(city) || "—"}</div>
-        <div class="key">Census tract</div><div class="val">${escapeHTML(census_tract) || "—"}</div>
-        <div class="key">ZIP code</div><div class="val">${escapeHTML(zip) || "—"}</div>
-        <div class="key">County</div><div class="val">${escapeHTML(county) || "—"}</div>
+        <div class="key">City</div><div class="val">${sanitizeHTML(city) || "—"}</div>
+        <div class="key">Census tract</div><div class="val">${sanitizeHTML(census_tract) || "—"}</div>
+        <div class="key">ZIP code</div><div class="val">${sanitizeHTML(zip) || "—"}</div>
+        <div class="key">County</div><div class="val">${sanitizeHTML(county) || "—"}</div>
         <div class="key">Coordinates</div><div class="val">${coords}</div>
       </div>
       ${mapImgHtml}
@@ -1716,8 +1716,8 @@ const hardshipSection = `
       <h3 class="section-header">Language (ACS)</h3>
       <p class="section-description">This section highlights the primary and secondary languages spoken in the community and key language indicators based on American Community Survey (ACS) 5‑year estimates.</p>
       <div class="kv">
-        <div class="key">Primary language</div><div class="val">${escapeHTML(primary_language) || "—"}</div>
-        <div class="key">Second most common</div><div class="val">${escapeHTML(secondary_language) || "—"}</div>
+        <div class="key">Primary language</div><div class="val">${sanitizeHTML(primary_language) || "—"}</div>
+        <div class="key">Second most common</div><div class="val">${sanitizeHTML(secondary_language) || "—"}</div>
         <div class="key">People who speak a language other than English at home</div><div class="val">${fmtPct(language_other_than_english_pct)}</div>
         <div class="key">People who speak English less than \"very well\"</div><div class="val">${fmtPct(english_less_than_very_well_pct)}</div>
         <div class="key">People who speak Spanish at home</div><div class="val">${fmtPct(spanish_at_home_pct)}</div>
@@ -1746,7 +1746,7 @@ const hardshipSection = `
         alertList.length
           ? `
         <div class="stats">
-          ${alertList.map((a) => `<span class="pill">${escapeHTML(a)}</span>`).join("")}
+          ${alertList.map((a) => `<span class="pill">${sanitizeHTML(a)}</span>`).join("")}
         </div>
       `
           : `<p class="note">No active alerts found for this location.</p>`
@@ -1754,11 +1754,11 @@ const hardshipSection = `
     </section>
   `;
 
-  document.getElementById("result").innerHTML = `
+  document.getElementById("result").innerHTML = sanitizeHTML(`
     <article class="card">
       <div class="card__header">
         <div class="card__head-left">
-          <h2 class="card__title">Results for: ${escapeHTML(address)}</h2>
+          <h2 class="card__title">Results for: ${sanitizeHTML(address)}</h2>
           <div class="card__actions">
             <button type="button" onclick="printReport()">Print</button>
             <button type="button" onclick="downloadPdf()">Download PDF</button>
@@ -1787,7 +1787,7 @@ const hardshipSection = `
         Sources: FCC Block for county &amp; tract; US Census ACS 5‑year (languages, population, median income); CalEnviroScreen 4.0; NWS alerts.
       </span>
     </article>
-  `;
+    `);
 }
 
 // New row-based renderer
@@ -1856,23 +1856,23 @@ function renderResult(address, data, elapsedMs) {
     : [];
   const sTracts = Array.isArray(s.census_tracts)
     ? s.census_tracts.join(", ")
-    : escapeHTML(s.census_tracts) || "—";
+    : sanitizeHTML(s.census_tracts) || "—";
   const sCities = Array.isArray(s.cities)
     ? s.cities.join(", ")
-    : escapeHTML(s.cities) || "—";
+    : sanitizeHTML(s.cities) || "—";
   const wTracts = Array.isArray(w.census_tracts)
     ? w.census_tracts.join(", ")
-    : escapeHTML(w.census_tracts) || "—";
+    : sanitizeHTML(w.census_tracts) || "—";
   const wCities = Array.isArray(w.cities)
     ? w.cities.join(", ")
-    : escapeHTML(w.cities) || "—";
+    : sanitizeHTML(w.cities) || "—";
 
   const locLocal = `
     <div class="kv">
-      <div class="key">City</div><div class="val">${escapeHTML(city) || "—"}</div>
-      <div class="key">Census tract</div><div class="val">${escapeHTML(census_tract) || "—"}</div>
-      <div class="key">ZIP code</div><div class="val">${escapeHTML(zip) || "—"}</div>
-      <div class="key">County</div><div class="val">${escapeHTML(county) || "—"}</div>
+      <div class="key">City</div><div class="val">${sanitizeHTML(city) || "—"}</div>
+      <div class="key">Census tract</div><div class="val">${sanitizeHTML(census_tract) || "—"}</div>
+      <div class="key">ZIP code</div><div class="val">${sanitizeHTML(zip) || "—"}</div>
+      <div class="key">County</div><div class="val">${sanitizeHTML(county) || "—"}</div>
       <div class="key">Coordinates</div><div class="val">${coords}</div>
     </div>
     ${mapImgHtml}
@@ -1885,7 +1885,7 @@ function renderResult(address, data, elapsedMs) {
   `;
   const locDistrict = `
     <div class="kv">
-      <div class="key">District</div><div class="val">${escapeHTML(w.name) || "—"}</div>
+      <div class="key">District</div><div class="val">${sanitizeHTML(w.name) || "—"}</div>
       <div class="key">Cities</div><div class="val">${wCities}</div>
       <div class="key">Census tracts</div><div class="val">${wTracts}</div>
     </div>
@@ -1927,8 +1927,8 @@ function renderResult(address, data, elapsedMs) {
   );
   const languageFields = (d = {}) => {
     const entries = [
-      ["Primary language", escapeHTML(d.primary_language) || "—"],
-      ["Second most common", escapeHTML(d.secondary_language) || "—"],
+      ["Primary language", sanitizeHTML(d.primary_language) || "—"],
+      ["Second most common", sanitizeHTML(d.secondary_language) || "—"],
       [
         "People who speak a language other than English at home",
         fmtPct(d.language_other_than_english_pct),
@@ -2035,7 +2035,7 @@ function renderResult(address, data, elapsedMs) {
     if (Array.isArray(tracts) && tracts.length)
       lines.push(
         `<div class="dac-tracts">Tracts ${tracts
-          .map((t) => escapeHTML(t))
+          .map((t) => sanitizeHTML(t))
           .join(", ")}</div>`,
       );
 
@@ -2066,17 +2066,17 @@ function renderResult(address, data, elapsedMs) {
     "Environmental Hardships",
     hardshipList.length
       ? `<div class="stats">${hardshipList
-          .map((h) => `<span class="pill">${escapeHTML(h)}</span>`)
+          .map((h) => `<span class="pill">${sanitizeHTML(h)}</span>`)
           .join("")}</div>`
       : "",
     sHardships.length
       ? `<div class="stats">${sHardships
-          .map((h) => `<span class="pill">${escapeHTML(h)}</span>`)
+          .map((h) => `<span class="pill">${sanitizeHTML(h)}</span>`)
           .join("")}</div>`
       : "",
     wHardships.length
       ? `<div class="stats">${wHardships
-          .map((h) => `<span class="pill">${escapeHTML(h)}</span>`)
+          .map((h) => `<span class="pill">${sanitizeHTML(h)}</span>`)
           .join("")}</div>`
       : "",
     '<p class="section-description">This section lists environmental hardships reported for the selected location, highlighting challenges that may affect residents and program planning.</p>',
@@ -2089,7 +2089,7 @@ function renderResult(address, data, elapsedMs) {
       ${
         alertList.length
           ? `<div class="stats">${alertList
-              .map((a) => `<span class="pill">${escapeHTML(a)}</span>`)
+              .map((a) => `<span class="pill">${sanitizeHTML(a)}</span>`)
               .join("")}</div>`
           : '<p class="note">No active alerts found for this location.</p>'
       }
@@ -2104,11 +2104,11 @@ function renderResult(address, data, elapsedMs) {
     </div>
   `;
 
-  document.getElementById("result").innerHTML = `
+  document.getElementById("result").innerHTML = sanitizeHTML(`
     <article class="card">
       <div class="card__header">
         <div class="card__head-left">
-          <h2 class="card__title">Results for: ${escapeHTML(address)}</h2>
+          <h2 class="card__title">Results for: ${sanitizeHTML(address)}</h2>
           <div class="card__actions">
             <button type="button" onclick="printReport()">Print</button>
             <button type="button" onclick="downloadPdf()">Download PDF</button>
@@ -2134,7 +2134,7 @@ function renderResult(address, data, elapsedMs) {
         Sources: FCC Block for county &amp; tract; US Census ACS 5‑year (languages, population, median income); CalEnviroScreen 4.0; NWS alerts.
       </span>
     </article>
-  `;
+    `);
 }
 // ---------- Flow ----------
 async function lookup() {
