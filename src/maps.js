@@ -2,15 +2,19 @@
 // All requests are proxied through the backend; the frontend never
 // communicates with Google or embeds an API key.
 
+import { buildApiUrl } from "./api.js";
+
 export function setupAutocomplete() {
   const input = document.getElementById("autocomplete");
   const list = document.getElementById("autocomplete-list");
   if (!input || !list) return;
 
-  // Backend endpoint for autocomplete suggestions. Update here if the
-  // server route changes. All autocomplete requests should go through
-  // this endpoint and never talk to Google directly.
-  const AUTOCOMPLETE_ENDPOINT = "https://nftapi.cyberwiz.io/api/autocomplete";
+  // Backend endpoint for autocomplete suggestions.  The base host can be
+  // configured via <meta name="api-base"> in index.html or by editing
+  // API_BASE in api.js.  All autocomplete requests must go through this
+  // backend endpoint and never talk to Google directly or expose the
+  // Maps API key.
+  const AUTOCOMPLETE_PATH = "/api/autocomplete";
 
   let debounceId = null;
   let suggestions = [];
@@ -68,13 +72,22 @@ export function setupAutocomplete() {
     }
 
     // TODO: show a loading spinner while fetching suggestions
+    // Debounce to reduce API spam; adjust timing as needed.
     debounceId = setTimeout(async () => {
+      const url = buildApiUrl(AUTOCOMPLETE_PATH, { input: query });
+      console.log("Autocomplete request:", url);
       try {
-        const resp = await fetch(
-          `${AUTOCOMPLETE_ENDPOINT}?input=${encodeURIComponent(query)}`,
-        );
+        const resp = await fetch(url);
+        let data = {};
+        try {
+          data = await resp.json();
+        } catch {}
+        console.log("Autocomplete response:", resp.status, data);
         if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
-        const data = await resp.json();
+        if (data.error === "Missing input") {
+          clearSuggestions('<li class="error">Input required.</li>');
+          return;
+        }
         if (data.error) throw new Error(data.error);
         const preds = Array.isArray(data.predictions) ? data.predictions : [];
         if (!preds.length) {
@@ -86,9 +99,9 @@ export function setupAutocomplete() {
         renderSuggestions(preds, query);
       } catch (err) {
         console.error("Autocomplete error", err);
-        clearSuggestions('<li class="error">Unable to fetch suggestions</li>');
+        clearSuggestions('<li class="error">Unable to fetch suggestions.</li>');
       }
-    }, 300); // Debounce to reduce server calls
+    }, 300);
   });
 
   list.addEventListener("mousedown", (e) => {
