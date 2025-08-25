@@ -13,7 +13,7 @@ This project helps water agency staff explore neighborhood-level demographics an
 
 ## Google Maps API Key
 
-The site uses the Google Maps JavaScript API and reads the key from the `MAPS_API_KEY` environment variable at runtime. The key is accessed on the server via `process.env.MAPS_API_KEY` and should never be committed to source control.
+Google Maps is accessed through server-side proxies that append the secret key from the `MAPS_API_KEY` environment variable. The frontend never receives the raw key.
 
 ### Local development
 
@@ -21,7 +21,7 @@ The site uses the Google Maps JavaScript API and reads the key from the `MAPS_AP
    ```bash
    MAPS_API_KEY=your_google_maps_api_key
    ```
-2. Run `npm run dev` for a development server or `npm run build` to generate static assets. The key is injected at runtime; avoid embedding it directly into the frontend.
+2. Run `npm run dev` for a development server or `npm run build` to generate static assets. The proxy endpoints `/api/autocomplete` and `/api/staticmap` inject the key at runtime; the frontend should never embed it directly.
 
 ### Production (Render, Heroku, etc.)
 
@@ -32,7 +32,7 @@ The site uses the Google Maps JavaScript API and reads the key from the `MAPS_AP
 
 - Restrict the Google Maps key to allowed domains/IPs and enable usage quotas in the Google Cloud Console.
 - Monitor usage and regenerate the key if it becomes compromised.
-- When frontend code needs Google Maps data, proxy the request through your server. The server can append the API key from `process.env.MAPS_API_KEY` (exposed as `databaseUrl`) so the browser never sees the secret.
+- All requests for Google Maps data should go through the provided server routes. These endpoints append `MAPS_API_KEY` on the server so the browser never sees the secret.
 
 ## Accessing environment variables
 

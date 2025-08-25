@@ -1,9 +1,9 @@
-import { _ as dn } from "./pdf.js";
-import { l as Ln, d as Vt } from "./maps.js";
-const Dn = new URLSearchParams(window.location.search).has("debug");
+import { _ as pn } from "./pdf.js";
+import { s as Nn } from "./maps.js";
+const Ln = new URLSearchParams(window.location.search).has("debug");
 let Xe = null;
 function gt(...e) {
-  Dn &&
+  Ln &&
     (console.log(...e),
     Xe ||
       ((Xe = document.createElement("pre")),
@@ -15,34 +15,34 @@ function gt(...e) {
 `));
 }
 async function se(e, n, s = {}) {
-  var a, c, o;
+  var r, c, o;
   const i = performance.now();
   try {
     return await n();
-  } catch (r) {
+  } catch (a) {
     throw (
-      (a = window.Sentry) == null ||
-        a.captureException(r, { extra: { name: e, ...s } }),
-      r
+      (r = window.Sentry) == null ||
+        r.captureException(a, { extra: { name: e, ...s } }),
+      a
     );
   } finally {
-    const r = performance.now() - i;
-    (gt(e, { ...s, duration: r }),
+    const a = performance.now() - i;
+    (gt(e, { ...s, duration: a }),
       (o = (c = window.Sentry) == null ? void 0 : c.addBreadcrumb) == null ||
         o.call(c, {
           category: "async",
           message: e,
-          data: { ...s, duration: r },
+          data: { ...s, duration: a },
         }));
   }
 }
-const dt = "https://nftapi.cyberwiz.io",
+const ft = "https://nftapi.cyberwiz.io",
   fn = "/demographics";
 function _t(e, n = {}) {
-  const s = dt.endsWith("/") ? dt : dt + "/",
+  const s = ft.endsWith("/") ? ft : ft + "/",
     i = new URL(e.replace(/^\//, ""), s);
-  for (const [a, c] of Object.entries(n))
-    c != null && String(c).length && i.searchParams.set(a, c);
+  for (const [r, c] of Object.entries(n))
+    c != null && String(c).length && i.searchParams.set(r, c);
   return i.toString();
 }
 async function nt(e) {
@@ -79,13 +79,13 @@ async function nt(e) {
   );
 }
 /*! @license DOMPurify 3.2.6 | (c) Cure53 and other contributors | Released under the Apache license 2.0 and Mozilla Public License 2.0 | github.com/cure53/DOMPurify/blob/3.2.6/LICENSE */ const {
-  entries: mn,
-  setPrototypeOf: qt,
-  isFrozen: On,
-  getPrototypeOf: Pn,
-  getOwnPropertyDescriptor: In,
+  entries: dn,
+  setPrototypeOf: Vt,
+  isFrozen: Dn,
+  getPrototypeOf: On,
+  getOwnPropertyDescriptor: Pn,
 } = Object;
-let { freeze: J, seal: ie, create: hn } = Object,
+let { freeze: J, seal: ie, create: mn } = Object,
   { apply: Dt, construct: Ot } = typeof Reflect < "u" && Reflect;
 J ||
   (J = function (n) {
@@ -104,32 +104,32 @@ Ot ||
     return new n(...s);
   });
 const lt = K(Array.prototype.forEach),
-  kn = K(Array.prototype.lastIndexOf),
-  Xt = K(Array.prototype.pop),
+  In = K(Array.prototype.lastIndexOf),
+  qt = K(Array.prototype.pop),
   Je = K(Array.prototype.push),
-  $n = K(Array.prototype.splice),
-  ft = K(String.prototype.toLowerCase),
+  kn = K(Array.prototype.splice),
+  dt = K(String.prototype.toLowerCase),
   Et = K(String.prototype.toString),
-  Jt = K(String.prototype.match),
+  Xt = K(String.prototype.match),
   Ke = K(String.prototype.replace),
-  Mn = K(String.prototype.indexOf),
-  xn = K(String.prototype.trim),
+  $n = K(String.prototype.indexOf),
+  Mn = K(String.prototype.trim),
   le = K(Object.prototype.hasOwnProperty),
   X = K(RegExp.prototype.test),
-  Ze = Fn(TypeError);
+  Ze = xn(TypeError);
 function K(e) {
   return function (n) {
     n instanceof RegExp && (n.lastIndex = 0);
     for (
-      var s = arguments.length, i = new Array(s > 1 ? s - 1 : 0), a = 1;
-      a < s;
-      a++
+      var s = arguments.length, i = new Array(s > 1 ? s - 1 : 0), r = 1;
+      r < s;
+      r++
     )
-      i[a - 1] = arguments[a];
+      i[r - 1] = arguments[r];
     return Dt(e, n, i);
   };
 }
-function Fn(e) {
+function xn(e) {
   return function () {
     for (var n = arguments.length, s = new Array(n), i = 0; i < n; i++)
       s[i] = arguments[i];
@@ -137,29 +137,29 @@ function Fn(e) {
   };
 }
 function R(e, n) {
-  let s = arguments.length > 2 && arguments[2] !== void 0 ? arguments[2] : ft;
-  qt && qt(e, null);
+  let s = arguments.length > 2 && arguments[2] !== void 0 ? arguments[2] : dt;
+  Vt && Vt(e, null);
   let i = n.length;
   for (; i--; ) {
-    let a = n[i];
-    if (typeof a == "string") {
-      const c = s(a);
-      c !== a && (On(n) || (n[i] = c), (a = c));
+    let r = n[i];
+    if (typeof r == "string") {
+      const c = s(r);
+      c !== r && (Dn(n) || (n[i] = c), (r = c));
     }
-    e[a] = !0;
+    e[r] = !0;
   }
   return e;
 }
-function Un(e) {
+function Fn(e) {
   for (let n = 0; n < e.length; n++) le(e, n) || (e[n] = null);
   return e;
 }
 function ge(e) {
-  const n = hn(null);
-  for (const [s, i] of mn(e))
+  const n = mn(null);
+  for (const [s, i] of dn(e))
     le(e, s) &&
       (Array.isArray(i)
-        ? (n[s] = Un(i))
+        ? (n[s] = Fn(i))
         : i && typeof i == "object" && i.constructor === Object
           ? (n[s] = ge(i))
           : (n[s] = i));
@@ -167,19 +167,19 @@ function ge(e) {
 }
 function Qe(e, n) {
   for (; e !== null; ) {
-    const i = In(e, n);
+    const i = Pn(e, n);
     if (i) {
       if (i.get) return K(i.get);
       if (typeof i.value == "function") return K(i.value);
     }
-    e = Pn(e);
+    e = On(e);
   }
   function s() {
     return null;
   }
   return s;
 }
-const Kt = J([
+const Jt = J([
     "a",
     "abbr",
     "acronym",
@@ -370,7 +370,7 @@ const Kt = J([
     "feTile",
     "feTurbulence",
   ]),
-  Hn = J([
+  Un = J([
     "animate",
     "color-profile",
     "cursor",
@@ -426,7 +426,7 @@ const Kt = J([
     "munderover",
     "mprescripts",
   ]),
-  Gn = J([
+  Hn = J([
     "maction",
     "maligngroup",
     "malignmark",
@@ -443,8 +443,8 @@ const Kt = J([
     "mprescripts",
     "none",
   ]),
-  Zt = J(["#text"]),
-  Qt = J([
+  Kt = J(["#text"]),
+  Zt = J([
     "accept",
     "action",
     "align",
@@ -748,7 +748,7 @@ const Kt = J([
     "z",
     "zoomandpan",
   ]),
-  en = J([
+  Qt = J([
     "accent",
     "accentunder",
     "align",
@@ -804,29 +804,29 @@ const Kt = J([
     "xmlns",
   ]),
   ut = J(["xlink:href", "xml:id", "xlink:title", "xml:space", "xmlns:xlink"]),
-  Wn = ie(/\{\{[\w\W]*|[\w\W]*\}\}/gm),
-  zn = ie(/<%[\w\W]*|[\w\W]*%>/gm),
+  Gn = ie(/\{\{[\w\W]*|[\w\W]*\}\}/gm),
+  Wn = ie(/<%[\w\W]*|[\w\W]*%>/gm),
   Bn = ie(/\$\{[\w\W]*/gm),
-  jn = ie(/^data-[\-\w.\u00B7-\uFFFF]+$/),
-  Yn = ie(/^aria-[\-\w]+$/),
-  _n = ie(
+  zn = ie(/^data-[\-\w.\u00B7-\uFFFF]+$/),
+  jn = ie(/^aria-[\-\w]+$/),
+  hn = ie(
     /^(?:(?:(?:f|ht)tps?|mailto|tel|callto|sms|cid|xmpp|matrix):|[^a-z]|[a-z+.\-]+(?:[^a-z+.\-:]|$))/i,
   ),
-  Vn = ie(/^(?:\w+script|data):/i),
-  qn = ie(/[\u0000-\u0020\u00A0\u1680\u180E\u2000-\u2029\u205F\u3000]/g),
-  gn = ie(/^html$/i),
-  Xn = ie(/^[a-z][.\w]*(-[.\w]+)+$/i);
-var tn = Object.freeze({
+  Yn = ie(/^(?:\w+script|data):/i),
+  Vn = ie(/[\u0000-\u0020\u00A0\u1680\u180E\u2000-\u2029\u205F\u3000]/g),
+  _n = ie(/^html$/i),
+  qn = ie(/^[a-z][.\w]*(-[.\w]+)+$/i);
+var en = Object.freeze({
   __proto__: null,
-  ARIA_ATTR: Yn,
-  ATTR_WHITESPACE: qn,
-  CUSTOM_ELEMENT: Xn,
-  DATA_ATTR: jn,
-  DOCTYPE_NAME: gn,
-  ERB_EXPR: zn,
-  IS_ALLOWED_URI: _n,
-  IS_SCRIPT_OR_DATA: Vn,
-  MUSTACHE_EXPR: Wn,
+  ARIA_ATTR: jn,
+  ATTR_WHITESPACE: Vn,
+  CUSTOM_ELEMENT: qn,
+  DATA_ATTR: zn,
+  DOCTYPE_NAME: _n,
+  ERB_EXPR: Wn,
+  IS_ALLOWED_URI: hn,
+  IS_SCRIPT_OR_DATA: Yn,
+  MUSTACHE_EXPR: Gn,
   TMPLIT_EXPR: Bn,
 });
 const et = {
@@ -836,15 +836,15 @@ const et = {
     comment: 8,
     document: 9,
   },
-  Jn = function () {
+  Xn = function () {
     return typeof window > "u" ? null : window;
   },
-  Kn = function (n, s) {
+  Jn = function (n, s) {
     if (typeof n != "object" || typeof n.createPolicy != "function")
       return null;
     let i = null;
-    const a = "data-tt-policy-suffix";
-    s && s.hasAttribute(a) && (i = s.getAttribute(a));
+    const r = "data-tt-policy-suffix";
+    s && s.hasAttribute(r) && (i = s.getAttribute(r));
     const c = "dompurify" + (i ? "#" + i : "");
     try {
       return n.createPolicy(c, {
@@ -862,7 +862,7 @@ const et = {
       );
     }
   },
-  nn = function () {
+  tn = function () {
     return {
       afterSanitizeAttributes: [],
       afterSanitizeElements: [],
@@ -875,9 +875,9 @@ const et = {
       uponSanitizeShadowNode: [],
     };
   };
-function yn() {
-  let e = arguments.length > 0 && arguments[0] !== void 0 ? arguments[0] : Jn();
-  const n = (T) => yn(T);
+function gn() {
+  let e = arguments.length > 0 && arguments[0] !== void 0 ? arguments[0] : Xn();
+  const n = (T) => gn(T);
   if (
     ((n.version = "3.2.6"),
     (n.removed = []),
@@ -886,11 +886,11 @@ function yn() {
     return ((n.isSupported = !1), n);
   let { document: s } = e;
   const i = s,
-    a = i.currentScript,
+    r = i.currentScript,
     {
       DocumentFragment: c,
       HTMLTemplateElement: o,
-      Node: r,
+      Node: a,
       Element: d,
       NodeFilter: f,
       NamedNodeMap: l = e.NamedNodeMap || e.MozNamedAttrMap,
@@ -913,33 +913,33 @@ function yn() {
   const {
       implementation: F,
       createNodeIterator: k,
-      createDocumentFragment: z,
+      createDocumentFragment: B,
       getElementsByTagName: G,
     } = s,
     { importNode: q } = i;
-  let N = nn();
+  let N = tn();
   n.isSupported =
-    typeof mn == "function" &&
+    typeof dn == "function" &&
     typeof E == "function" &&
     F &&
     F.createHTMLDocument !== void 0;
   const {
     MUSTACHE_EXPR: L,
-    ERB_EXPR: B,
+    ERB_EXPR: z,
     TMPLIT_EXPR: ue,
     DATA_ATTR: te,
     ARIA_ATTR: oe,
     IS_SCRIPT_OR_DATA: re,
     ATTR_WHITESPACE: ae,
     CUSTOM_ELEMENT: ce,
-  } = tn;
-  let { IS_ALLOWED_URI: Te } = tn,
+  } = en;
+  let { IS_ALLOWED_URI: Te } = en,
     $ = null;
-  const st = R({}, [...Kt, ...Tt, ...St, ...bt, ...Zt]);
+  const st = R({}, [...Jt, ...Tt, ...St, ...bt, ...Kt]);
   let U = null;
-  const Ue = R({}, [...Qt, ...Rt, ...en, ...ut]);
+  const Ue = R({}, [...Zt, ...Rt, ...Qt, ...ut]);
   let O = Object.seal(
-      hn(null, {
+      mn(null, {
         tagNameCheck: {
           writable: !0,
           configurable: !1,
@@ -968,9 +968,9 @@ function yn() {
     We = !0,
     ye = !1,
     Re = !0,
-    fe = !1,
-    ze = !1,
+    de = !1,
     Be = !1,
+    ze = !1,
     Ae = !1,
     Ce = !1,
     Ne = !1,
@@ -1038,11 +1038,11 @@ function yn() {
     ve = R({}, ["annotation-xml"]);
   const ke = R({}, ["title", "style", "font", "a", "script"]);
   let be = null;
-  const Sn = ["application/xhtml+xml", "text/html"],
-    bn = "text/html";
+  const Tn = ["application/xhtml+xml", "text/html"],
+    Sn = "text/html";
   let W = null,
     $e = null;
-  const Rn = s.createElement("form"),
+  const bn = s.createElement("form"),
     $t = function (t) {
       return t instanceof RegExp || t instanceof Function;
     },
@@ -1054,8 +1054,8 @@ function yn() {
           ((!t || typeof t != "object") && (t = {}),
           (t = ge(t)),
           (be =
-            Sn.indexOf(t.PARSER_MEDIA_TYPE) === -1 ? bn : t.PARSER_MEDIA_TYPE),
-          (W = be === "application/xhtml+xml" ? Et : ft),
+            Tn.indexOf(t.PARSER_MEDIA_TYPE) === -1 ? Sn : t.PARSER_MEDIA_TYPE),
+          (W = be === "application/xhtml+xml" ? Et : dt),
           ($ = le(t, "ALLOWED_TAGS") ? R({}, t.ALLOWED_TAGS, W) : st),
           (U = le(t, "ALLOWED_ATTR") ? R({}, t.ALLOWED_ATTR, W) : Ue),
           (Q = le(t, "ALLOWED_NAMESPACES")
@@ -1077,16 +1077,16 @@ function yn() {
           (We = t.ALLOW_SELF_CLOSE_IN_ATTR !== !1),
           (ye = t.SAFE_FOR_TEMPLATES || !1),
           (Re = t.SAFE_FOR_XML !== !1),
-          (fe = t.WHOLE_DOCUMENT || !1),
+          (de = t.WHOLE_DOCUMENT || !1),
           (Ae = t.RETURN_DOM || !1),
           (Ce = t.RETURN_DOM_FRAGMENT || !1),
           (Ne = t.RETURN_TRUSTED_TYPE || !1),
-          (Be = t.FORCE_BODY || !1),
+          (ze = t.FORCE_BODY || !1),
           (Le = t.SANITIZE_DOM !== !1),
           (it = t.SANITIZE_NAMED_PROPS || !1),
           (Ye = t.KEEP_CONTENT !== !1),
           (me = t.IN_PLACE || !1),
-          (Te = t.ALLOWED_URI_REGEXP || _n),
+          (Te = t.ALLOWED_URI_REGEXP || hn),
           (j = t.NAMESPACE || S),
           (Ie = t.MATHML_TEXT_INTEGRATION_POINTS || Ie),
           (ve = t.HTML_INTEGRATION_POINTS || ve),
@@ -1106,19 +1106,19 @@ function yn() {
           ye && (I = !1),
           Ce && (Ae = !0),
           we &&
-            (($ = R({}, Zt)),
+            (($ = R({}, Kt)),
             (U = []),
-            we.html === !0 && (R($, Kt), R(U, Qt)),
+            we.html === !0 && (R($, Jt), R(U, Zt)),
             we.svg === !0 && (R($, Tt), R(U, Rt), R(U, ut)),
             we.svgFilters === !0 && (R($, St), R(U, Rt), R(U, ut)),
-            we.mathMl === !0 && (R($, bt), R(U, en), R(U, ut))),
+            we.mathMl === !0 && (R($, bt), R(U, Qt), R(U, ut))),
           t.ADD_TAGS && ($ === st && ($ = ge($)), R($, t.ADD_TAGS, W)),
           t.ADD_ATTR && (U === Ue && (U = ge(U)), R(U, t.ADD_ATTR, W)),
           t.ADD_URI_SAFE_ATTR && R(Ve, t.ADD_URI_SAFE_ATTR, W),
           t.FORBID_CONTENTS &&
             (pe === ot && (pe = ge(pe)), R(pe, t.FORBID_CONTENTS, W)),
           Ye && ($["#text"] = !0),
-          fe && R($, ["html", "head", "body"]),
+          de && R($, ["html", "head", "body"]),
           $.table && (R($, ["tbody"]), delete Se.tbody),
           t.TRUSTED_TYPES_POLICY)
         ) {
@@ -1132,18 +1132,18 @@ function yn() {
             );
           ((b = t.TRUSTED_TYPES_POLICY), (C = b.createHTML("")));
         } else
-          (b === void 0 && (b = Kn(_, a)),
+          (b === void 0 && (b = Jn(_, r)),
             b !== null && typeof C == "string" && (C = b.createHTML("")));
         (J && J(t), ($e = t));
       }
     },
-    Mt = R({}, [...Tt, ...St, ...Hn]),
-    xt = R({}, [...bt, ...Gn]),
-    Cn = function (t) {
+    Mt = R({}, [...Tt, ...St, ...Un]),
+    xt = R({}, [...bt, ...Hn]),
+    Rn = function (t) {
       let u = E(t);
       (!u || !u.tagName) && (u = { namespaceURI: j, tagName: "template" });
-      const A = ft(t.tagName),
-        P = ft(u.tagName);
+      const A = dt(t.tagName),
+        P = dt(u.tagName);
       return Q[t.namespaceURI]
         ? t.namespaceURI === Pe
           ? u.namespaceURI === S
@@ -1165,7 +1165,7 @@ function yn() {
               : !!(be === "application/xhtml+xml" && Q[t.namespaceURI])
         : !1;
     },
-    de = function (t) {
+    fe = function (t) {
       Je(n.removed, { element: t });
       try {
         E(t).removeChild(t);
@@ -1182,7 +1182,7 @@ function yn() {
       if ((u.removeAttribute(t), t === "is"))
         if (Ae || Ce)
           try {
-            de(u);
+            fe(u);
           } catch {}
         else
           try {
@@ -1192,9 +1192,9 @@ function yn() {
     Ft = function (t) {
       let u = null,
         A = null;
-      if (Be) t = "<remove></remove>" + t;
+      if (ze) t = "<remove></remove>" + t;
       else {
-        const H = Jt(t, /^[\r\n\t ]+/);
+        const H = Xt(t, /^[\r\n\t ]+/);
         A = H && H[0];
       }
       be === "application/xhtml+xml" &&
@@ -1218,8 +1218,8 @@ function yn() {
       return (
         t && A && Y.insertBefore(s.createTextNode(A), Y.childNodes[0] || null),
         j === S
-          ? G.call(u, fe ? "html" : "body")[0]
-          : fe
+          ? G.call(u, de ? "html" : "body")[0]
+          : de
             ? u.documentElement
             : Y
       );
@@ -1251,7 +1251,7 @@ function yn() {
       );
     },
     Ht = function (t) {
-      return typeof r == "function" && t instanceof r;
+      return typeof a == "function" && t instanceof a;
     };
   function he(T, t, u) {
     lt(T, (A) => {
@@ -1260,7 +1260,7 @@ function yn() {
   }
   const Gt = function (t) {
       let u = null;
-      if ((he(N.beforeSanitizeElements, t, null), wt(t))) return (de(t), !0);
+      if ((he(N.beforeSanitizeElements, t, null), wt(t))) return (fe(t), !0);
       const A = W(t.nodeName);
       if (
         (he(N.uponSanitizeElement, t, { tagName: A, allowedTags: $ }),
@@ -1272,11 +1272,11 @@ function yn() {
           t.nodeType === et.progressingInstruction ||
           (Re && t.nodeType === et.comment && X(/<[/\w]/g, t.data)))
       )
-        return (de(t), !0);
+        return (fe(t), !0);
       if (!$[A] || Se[A]) {
         if (
           !Se[A] &&
-          zt(A) &&
+          Bt(A) &&
           ((O.tagNameCheck instanceof RegExp && X(O.tagNameCheck, A)) ||
             (O.tagNameCheck instanceof Function && O.tagNameCheck(A)))
         )
@@ -1293,16 +1293,16 @@ function yn() {
             }
           }
         }
-        return (de(t), !0);
+        return (fe(t), !0);
       }
-      return (t instanceof d && !Cn(t)) ||
+      return (t instanceof d && !Rn(t)) ||
         ((A === "noscript" || A === "noembed" || A === "noframes") &&
           X(/<\/no(script|embed|frames)/i, t.innerHTML))
-        ? (de(t), !0)
+        ? (fe(t), !0)
         : (ye &&
             t.nodeType === et.text &&
             ((u = t.textContent),
-            lt([L, B, ue], (P) => {
+            lt([L, z, ue], (P) => {
               u = Ke(u, P, " ");
             }),
             t.textContent !== u &&
@@ -1311,13 +1311,13 @@ function yn() {
           !1);
     },
     Wt = function (t, u, A) {
-      if (Le && (u === "id" || u === "name") && (A in s || A in Rn)) return !1;
+      if (Le && (u === "id" || u === "name") && (A in s || A in bn)) return !1;
       if (!(I && !He[u] && X(te, u))) {
         if (!(M && X(oe, u))) {
           if (!U[u] || He[u]) {
             if (
               !(
-                (zt(t) &&
+                (Bt(t) &&
                   ((O.tagNameCheck instanceof RegExp && X(O.tagNameCheck, t)) ||
                     (O.tagNameCheck instanceof Function &&
                       O.tagNameCheck(t))) &&
@@ -1338,7 +1338,7 @@ function yn() {
                 !(
                   (u === "src" || u === "xlink:href" || u === "href") &&
                   t !== "script" &&
-                  Mn(A, "data:") === 0 &&
+                  $n(A, "data:") === 0 &&
                   De[t]
                 )
               ) {
@@ -1352,10 +1352,10 @@ function yn() {
       }
       return !0;
     },
-    zt = function (t) {
-      return t !== "annotation-xml" && Jt(t, ce);
-    },
     Bt = function (t) {
+      return t !== "annotation-xml" && Xt(t, ce);
+    },
+    zt = function (t) {
       he(N.beforeSanitizeAttributes, t, null);
       const { attributes: u } = t;
       if (!u || wt(t)) return;
@@ -1372,7 +1372,7 @@ function yn() {
           { name: H, namespaceURI: ee, value: _e } = Y,
           qe = W(H),
           vt = _e;
-        let V = H === "value" ? vt : xn(vt);
+        let V = H === "value" ? vt : Mn(vt);
         if (
           ((A.attrName = qe),
           (A.attrValue = V),
@@ -1396,7 +1396,7 @@ function yn() {
           continue;
         }
         ye &&
-          lt([L, B, ue], (Yt) => {
+          lt([L, z, ue], (Yt) => {
             V = Ke(V, Yt, " ");
           });
         const jt = W(t.nodeName);
@@ -1423,20 +1423,20 @@ function yn() {
         if (V !== vt)
           try {
             (ee ? t.setAttributeNS(ee, H, V) : t.setAttribute(H, V),
-              wt(t) ? de(t) : Xt(n.removed));
+              wt(t) ? fe(t) : qt(n.removed));
           } catch {
             Me(H, t);
           }
       }
       he(N.afterSanitizeAttributes, t, null);
     },
-    Nn = function T(t) {
+    Cn = function T(t) {
       let u = null;
       const A = Ut(t);
       for (he(N.beforeSanitizeShadowDOM, t, null); (u = A.nextNode()); )
         (he(N.uponSanitizeShadowNode, u, null),
           Gt(u),
-          Bt(u),
+          zt(u),
           u.content instanceof c && T(u.content));
       he(N.afterSanitizeShadowDOM, t, null);
     };
@@ -1455,14 +1455,14 @@ function yn() {
         } else throw Ze("toString is not a function");
       if (!n.isSupported) return T;
       if (
-        (ze || At(t), (n.removed = []), typeof T == "string" && (me = !1), me)
+        (Be || At(t), (n.removed = []), typeof T == "string" && (me = !1), me)
       ) {
         if (T.nodeName) {
           const _e = W(T.nodeName);
           if (!$[_e] || Se[_e])
             throw Ze("root node is forbidden and cannot be sanitized in-place");
         }
-      } else if (T instanceof r)
+      } else if (T instanceof a)
         ((u = Ft("<!---->")),
           (A = u.ownerDocument.importNode(T, !0)),
           (A.nodeType === et.element && A.nodeName === "BODY") ||
@@ -1470,18 +1470,18 @@ function yn() {
             ? (u = A)
             : u.appendChild(A));
       else {
-        if (!Ae && !ye && !fe && T.indexOf("<") === -1)
+        if (!Ae && !ye && !de && T.indexOf("<") === -1)
           return b && Ne ? b.createHTML(T) : T;
         if (((u = Ft(T)), !u)) return Ae ? null : Ne ? C : "";
       }
-      u && Be && de(u.firstChild);
+      u && ze && fe(u.firstChild);
       const H = Ut(me ? T : u);
       for (; (P = H.nextNode()); )
-        (Gt(P), Bt(P), P.content instanceof c && Nn(P.content));
+        (Gt(P), zt(P), P.content instanceof c && Cn(P.content));
       if (me) return T;
       if (Ae) {
         if (Ce)
-          for (Y = z.call(u.ownerDocument); u.firstChild; )
+          for (Y = B.call(u.ownerDocument); u.firstChild; )
             Y.appendChild(u.firstChild);
         else Y = u;
         return (
@@ -1489,14 +1489,14 @@ function yn() {
           Y
         );
       }
-      let ee = fe ? u.outerHTML : u.innerHTML;
+      let ee = de ? u.outerHTML : u.innerHTML;
       return (
-        fe &&
+        de &&
           $["!doctype"] &&
           u.ownerDocument &&
           u.ownerDocument.doctype &&
           u.ownerDocument.doctype.name &&
-          X(gn, u.ownerDocument.doctype.name) &&
+          X(_n, u.ownerDocument.doctype.name) &&
           (ee =
             "<!DOCTYPE " +
             u.ownerDocument.doctype.name +
@@ -1504,7 +1504,7 @@ function yn() {
 ` +
             ee),
         ye &&
-          lt([L, B, ue], (_e) => {
+          lt([L, z, ue], (_e) => {
             ee = Ke(ee, _e, " ");
           }),
         b && Ne ? b.createHTML(ee) : ee
@@ -1513,10 +1513,10 @@ function yn() {
     (n.setConfig = function () {
       let T =
         arguments.length > 0 && arguments[0] !== void 0 ? arguments[0] : {};
-      (At(T), (ze = !0));
+      (At(T), (Be = !0));
     }),
     (n.clearConfig = function () {
-      (($e = null), (ze = !1));
+      (($e = null), (Be = !1));
     }),
     (n.isValidAttribute = function (T, t, u) {
       $e || At({});
@@ -1529,39 +1529,39 @@ function yn() {
     }),
     (n.removeHook = function (T, t) {
       if (t !== void 0) {
-        const u = kn(N[T], t);
-        return u === -1 ? void 0 : $n(N[T], u, 1)[0];
+        const u = In(N[T], t);
+        return u === -1 ? void 0 : kn(N[T], u, 1)[0];
       }
-      return Xt(N[T]);
+      return qt(N[T]);
     }),
     (n.removeHooks = function (T) {
       N[T] = [];
     }),
     (n.removeAllHooks = function () {
-      N = nn();
+      N = tn();
     }),
     n
   );
 }
-var An = yn();
-const Es = Object.freeze(
-  Object.defineProperty({ __proto__: null, default: An }, Symbol.toStringTag, {
+var yn = gn();
+const vs = Object.freeze(
+  Object.defineProperty({ __proto__: null, default: yn }, Symbol.toStringTag, {
     value: "Module",
   }),
 );
 function D(e = "") {
-  return e == null ? "" : An(window).sanitize(String(e));
+  return e == null ? "" : yn(window).sanitize(String(e));
 }
 function It() {
   return new Date().toLocaleString();
 }
-function wn(e = 0) {
+function An(e = 0) {
   const n = Math.round(e / 1e3),
     s = Math.floor(n / 60),
     i = n % 60;
   return `${s} ${s === 1 ? "Minute" : "Minutes"} and ${i} ${i === 1 ? "Second" : "Seconds"}`;
 }
-function Zn(e) {
+function Kn(e) {
   document.getElementById("result").innerHTML = D(`
     <div class="card">
       <div class="card__header">
@@ -1574,7 +1574,7 @@ function Zn(e) {
     </div>
   `);
 }
-function sn(e, n, s) {
+function nn(e, n, s) {
   document.getElementById("result").innerHTML = D(`
     <div class="card" role="alert">
       <div class="card__header">
@@ -1585,20 +1585,20 @@ function sn(e, n, s) {
       <div class="callout" style="border-left-color:#b45309;">
         ${D(e || "Please try again with a different address.")}
       </div>
-      <p class="note">Search took ${wn(s)}.</p>
-      <p class="note">API base: <code>${D(dt)}</code>. If your API has a prefix, adjust <code>API_PATH</code>.</p>
+      <p class="note">Search took ${An(s)}.</p>
+      <p class="note">API base: <code>${D(ft)}</code>. If your API has a prefix, adjust <code>API_PATH</code>.</p>
     </div>
   `);
 }
-var pn;
-const on =
-  ((pn = document.querySelector('meta[name="sentry-dsn"]')) == null
+var un;
+const sn =
+  ((un = document.querySelector('meta[name="sentry-dsn"]')) == null
     ? void 0
-    : pn.content) || "";
-on &&
-  dn(() => import("./index.js"), [])
+    : un.content) || "";
+sn &&
+  pn(() => import("./index.js"), [])
     .then((e) => {
-      ((window.Sentry = e), e.init({ dsn: on }), gt("Sentry initialized"));
+      ((window.Sentry = e), e.init({ dsn: sn }), gt("Sentry initialized"));
     })
     .catch((e) => console.error("Sentry failed to load", e));
 "serviceWorker" in navigator &&
@@ -1620,11 +1620,11 @@ window.addEventListener("unhandledrejection", (e) => {
 });
 let xe = null;
 const Ct = new Map();
-function Qn() {
+function Zn() {
   window.print();
 }
-window.printReport = Qn;
-function es() {
+window.printReport = Zn;
+function Qn() {
   if (!xe) return;
   const e = new Blob([JSON.stringify(xe, null, 2)], {
       type: "application/json",
@@ -1639,15 +1639,15 @@ function es() {
     document.body.removeChild(s),
     URL.revokeObjectURL(n));
 }
-window.downloadRawData = es;
+window.downloadRawData = Qn;
 window.downloadPdf = async function () {
-  const { downloadPdf: e } = await dn(async () => {
+  const { downloadPdf: e } = await pn(async () => {
     const { downloadPdf: n } = await import("./pdf.js").then((s) => s.p);
     return { downloadPdf: n };
   }, []);
   e(xe);
 };
-function ts() {
+function es() {
   const e = window.location.href;
   navigator.clipboard && window.isSecureContext
     ? navigator.clipboard
@@ -1658,11 +1658,11 @@ function ts() {
         })
     : prompt("Copy this link:", e);
 }
-window.shareReport = ts;
+window.shareReport = es;
 function ne(e) {
   return e == null || Number(e) === -888888888;
 }
-function ns(e) {
+function ts(e) {
   return !ne(e) && Number.isFinite(Number(e))
     ? Number(e).toLocaleString()
     : "—";
@@ -1672,7 +1672,7 @@ function Nt(e) {
     ? "—"
     : `$${Math.round(Number(e)).toLocaleString()}`;
 }
-function ss(e) {
+function ns(e) {
   return !ne(e) && Number.isFinite(Number(e))
     ? Number(e).toLocaleString(void 0, { maximumFractionDigits: 1 })
     : "—";
@@ -1682,15 +1682,15 @@ function x(e) {
     ? `${Number(e).toFixed(1)}%`
     : "—";
 }
-function is(e = "") {
+function ss(e = "") {
   return e.replace(/_/g, " ").replace(/\b\w/g, (n) => n.toUpperCase());
 }
 function mt(e = {}, ...n) {
   const s = (i) => i && typeof i == "object" && !Array.isArray(i);
   for (const i of n)
     if (s(i))
-      for (const [a, c] of Object.entries(i))
-        s(c) ? (e[a] = mt(s(e[a]) ? e[a] : {}, c)) : (e[a] = c);
+      for (const [r, c] of Object.entries(i))
+        s(c) ? (e[r] = mt(s(e[r]) ? e[r] : {}, c)) : (e[r] = c);
   return e;
 }
 function yt(e = [], n = 50) {
@@ -1698,7 +1698,7 @@ function yt(e = [], n = 50) {
   for (let i = 0; i < e.length; i += n) s.push(e.slice(i, i + n));
   return s;
 }
-const os = {
+const is = {
     pm25: "PM2.5",
     diesel: "Diesel PM",
     toxic_releases: "Toxic releases",
@@ -1746,7 +1746,7 @@ const os = {
   };
 let ht = null,
   Fe = null;
-function rs() {
+function os() {
   Fe = Date.now();
   const e = (n) => {
     const s = document.getElementById("searchTimer");
@@ -1763,29 +1763,29 @@ function rs() {
       e(`${i}m ${s.toString().padStart(2, "0")}s`);
     }, 1e3)));
 }
-function rn() {
+function on() {
   ht && clearInterval(ht);
   const e = Fe ? Date.now() - Fe : 0;
   return ((ht = null), (Fe = null), e);
 }
-async function as(e = {}) {
+async function rs(e = {}) {
   let {
     city: n,
     census_tract: s,
     lat: i,
-    lon: a,
+    lon: r,
     state_fips: c,
     county_fips: o,
-    tract_code: r,
+    tract_code: a,
   } = e;
   const d = [];
   return (
     !n &&
       i != null &&
-      a != null &&
+      r != null &&
       d.push(
         fetch(
-          `https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=${i}&longitude=${a}&localityLanguage=en`,
+          `https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=${i}&longitude=${r}&localityLanguage=en`,
         )
           .then((f) => f.json())
           .then((f) => {
@@ -1808,12 +1808,12 @@ async function as(e = {}) {
           })
           .catch(() => {}),
       ),
-    (!s || !c || !o || !r) &&
+    (!s || !c || !o || !a) &&
       i != null &&
-      a != null &&
+      r != null &&
       d.push(
         fetch(
-          `https://geo.fcc.gov/api/census/block/find?latitude=${i}&longitude=${a}&format=json`,
+          `https://geo.fcc.gov/api/census/block/find?latitude=${i}&longitude=${r}&format=json`,
         )
           .then((f) => f.json())
           .then((f) => {
@@ -1824,8 +1824,8 @@ async function as(e = {}) {
               l.length >= 11 &&
               ((c = l.slice(0, 2)),
               (o = l.slice(2, 5)),
-              (r = l.slice(5, 11)),
-              (s = `${r.slice(0, 4)}.${r.slice(4)}`));
+              (a = l.slice(5, 11)),
+              (s = `${a.slice(0, 4)}.${a.slice(4)}`));
           })
           .catch(() => {}),
       ),
@@ -1836,12 +1836,12 @@ async function as(e = {}) {
       census_tract: s,
       state_fips: c,
       county_fips: o,
-      tract_code: r,
+      tract_code: a,
     }
   );
 }
 let tt = null;
-async function vn() {
+async function wn() {
   if (tt) return tt;
   try {
     const e = await nt(
@@ -1850,11 +1850,11 @@ async function vn() {
       n = (e == null ? void 0 : e.variables) || {},
       s = [],
       i = {};
-    for (const [a, c] of Object.entries(n)) {
-      if (!a.endsWith("E")) continue;
+    for (const [r, c] of Object.entries(n)) {
+      if (!r.endsWith("E")) continue;
       const o = c.label || "",
-        r = /^Estimate!!Total:!!([^:]+):$/.exec(o);
-      r && (s.push(a), (i[a] = r[1]));
+        a = /^Estimate!!Total:!!([^:]+):$/.exec(o);
+      a && (s.push(r), (i[r] = a[1]));
     }
     tt = { codes: s, names: i };
   } catch {
@@ -1864,7 +1864,7 @@ async function vn() {
 }
 async function Pt(e = []) {
   var v, _;
-  const { codes: n, names: s } = await vn();
+  const { codes: n, names: s } = await wn();
   if (!n.length) return {};
   const i = {};
   for (const m of e) {
@@ -1878,10 +1878,10 @@ async function Pt(e = []) {
       E = `${h}${p}`;
     (i[E] || (i[E] = { state: h, county: p, tracts: [] }), i[E].tracts.push(g));
   }
-  let a = 0,
+  let r = 0,
     c = 0,
     o = 0;
-  const r = {},
+  const a = {},
     d = Object.values(i).map(async (m) => {
       const w = yt(m.tracts, 50),
         h = await Promise.all(
@@ -1890,12 +1890,12 @@ async function Pt(e = []) {
               b = 40,
               C = [];
             for (let L = 0; L < n.length; L += b) {
-              const B = n.slice(L, L + b),
-                te = `https://api.census.gov/data/2022/acs/acs5?get=${(L === 0 ? ["C16001_001E", "C16001_002E", ...B] : B).join(",")}&for=tract:${E}&in=state:${m.state}%20county:${m.county}`;
+              const z = n.slice(L, L + b),
+                te = `https://api.census.gov/data/2022/acs/acs5?get=${(L === 0 ? ["C16001_001E", "C16001_002E", ...z] : z).join(",")}&for=tract:${E}&in=state:${m.state}%20county:${m.county}`;
               C.push(
                 fetch(te)
                   .then((oe) => oe.json())
-                  .then((oe) => ({ type: "lang", rows: oe, chunk: B }))
+                  .then((oe) => ({ type: "lang", rows: oe, chunk: z }))
                   .catch(() => null),
               );
             }
@@ -1907,20 +1907,20 @@ async function Pt(e = []) {
                 .catch(() => null),
             );
             const k = await Promise.all(C);
-            let z = 0,
+            let B = 0,
               G = 0,
               q = 0;
             const N = {};
             for (const L of k) {
               if (!L || !Array.isArray(L.rows) || L.rows.length <= 1) continue;
-              const { rows: B } = L;
+              const { rows: z } = L;
               if (L.type === "lang") {
-                const ue = B[0];
-                for (let te = 1; te < B.length; te++) {
-                  const oe = B[te],
+                const ue = z[0];
+                for (let te = 1; te < z.length; te++) {
+                  const oe = z[te],
                     re = {};
                   (ue.forEach((ae, ce) => (re[ae] = Number(oe[ce]))),
-                    (z += re.C16001_001E || 0),
+                    (B += re.C16001_001E || 0),
                     (G += re.C16001_002E || 0));
                   for (const ae of L.chunk) {
                     const ce = s[ae],
@@ -1929,16 +1929,16 @@ async function Pt(e = []) {
                   }
                 }
               } else if (L.type === "english") {
-                const ue = B[0];
-                for (let te = 1; te < B.length; te++) {
-                  const oe = B[te],
+                const ue = z[0];
+                for (let te = 1; te < z.length; te++) {
+                  const oe = z[te],
                     re = {};
                   (ue.forEach((ae, ce) => (re[ae] = Number(oe[ce]))),
                     (q += re.DP02_0115E || 0));
                 }
               }
             }
-            return { total: z, englishOnly: G, englishLess: q, langCounts: N };
+            return { total: B, englishOnly: G, englishLess: q, langCounts: N };
           }),
         ),
         p = { total: 0, englishOnly: 0, englishLess: 0, langCounts: {} };
@@ -1953,26 +1953,26 @@ async function Pt(e = []) {
     }),
     f = await Promise.all(d);
   for (const m of f) {
-    ((a += m.total), (c += m.englishOnly), (o += m.englishLess));
-    for (const [w, h] of Object.entries(m.langCounts)) r[w] = (r[w] || 0) + h;
+    ((r += m.total), (c += m.englishOnly), (o += m.englishLess));
+    for (const [w, h] of Object.entries(m.langCounts)) a[w] = (a[w] || 0) + h;
   }
-  r.English = c;
-  const l = r.Spanish || 0,
-    y = Object.entries(r).sort((m, w) => w[1] - m[1]);
+  a.English = c;
+  const l = a.Spanish || 0,
+    y = Object.entries(a).sort((m, w) => w[1] - m[1]);
   return {
     primary_language: (v = y[0]) == null ? void 0 : v[0],
     secondary_language: (_ = y[1]) == null ? void 0 : _[0],
-    language_other_than_english_pct: a ? ((a - c) / a) * 100 : null,
-    english_less_than_very_well_pct: a ? (o / a) * 100 : null,
-    spanish_at_home_pct: a ? (l / a) * 100 : null,
+    language_other_than_english_pct: r ? ((r - c) / r) * 100 : null,
+    english_less_than_very_well_pct: r ? (o / r) * 100 : null,
+    spanish_at_home_pct: r ? (l / r) * 100 : null,
   };
 }
-async function cs({ state_fips: e, county_fips: n, tract_code: s } = {}) {
+async function as({ state_fips: e, county_fips: n, tract_code: s } = {}) {
   if (!e || !n || !s) return {};
   const i = `${e}${n}${s}`;
   return Pt([i]);
 }
-async function an(e = []) {
+async function rn(e = []) {
   const n = {};
   for (const d of e) {
     const f = String(d)
@@ -1987,7 +1987,7 @@ async function an(e = []) {
   }
   let s = 0,
     i = 0,
-    a = 0,
+    r = 0,
     c = 0,
     o = 0;
   for (const d of Object.values(n)) {
@@ -2006,25 +2006,25 @@ async function an(e = []) {
             m > 0 &&
             ((s += m),
             Number.isFinite(w) && (i += w * m),
-            Number.isFinite(h) && (a += h * m),
+            Number.isFinite(h) && (r += h * m),
             Number.isFinite(p) && (c += p * m),
             Number.isFinite(g) && g >= 0 && (o += (g / 100) * m));
         }
       } catch {}
     }
   }
-  const r = {};
+  const a = {};
   return (
     s > 0 &&
-      ((r.population = s),
-      i > 0 && (r.median_age = i / s),
-      a > 0 && (r.median_household_income = a / s),
-      c > 0 && (r.per_capita_income = c / s),
-      o > 0 && (r.poverty_rate = (o / s) * 100)),
-    r
+      ((a.population = s),
+      i > 0 && (a.median_age = i / s),
+      r > 0 && (a.median_household_income = r / s),
+      c > 0 && (a.per_capita_income = c / s),
+      o > 0 && (a.poverty_rate = (o / s) * 100)),
+    a
   );
 }
-async function cn(e = []) {
+async function an(e = []) {
   const n = {};
   for (const y of e) {
     const v = String(y)
@@ -2039,10 +2039,10 @@ async function cn(e = []) {
   }
   let s = 0,
     i = 0,
-    a = 0,
+    r = 0,
     c = 0,
     o = 0,
-    r = 0,
+    a = 0,
     d = 0;
   for (const y of Object.values(n)) {
     const v = yt(y.tracts, 50);
@@ -2070,25 +2070,25 @@ async function cn(e = []) {
             Number.isFinite(g) &&
               g > 0 &&
               ((i += g), Number.isFinite(b) && b > 0 && (c += b * g)),
-            Number.isFinite(E) && E > 0 && (a += E),
+            Number.isFinite(E) && E > 0 && (r += E),
             Number.isFinite(C) &&
               C > 0 &&
               ((o += C),
-              Number.isFinite(F) && F > 0 && (r += F),
+              Number.isFinite(F) && F > 0 && (a += F),
               Number.isFinite(k) && k > 0 && (d += k)));
         }
       } catch {}
     }
   }
   const f = {},
-    l = i + a;
+    l = i + r;
   return (
     l > 0 &&
       ((f.owner_occupied_pct = (i / l) * 100),
-      (f.renter_occupied_pct = (a / l) * 100)),
+      (f.renter_occupied_pct = (r / l) * 100)),
     i > 0 && c > 0 && (f.median_home_value = c / i),
     o > 0 &&
-      ((f.high_school_or_higher_pct = (r / o) * 100),
+      ((f.high_school_or_higher_pct = (a / o) * 100),
       (f.bachelors_or_higher_pct = (d / o) * 100)),
     f
   );
@@ -2096,29 +2096,29 @@ async function cn(e = []) {
 async function kt(e = []) {
   const n = {};
   for (const i of e) {
-    const a = String(i)
+    const r = String(i)
       .replace(/[^0-9]/g, "")
       .padStart(11, "0");
-    if (a.length !== 11) continue;
-    const c = a.slice(0, 2),
-      o = a.slice(2, 5),
-      r = a.slice(5),
+    if (r.length !== 11) continue;
+    const c = r.slice(0, 2),
+      o = r.slice(2, 5),
+      a = r.slice(5),
       d = `${c}${o}`;
-    (n[d] || (n[d] = { state: c, county: o, tracts: [] }), n[d].tracts.push(r));
+    (n[d] || (n[d] = { state: c, county: o, tracts: [] }), n[d].tracts.push(a));
   }
   const s = {};
   for (const i of Object.values(n)) {
-    const a = yt(i.tracts, 50);
-    for (const c of a) {
+    const r = yt(i.tracts, 50);
+    for (const c of r) {
       const o =
         "https://api.census.gov/data/2022/acs/acs5/profile?get=DP03_0009PE,DP05_0001E&for=tract:" +
         c.join(",") +
         `&in=state:${i.state}%20county:${i.county}`;
       try {
-        const r = await fetch(o).then((d) => d.json());
-        if (!Array.isArray(r) || r.length < 2) continue;
-        for (let d = 1; d < r.length; d++) {
-          const [f, l, y, v, _] = r[d],
+        const a = await fetch(o).then((d) => d.json());
+        if (!Array.isArray(a) || a.length < 2) continue;
+        for (let d = 1; d < a.length; d++) {
+          const [f, l, y, v, _] = a[d],
             m = `${y}${v}${_}`;
           s[m] = { unemployment_rate: Number(f), population: Number(l) };
         }
@@ -2127,20 +2127,20 @@ async function kt(e = []) {
   }
   return s;
 }
-async function En(e = []) {
+async function vn(e = []) {
   const n =
       "https://gis.water.ca.gov/arcgis/rest/services/Society/i16_Census_Tract_DisadvantagedCommunities_2020/MapServer/0/query",
     s = new Set(),
     i = 50;
-  for (let a = 0; a < e.length; a += i) {
-    const c = e.slice(a, a + i);
+  for (let r = 0; r < e.length; r += i) {
+    const c = e.slice(r, r + i);
     if (!c.length) continue;
     const o = `GEOID20 IN (${c.map((d) => `'${d}'`).join(",")})`,
-      r =
+      a =
         n +
         `?where=${encodeURIComponent(o)}&outFields=GEOID20,DAC20&returnGeometry=false&f=json`;
     try {
-      const d = await fetch(r).then((f) => f.json());
+      const d = await fetch(a).then((f) => f.json());
       for (const f of d.features || []) {
         const l = f.attributes || {},
           y = String(l.GEOID20);
@@ -2150,41 +2150,41 @@ async function En(e = []) {
   }
   return Array.from(s);
 }
-async function ln(e = []) {
+async function cn(e = []) {
   const n = new Set();
   return (
     await Promise.all(
       e.map(async (s) => {
         try {
           const i = _t(fn, { fips: s, census_tract: s, geoid: s }),
-            a = await nt(i);
-          Array.isArray(a.environmental_hardships) &&
-            a.environmental_hardships.forEach((c) => n.add(c));
+            r = await nt(i);
+          Array.isArray(r.environmental_hardships) &&
+            r.environmental_hardships.forEach((c) => n.add(c));
         } catch {}
       }),
     ),
     Array.from(n).sort()
   );
 }
-async function ls(e = {}) {
-  var r, d;
+async function cs(e = {}) {
+  var a, d;
   const { surrounding_10_mile: n, water_district: s } = e || {},
     i = { ...e },
-    a = n || {};
-  if (Array.isArray(a.census_tracts_fips) && a.census_tracts_fips.length) {
-    const f = await an(a.census_tracts_fips),
-      l = a.demographics || {};
-    i.surrounding_10_mile = { ...a, demographics: { ...l, ...f } };
+    r = n || {};
+  if (Array.isArray(r.census_tracts_fips) && r.census_tracts_fips.length) {
+    const f = await rn(r.census_tracts_fips),
+      l = r.demographics || {};
+    i.surrounding_10_mile = { ...r, demographics: { ...l, ...f } };
   }
   const c = s || {},
     o = Array.isArray(c.census_tracts_fips)
       ? c.census_tracts_fips.map(String)
       : [];
   if (o.length) {
-    const f = await an(o),
+    const f = await rn(o),
       l = c.demographics || {},
       y =
-        (d = (r = i.surrounding_10_mile) == null ? void 0 : r.demographics) ==
+        (d = (a = i.surrounding_10_mile) == null ? void 0 : a.demographics) ==
         null
           ? void 0
           : d.median_household_income,
@@ -2197,13 +2197,13 @@ async function ls(e = {}) {
   }
   return i;
 }
-async function us(e = {}) {
-  var r, d;
+async function ls(e = {}) {
+  var a, d;
   const { surrounding_10_mile: n, water_district: s } = e || {},
     i = { ...e },
-    a = n || {};
-  if (Array.isArray(a.census_tracts_fips) && a.census_tracts_fips.length) {
-    const f = a.demographics || {};
+    r = n || {};
+  if (Array.isArray(r.census_tracts_fips) && r.census_tracts_fips.length) {
+    const f = r.demographics || {};
     if (
       [
         f.owner_occupied_pct,
@@ -2213,8 +2213,8 @@ async function us(e = {}) {
         f.bachelors_or_higher_pct,
       ].some((y) => ne(y) || (typeof y == "number" && y < 0))
     ) {
-      const y = await cn(a.census_tracts_fips);
-      i.surrounding_10_mile = { ...a, demographics: { ...f, ...y } };
+      const y = await an(r.census_tracts_fips);
+      i.surrounding_10_mile = { ...r, demographics: { ...f, ...y } };
     }
   }
   const c = s || {},
@@ -2232,10 +2232,10 @@ async function us(e = {}) {
         f.bachelors_or_higher_pct,
       ].some((y) => ne(y) || (typeof y == "number" && y < 0))
     ) {
-      const y = await cn(o);
+      const y = await an(o);
       let v = { ...f, ...y };
       const _ =
-        (d = (r = i.surrounding_10_mile) == null ? void 0 : r.demographics) ==
+        (d = (a = i.surrounding_10_mile) == null ? void 0 : a.demographics) ==
         null
           ? void 0
           : d.median_home_value;
@@ -2247,23 +2247,23 @@ async function us(e = {}) {
   }
   return i;
 }
-async function ps(e = {}) {
+async function us(e = {}) {
   const {
       state_fips: n,
       county_fips: s,
       tract_code: i,
-      unemployment_rate: a,
+      unemployment_rate: r,
       surrounding_10_mile: c,
       water_district: o,
     } = e || {},
-    r = c || {},
+    a = c || {},
     d = o || {},
     f = [],
     l = n && s && i ? `${n}${s}${i}` : null;
-  ne(a) && l && f.push(l);
-  const y = Array.isArray(r.census_tracts_fips) ? r.census_tracts_fips : [];
-  r.demographics &&
-    ne(r.demographics.unemployment_rate) &&
+  ne(r) && l && f.push(l);
+  const y = Array.isArray(a.census_tracts_fips) ? a.census_tracts_fips : [];
+  a.demographics &&
+    ne(a.demographics.unemployment_rate) &&
     y.length &&
     f.push(...y);
   const v = Array.isArray(d.census_tracts_fips)
@@ -2278,8 +2278,8 @@ async function ps(e = {}) {
   const m = await kt(_),
     w = { ...e };
   if (
-    (ne(a) && l && m[l] && (w.unemployment_rate = m[l].unemployment_rate),
-    r.demographics && ne(r.demographics.unemployment_rate) && y.length)
+    (ne(r) && l && m[l] && (w.unemployment_rate = m[l].unemployment_rate),
+    a.demographics && ne(a.demographics.unemployment_rate) && y.length)
   ) {
     let h = 0,
       p = 0;
@@ -2292,8 +2292,8 @@ async function ps(e = {}) {
     }
     h > 0 &&
       (w.surrounding_10_mile = {
-        ...r,
-        demographics: { ...r.demographics, unemployment_rate: p / h },
+        ...a,
+        demographics: { ...a.demographics, unemployment_rate: p / h },
       });
   }
   if (d.demographics && ne(d.demographics.unemployment_rate) && v.length) {
@@ -2314,69 +2314,69 @@ async function ps(e = {}) {
   }
   return w;
 }
-async function ds(e = {}) {
+async function ps(e = {}) {
   const { surrounding_10_mile: n, water_district: s } = e || {},
     i = { ...e },
-    a = n || {};
-  if (Array.isArray(a.census_tracts_fips) && a.census_tracts_fips.length) {
-    const r = await Pt(a.census_tracts_fips),
-      d = a.demographics || {};
-    i.surrounding_10_mile = { ...a, demographics: { ...d, ...r } };
+    r = n || {};
+  if (Array.isArray(r.census_tracts_fips) && r.census_tracts_fips.length) {
+    const a = await Pt(r.census_tracts_fips),
+      d = r.demographics || {};
+    i.surrounding_10_mile = { ...r, demographics: { ...d, ...a } };
   }
   const c = s || {},
     o = Array.isArray(c.census_tracts_fips)
       ? c.census_tracts_fips.map(String)
       : [];
   if (o.length) {
-    const r = await Pt(o),
+    const a = await Pt(o),
       d = c.demographics || {};
-    i.water_district = { ...c, demographics: { ...d, ...r } };
+    i.water_district = { ...c, demographics: { ...d, ...a } };
   }
   return i;
 }
 async function fs(e = {}) {
   const { surrounding_10_mile: n, water_district: s } = e || {},
     i = { ...e },
-    a = n || {},
+    r = n || {},
     c =
-      Array.isArray(a.census_tracts_fips) && a.census_tracts_fips.length
-        ? a.census_tracts_fips
-        : Array.isArray(a.census_tracts)
-          ? a.census_tracts
+      Array.isArray(r.census_tracts_fips) && r.census_tracts_fips.length
+        ? r.census_tracts_fips
+        : Array.isArray(r.census_tracts)
+          ? r.census_tracts
           : [];
   if (
-    (!Array.isArray(a.environmental_hardships) ||
-      !a.environmental_hardships.length) &&
+    (!Array.isArray(r.environmental_hardships) ||
+      !r.environmental_hardships.length) &&
     c.length
   ) {
-    const d = await ln(c);
-    i.surrounding_10_mile = { ...a, environmental_hardships: d };
+    const d = await cn(c);
+    i.surrounding_10_mile = { ...r, environmental_hardships: d };
   }
   const o = s || {},
-    r = Array.isArray(o.census_tracts_fips)
+    a = Array.isArray(o.census_tracts_fips)
       ? o.census_tracts_fips.map(String)
       : [];
   if (
     (!Array.isArray(o.environmental_hardships) ||
       !o.environmental_hardships.length) &&
-    r.length
+    a.length
   ) {
-    const d = await ln(r);
+    const d = await cn(a);
     i.water_district = { ...o, environmental_hardships: d };
   }
   return i;
 }
-async function ms(e = {}) {
-  const { lat: n, lon: s, census_tract: i, surrounding_10_mile: a } = e || {};
+async function ds(e = {}) {
+  const { lat: n, lon: s, census_tract: i, surrounding_10_mile: r } = e || {};
   if (n == null || s == null) return e;
   const c = 1609.34 * 10,
-    o = { ...(a || {}) },
-    r = [];
+    o = { ...(r || {}) },
+    a = [];
   if (!Array.isArray(o.cities) || !o.cities.length) {
     const _ = `[out:json];(node[place=city](around:${c},${n},${s});node[place=town](around:${c},${n},${s}););out;`,
       m =
         "https://overpass-api.de/api/interpreter?data=" + encodeURIComponent(_);
-    r.push(
+    a.push(
       fetch(m)
         .then((w) => w.json())
         .then((w) => {
@@ -2397,7 +2397,7 @@ async function ms(e = {}) {
       : [],
     l = { ...(o.census_tract_map || {}) },
     y = `https://tigerweb.geo.census.gov/arcgis/rest/services/TIGERweb/Tracts_Blocks/MapServer/10/query?where=1=1&geometry=${s},${n}&geometryType=esriGeometryPoint&inSR=4326&spatialRel=esriSpatialRelIntersects&distance=${c}&units=esriSRUnit_Meter&outFields=NAME,GEOID&f=json`;
-  (r.push(
+  (a.push(
     fetch(y)
       .then((_) => _.json())
       .then((_) => {
@@ -2423,7 +2423,7 @@ async function ms(e = {}) {
       })
       .catch(() => {}),
   ),
-    r.length && (await Promise.all(r)),
+    a.length && (await Promise.all(a)),
     Array.isArray(o.cities) || (o.cities = []));
   const v = new Set(Array.isArray(o.census_tracts) ? o.census_tracts : []);
   if (
@@ -2438,7 +2438,7 @@ async function ms(e = {}) {
   }
   if (Array.isArray(o.census_tracts_fips) && o.census_tracts_fips.length)
     try {
-      const _ = await En(o.census_tracts_fips),
+      const _ = await vn(o.census_tracts_fips),
         m = [];
       for (const w of _) {
         const h = (o.census_tract_map && o.census_tract_map[w]) || w;
@@ -2467,15 +2467,15 @@ async function ms(e = {}) {
     } catch {}
   return { ...e, surrounding_10_mile: o };
 }
-async function hs(e = {}, n = "") {
+async function ms(e = {}, n = "") {
   var m, w;
   const {
     lat: s,
     lon: i,
-    city: a,
+    city: r,
     census_tract: c,
     state_fips: o,
-    county_fips: r,
+    county_fips: a,
     tract_code: d,
     water_district: f,
   } = e || {};
@@ -2508,15 +2508,15 @@ async function hs(e = {}, n = "") {
           if (typeof g == "string") {
             const k = g.split(/\s*,\s*/).filter(Boolean);
             l.census_tracts = k;
-            const z = k.filter((G) => /^\d{11}$/.test(G));
-            z.length && (l.census_tracts_fips = z);
+            const B = k.filter((G) => /^\d{11}$/.test(G));
+            B.length && (l.census_tracts_fips = B);
           } else if (Array.isArray(g)) {
             const k = [...new Set(g.map(String))];
             l.census_tracts = k;
-            const z = k.filter((G) => /^\d{11}$/.test(G));
-            z.length &&
+            const B = k.filter((G) => /^\d{11}$/.test(G));
+            B.length &&
               (l.census_tracts_fips = [
-                ...new Set([...(l.census_tracts_fips || []), ...z]),
+                ...new Set([...(l.census_tracts_fips || []), ...B]),
               ]);
           }
         })
@@ -2545,7 +2545,7 @@ async function hs(e = {}, n = "") {
     );
   }
   if (
-    ((!Array.isArray(l.cities) || !l.cities.length) && a && (l.cities = [a]),
+    ((!Array.isArray(l.cities) || !l.cities.length) && r && (l.cities = [r]),
     y.length && (await Promise.all(y)),
     l.name && (!Array.isArray(l.census_tracts) || !l.census_tracts.length))
   )
@@ -2589,7 +2589,7 @@ async function hs(e = {}, n = "") {
       }
       const F = [],
         k = [],
-        z = {};
+        B = {};
       for (const G of C.features || []) {
         const q = G.attributes || {};
         let N = null;
@@ -2598,7 +2598,7 @@ async function hs(e = {}, n = "") {
           q.GEOID)
         ) {
           const L = String(q.GEOID);
-          (k.push(L), N && (z[L] = N));
+          (k.push(L), N && (B[L] = N));
         }
       }
       if (F.length || k.length) {
@@ -2611,7 +2611,7 @@ async function hs(e = {}, n = "") {
           N = l.census_tract_map || {};
         (F.length && (l.census_tracts = [...new Set([...G, ...F])]),
           k.length && (l.census_tracts_fips = [...new Set([...q, ...k])]),
-          Object.keys(z).length && (l.census_tract_map = { ...N, ...z }));
+          Object.keys(B).length && (l.census_tract_map = { ...N, ...B }));
       }
     }
   } catch {}
@@ -2627,20 +2627,20 @@ async function hs(e = {}, n = "") {
     : [];
   for (const h of l.census_tracts)
     if (/^\d{11}$/.test(h)) _.push(h);
-    else if (o && r) {
+    else if (o && a) {
       const p = String(h).replace(/[^0-9]/g, "");
       if (p) {
         const g = p.padStart(6, "0").slice(-6);
-        _.push(`${o}${r}${g}`);
+        _.push(`${o}${a}${g}`);
       }
     }
   if (
-    (o && r && d && _.unshift(`${o}${r}${d}`),
+    (o && a && d && _.unshift(`${o}${a}${d}`),
     (l.census_tracts_fips = [...new Set(_)]),
     Array.isArray(l.census_tracts_fips) && l.census_tracts_fips.length)
   )
     try {
-      const h = await En(l.census_tracts_fips),
+      const h = await vn(l.census_tracts_fips),
         p = [];
       for (const g of h) {
         const E = (l.census_tract_map && l.census_tract_map[g]) || g;
@@ -2707,19 +2707,19 @@ async function hs(e = {}, n = "") {
     { ...e, water_district: l }
   );
 }
-async function _s(e = {}) {
-  var a, c;
+async function hs(e = {}) {
+  var r, c;
   const { lat: n, lon: s, english_less_than_very_well_pct: i } = e || {};
   if (!ne(i) || n == null || s == null) return e;
   try {
     const o = await fetch(
         `https://geo.fcc.gov/api/census/block/find?latitude=${n}&longitude=${s}&format=json`,
       ).then((d) => d.json()),
-      r = (a = o == null ? void 0 : o.Block) == null ? void 0 : a.FIPS;
-    if (r && r.length >= 11) {
-      const d = r.slice(0, 2),
-        f = r.slice(2, 5),
-        y = `https://api.census.gov/data/2022/acs/acs5/profile?get=DP02_0111PE&for=tract:${r.slice(5, 11)}&in=state:${d}+county:${f}`,
+      a = (r = o == null ? void 0 : o.Block) == null ? void 0 : r.FIPS;
+    if (a && a.length >= 11) {
+      const d = a.slice(0, 2),
+        f = a.slice(2, 5),
+        y = `https://api.census.gov/data/2022/acs/acs5/profile?get=DP02_0111PE&for=tract:${a.slice(5, 11)}&in=state:${d}+county:${f}`,
         v = await fetch(y).then((w) => w.json()),
         _ = (c = v == null ? void 0 : v[1]) == null ? void 0 : c[0],
         m = Number(_);
@@ -2729,24 +2729,24 @@ async function _s(e = {}) {
   } catch {}
   return e;
 }
-async function gs(e = {}) {
+async function _s(e = {}) {
   const { lat: n, lon: s } = e || {};
   if (n == null || s == null) return { ...e, alerts: [] };
   try {
     const i = `https://api.weather.gov/alerts/active?point=${n},${s}`,
-      a = await fetch(i, {
+      r = await fetch(i, {
         headers: {
           Accept: "application/geo+json",
           "User-Agent": "CalWEP-Demographic-Website (info@calwep.org)",
         },
       });
-    if (!a.ok) throw new Error("NWS response not ok");
-    const c = await a.json(),
+    if (!r.ok) throw new Error("NWS response not ok");
+    const c = await r.json(),
       o = Array.isArray(c == null ? void 0 : c.features)
         ? c.features
-            .map((r) => {
+            .map((a) => {
               var d;
-              return (d = r == null ? void 0 : r.properties) == null
+              return (d = a == null ? void 0 : a.properties) == null
                 ? void 0
                 : d.headline;
             })
@@ -2757,7 +2757,7 @@ async function gs(e = {}) {
     return { ...e, alerts: [] };
   }
 }
-function ys(e) {
+function gs(e) {
   const n = Number(e);
   if (!Number.isFinite(n)) return { bg: "#fff", fg: "#000" };
   const s = [
@@ -2775,12 +2775,12 @@ function ys(e) {
   for (const i of s) if (n <= i.max) return { bg: i.color, fg: i.fg || "#000" };
   return { bg: "#6E0000", fg: "#fff" };
 }
-function Ee(e, n, s, i, a = "") {
+function Ee(e, n, s, i, r = "") {
   const c = (o) => (o && String(o).trim() ? o : '<p class="note">No data</p>');
   return `
     <section class="section-block">
       <h3 class="section-header">${e}</h3>
-      ${a}
+      ${r}
       <div class="comparison-grid">
         <div class="col local">${c(n)}</div>
         <div class="col surrounding">${c(s)}</div>
@@ -2790,19 +2790,19 @@ function Ee(e, n, s, i, a = "") {
   `;
 }
 function Lt(e) {
-  var o, r;
+  var o, a;
   if (!e || typeof e != "object") return '<p class="note">No data</p>';
   const n = (d) => {
-      const { bg: f, fg: l } = ys(d),
+      const { bg: f, fg: l } = gs(d),
         y = Number.isFinite(Number(d)) ? Number(d).toFixed(1) : "—";
       return `<span class="ces-badge" style="background:${f};color:${l};">${y}</span>`;
     },
     s = e.percentile,
     i = (o = e.overall_percentiles) == null ? void 0 : o.pollution_burden,
-    a =
-      (r = e.overall_percentiles) == null
+    r =
+      (a = e.overall_percentiles) == null
         ? void 0
-        : r.population_characteristics,
+        : a.population_characteristics,
     c = (d, f, l = []) => {
       if (!f || typeof f != "object") return "";
       const v = Object.entries(f)
@@ -2819,7 +2819,7 @@ function Lt(e) {
         })
         .map(
           ([_, m]) =>
-            `<div class="key">${D(os[_] || is(_))}</div><div class="val">${n(m)}</div>`,
+            `<div class="key">${D(is[_] || ss(_))}</div><div class="val">${n(m)}</div>`,
         )
         .join("");
       return `<h4 class="sub-section-header">${d}</h4><div class="kv">${v}</div>`;
@@ -2828,7 +2828,7 @@ function Lt(e) {
     <div class="kv">
       <div class="key">Overall percentile</div><div class="val">${n(s)}</div>
       <div class="key">Pollution burden</div><div class="val">${n(i)}</div>
-      <div class="key">Population characteristics</div><div class="val">${n(a)}</div>
+      <div class="key">Population characteristics</div><div class="val">${n(r)}</div>
     </div>
     ${c("Exposures", e.exposures, pt.exposures)}
     ${c("Environmental effects", e.environmental_effects, pt.environmental_effects)}
@@ -2836,13 +2836,13 @@ function Lt(e) {
     ${c("Socioeconomic factors", e.socioeconomic_factors, pt.socioeconomic_factors)}
   `;
 }
-function un(e, n, s) {
+function ln(e, n, s) {
   const {
       city: i,
-      zip: a,
+      zip: r,
       county: c,
       census_tract: o,
-      lat: r,
+      lat: a,
       lon: d,
       english_less_than_very_well_pct: f,
       language_other_than_english_pct: l,
@@ -2859,12 +2859,12 @@ function un(e, n, s) {
       environmental_hardships: C,
       white_pct: F,
       black_pct: k,
-      native_pct: z,
+      native_pct: B,
       asian_pct: G,
       pacific_pct: q,
       other_race_pct: N,
       two_or_more_races_pct: L,
-      hispanic_pct: B,
+      hispanic_pct: z,
       not_hispanic_pct: ue,
       owner_occupied_pct: te,
       renter_occupied_pct: oe,
@@ -2879,12 +2879,12 @@ function un(e, n, s) {
     Ue = Array.isArray(C) ? Array.from(new Set(C)) : [],
     O = Array.isArray(Te) ? Te : [],
     Se =
-      r != null && d != null
-        ? `${Number(r).toFixed(6)}, ${Number(d).toFixed(6)}`
+      a != null && d != null
+        ? `${Number(a).toFixed(6)}, ${Number(d).toFixed(6)}`
         : "—",
     He =
-      r != null && d != null && Vt
-        ? `<img class="map-image" src="https://maps.googleapis.com/maps/api/staticmap?center=${r},${d}&zoom=13&size=600x300&markers=color:red|${r},${d}&key=${Vt}" alt="Map of location" />`
+      a != null && d != null
+        ? `<img class="map-image" src="/api/staticmap?lat=${a}&lon=${d}" alt="Map of location" />`
         : "",
     M = st || {},
     I = U || {},
@@ -2898,15 +2898,15 @@ function un(e, n, s) {
       ? M.census_tracts.join(", ")
       : D(M.census_tracts) || "—",
     Re = Array.isArray(M.cities) ? M.cities.join(", ") : D(M.cities) || "—",
-    fe = Array.isArray(I.census_tracts)
+    de = Array.isArray(I.census_tracts)
       ? I.census_tracts.join(", ")
       : D(I.census_tracts) || "—",
-    ze = Array.isArray(I.cities) ? I.cities.join(", ") : D(I.cities) || "—",
-    Be = `
+    Be = Array.isArray(I.cities) ? I.cities.join(", ") : D(I.cities) || "—",
+    ze = `
     <div class="kv">
       <div class="key">City</div><div class="val">${D(i) || "—"}</div>
       <div class="key">Census tract</div><div class="val">${D(o) || "—"}</div>
-      <div class="key">ZIP code</div><div class="val">${D(a) || "—"}</div>
+      <div class="key">ZIP code</div><div class="val">${D(r) || "—"}</div>
       <div class="key">County</div><div class="val">${D(c) || "—"}</div>
       <div class="key">Coordinates</div><div class="val">${Se}</div>
     </div>
@@ -2921,21 +2921,21 @@ function un(e, n, s) {
     Ce = `
     <div class="kv">
       <div class="key">District</div><div class="val">${D(I.name) || "—"}</div>
-      <div class="key">Cities</div><div class="val">${ze}</div>
-      <div class="key">Census tracts</div><div class="val">${fe}</div>
+      <div class="key">Cities</div><div class="val">${Be}</div>
+      <div class="key">Census tracts</div><div class="val">${de}</div>
     </div>
   `,
     Ne = Ee(
       "Location Summary",
-      Be,
+      ze,
       Ae,
       Ce,
       '<p class="section-description">This section lists basic geographic information for the census tract, surrounding 10&#8209;mile area, and water district, such as city, ZIP code, county, and coordinates.</p>',
     ),
     Le = (S = {}) =>
       `<div class="kv">${[
-        ["Total population", ns(S.population)],
-        ["Median age", ss(S.median_age)],
+        ["Total population", ts(S.population)],
+        ["Median age", ns(S.median_age)],
         ["Median household income", Nt(S.median_household_income)],
         ["Per capita income", Nt(S.per_capita_income)],
         ["Poverty rate", x(S.poverty_rate)],
@@ -3011,12 +3011,12 @@ function un(e, n, s) {
       me({
         white_pct: F,
         black_pct: k,
-        native_pct: z,
+        native_pct: B,
         asian_pct: G,
         pacific_pct: q,
         other_race_pct: N,
         two_or_more_races_pct: L,
-        hispanic_pct: B,
+        hispanic_pct: z,
         not_hispanic_pct: ue,
       }),
       me(M.demographics || {}),
@@ -3136,7 +3136,7 @@ function un(e, n, s) {
       ${Ve}
       ${at}
       ${Oe}
-      <p class="note">Search took ${wn(s)}.</p>
+      <p class="note">Search took ${An(s)}.</p>
       <p class="note">Values for the surrounding 10-mile area and water district are population-weighted averages.</p>
       <span class="updated--footer">
         Sources: FCC Block for county &amp; tract; US Census ACS 5‑year (languages, population, median income); CalEnviroScreen 4.0; NWS alerts.
@@ -3144,78 +3144,78 @@ function un(e, n, s) {
     </article>
     `);
 }
-async function Tn() {
+async function En() {
   const e = document.getElementById("autocomplete"),
     n = document.getElementById("result"),
     s = ((e == null ? void 0 : e.value) || "").trim();
   if (s.length < 4) {
-    sn("Please enter a more complete address (at least 4 characters).", s, 0);
+    nn("Please enter a more complete address (at least 4 characters).", s, 0);
     return;
   }
   const i = s.toLowerCase();
   if (Ct.has(i)) {
     const o = Ct.get(i);
     xe = { address: s, data: o };
-    const r = new URL(window.location);
-    (r.searchParams.set("address", s),
-      window.history.replaceState(null, "", r.toString()),
-      un(s, o, 0));
+    const a = new URL(window.location);
+    (a.searchParams.set("address", s),
+      window.history.replaceState(null, "", a.toString()),
+      ln(s, o, 0));
     return;
   }
-  (n.setAttribute("aria-busy", "true"), Zn(s));
-  const a = document.getElementById("spinnerOverlay");
-  (a && (a.style.display = "flex"), rs());
+  (n.setAttribute("aria-busy", "true"), Kn(s));
+  const r = document.getElementById("spinnerOverlay");
+  (r && (r.style.display = "flex"), os());
   let c = 0;
   try {
     const o = _t(fn, { address: s });
-    let r = await nt(o);
-    if (!r || typeof r != "object") throw new Error("Malformed response.");
-    r = await se("enrichLocation", () => as(r));
+    let a = await nt(o);
+    if (!a || typeof a != "object") throw new Error("Malformed response.");
+    a = await se("enrichLocation", () => rs(a));
     const [d, f, l, y, v] = await Promise.all([
-      se("fetchLanguageAcs", () => cs(r)),
-      se("enrichSurrounding", () => ms(r)),
-      se("enrichWaterDistrict", () => hs(r, s)),
-      se("enrichEnglishProficiency", () => _s(r)),
-      se("enrichNwsAlerts", () => gs(r)),
+      se("fetchLanguageAcs", () => as(a)),
+      se("enrichSurrounding", () => ds(a)),
+      se("enrichWaterDistrict", () => ms(a, s)),
+      se("enrichEnglishProficiency", () => hs(a)),
+      se("enrichNwsAlerts", () => _s(a)),
     ]);
-    mt(r, d, f, l, y, v);
-    const _ = await se("enrichRegionBasics", () => ls(r)),
-      m = await se("enrichRegionHousingEducation", () => us(r));
-    mt(r, _, m);
+    mt(a, d, f, l, y, v);
+    const _ = await se("enrichRegionBasics", () => cs(a)),
+      m = await se("enrichRegionHousingEducation", () => ls(a));
+    mt(a, _, m);
     const [w, h, p] = await Promise.all([
-      se("enrichRegionLanguages", () => ds(r)),
-      se("enrichRegionHardships", () => fs(r)),
-      se("enrichUnemployment", () => ps(r)),
+      se("enrichRegionLanguages", () => ps(a)),
+      se("enrichRegionHardships", () => fs(a)),
+      se("enrichUnemployment", () => us(a)),
     ]);
-    (mt(r, w, h, p), (xe = { address: s, data: r }), Ct.set(i, r));
+    (mt(a, w, h, p), (xe = { address: s, data: a }), Ct.set(i, a));
     const g = new URL(window.location);
     (g.searchParams.set("address", s),
       window.history.replaceState(null, "", g.toString()),
-      (c = rn()),
-      un(s, r, c));
+      (c = on()),
+      ln(s, a, c));
   } catch (o) {
-    (c || (c = rn()), sn(String(o), s, c));
+    (c || (c = on()), nn(String(o), s, c));
   } finally {
     const o = document.getElementById("spinnerOverlay");
     (o && (o.style.display = "none"), n.removeAttribute("aria-busy"));
   }
 }
-function As() {
+function ys() {
   const e = document.getElementById("lookupBtn");
   if (!e) return;
   const n = e.cloneNode(!0);
   (e.replaceWith(n),
     n.addEventListener("click", (s) => {
-      (s.preventDefault(), Tn().catch(console.error));
+      (s.preventDefault(), En().catch(console.error));
     }));
 }
-vn().catch(() => {});
+wn().catch(() => {});
 window.onload = () => {
-  (Ln(), As());
+  (Nn(), ys());
   const n = new URLSearchParams(window.location.search).get("address");
   if (n) {
     const s = document.getElementById("autocomplete");
-    s && ((s.value = n), Tn().catch(console.error));
+    s && ((s.value = n), En().catch(console.error));
   }
 };
-export { Es as p };
+export { vs as p };
