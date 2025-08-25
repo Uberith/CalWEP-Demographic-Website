@@ -865,15 +865,22 @@ async function enrichTractDemographics(data = {}) {
     "two_or_more_races_pct",
     "hispanic_pct",
     "not_hispanic_pct",
+    "owner_occupied_pct",
+    "renter_occupied_pct",
+    "median_home_value",
+    "high_school_or_higher_pct",
+    "bachelors_or_higher_pct",
   ];
   const needsData = localFips && fields.some((k) => isMissing(data[k]));
   if (!needsData) return data;
   const lookup = await fetchTractDemographics([localFips]);
   const info = lookup[localFips];
   if (!info) return data;
+  const housingEdu = await aggregateHousingEducationForTracts([localFips]);
+  const merged = { ...info, ...housingEdu };
   const out = { ...data };
-  out.demographics = { ...out.demographics, ...info };
-  for (const [k, v] of Object.entries(info)) {
+  out.demographics = { ...out.demographics, ...merged };
+  for (const [k, v] of Object.entries(merged)) {
     if (isMissing(out[k])) out[k] = v;
   }
   return out;
