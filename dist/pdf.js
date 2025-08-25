@@ -1,0 +1,1 @@
+function o(e){if(!e)return;const r=(e.address||"report").replace(/[^a-z0-9]+/gi,"_").toLowerCase(),t=document.querySelector("#result .card");if(!t)return;const a={margin:.5,filename:`calwep_report_${r}.pdf`,image:{type:"jpeg",quality:.98},html2canvas:{scale:2},jsPDF:{unit:"in",format:"letter",orientation:"portrait"}};html2pdf().set(a).from(t).save()}export{o as downloadPdf};
