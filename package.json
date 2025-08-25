@@ -9,7 +9,9 @@
     "build": "vite build"
   },
   "dependencies": {
-    "@sentry/node": "^7.120.1"
+    "@sentry/browser": "^10.5.0",
+    "@sentry/node": "^7.120.1",
+    "html2pdf.js": "^0.11.1"
   },
   "devDependencies": {
     "vite": "^5.0.0"

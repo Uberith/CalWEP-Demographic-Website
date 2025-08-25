@@ -18,9 +18,22 @@ import { escapeHTML, nowStamp, formatDuration } from "./utils.js";
 
 const SENTRY_DSN =
   document.querySelector('meta[name="sentry-dsn"]')?.content || "";
-if (SENTRY_DSN && window.Sentry) {
-  window.Sentry.init({ dsn: SENTRY_DSN });
-  logDebug("Sentry initialized");
+if (SENTRY_DSN) {
+  import("@sentry/browser")
+    .then((Sentry) => {
+      window.Sentry = Sentry;
+      Sentry.init({ dsn: SENTRY_DSN });
+      logDebug("Sentry initialized");
+    })
+    .catch((err) => console.error("Sentry failed to load", err));
+}
+
+if ("serviceWorker" in navigator) {
+  window.addEventListener("load", () => {
+    navigator.serviceWorker
+      .register("/sw.js")
+      .catch((err) => console.error("SW registration failed", err));
+  });
 }
 window.addEventListener("error", (event) => {
   logDebug("window.onerror", event.message);
