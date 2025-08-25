@@ -452,19 +452,61 @@ async function aggregateBasicDemographicsForTracts(fipsList = []) {
   let incomeWeighted = 0;
   let perCapitaWeighted = 0;
   let povertyCount = 0;
+  let whiteCount = 0;
+  let blackCount = 0;
+  let nativeCount = 0;
+  let asianCount = 0;
+  let pacificCount = 0;
+  let otherCount = 0;
+  let twoCount = 0;
+  let hispCount = 0;
+  let notHispCount = 0;
 
   for (const g of Object.values(groups)) {
     const tractChunks = chunk(g.tracts, 50);
     for (const ch of tractChunks) {
       const url =
-        "https://api.census.gov/data/2022/acs/acs5/profile?get=DP05_0001E,DP05_0018E,DP03_0062E,DP03_0088E,DP03_0128PE&for=tract:" +
+        "https://api.census.gov/data/2022/acs/acs5/profile?get=" +
+        [
+          "DP05_0001E",
+          "DP05_0018E",
+          "DP03_0062E",
+          "DP03_0088E",
+          "DP03_0128PE",
+          // Race and ethnicity percentages
+          "DP05_0037PE",
+          "DP05_0038PE",
+          "DP05_0039PE",
+          "DP05_0044PE",
+          "DP05_0052PE",
+          "DP05_0057PE",
+          "DP05_0035PE",
+          "DP05_0073PE",
+          "DP05_0078PE",
+        ].join(",") +
+        "&for=tract:" +
         ch.join(",") +
         `&in=state:${g.state}%20county:${g.county}`;
       try {
         const rows = await fetch(url).then((r) => r.json());
         if (!Array.isArray(rows) || rows.length < 2) continue;
         for (let i = 1; i < rows.length; i++) {
-          const [pop, age, income, perCapita, povPct] = rows[i].map(Number);
+          const [
+            pop,
+            age,
+            income,
+            perCapita,
+            povPct,
+            whitePct,
+            blackPct,
+            nativePct,
+            asianPct,
+            pacificPct,
+            otherPct,
+            twoPct,
+            hispPct,
+            notHispPct,
+          ] = rows[i].map(Number);
           if (Number.isFinite(pop) && pop > 0) {
             totalPop += pop;
             if (Number.isFinite(age)) ageWeighted += age * pop;
@@ -473,6 +515,18 @@ async function aggregateBasicDemographicsForTracts(fipsList = []) {
               perCapitaWeighted += perCapita * pop;
             if (Number.isFinite(povPct) && povPct >= 0)
               povertyCount += (povPct / 100) * pop;
+            if (Number.isFinite(whitePct)) whiteCount += (whitePct / 100) * pop;
+            if (Number.isFinite(blackPct)) blackCount += (blackPct / 100) * pop;
+            if (Number.isFinite(nativePct))
+              nativeCount += (nativePct / 100) * pop;
+            if (Number.isFinite(asianPct)) asianCount += (asianPct / 100) * pop;
+            if (Number.isFinite(pacificPct))
+              pacificCount += (pacificPct / 100) * pop;
+            if (Number.isFinite(otherPct)) otherCount += (otherPct / 100) * pop;
+            if (Number.isFinite(twoPct)) twoCount += (twoPct / 100) * pop;
+            if (Number.isFinite(hispPct)) hispCount += (hispPct / 100) * pop;
+            if (Number.isFinite(notHispPct))
+              notHispCount += (notHispPct / 100) * pop;
           }
         }
       } catch {
@@ -490,6 +544,19 @@ async function aggregateBasicDemographicsForTracts(fipsList = []) {
     if (perCapitaWeighted > 0)
       result.per_capita_income = perCapitaWeighted / totalPop;
     if (povertyCount > 0) result.poverty_rate = (povertyCount / totalPop) * 100;
+    if (whiteCount > 0) result.white_pct = (whiteCount / totalPop) * 100;
+    if (blackCount > 0) result.black_pct = (blackCount / totalPop) * 100;
+    if (nativeCount > 0) result.native_pct = (nativeCount / totalPop) * 100;
+    if (asianCount > 0) result.asian_pct = (asianCount / totalPop) * 100;
+    if (pacificCount > 0) result.pacific_pct = (pacificCount / totalPop) * 100;
+    if (otherCount > 0) result.other_race_pct = (otherCount / totalPop) * 100;
+    if (twoCount > 0)
+      result.two_or_more_races_pct = (twoCount / totalPop) * 100;
+    const totalHisp = hispCount + notHispCount;
+    if (totalHisp > 0) {
+      result.hispanic_pct = (hispCount / totalHisp) * 100;
+      result.not_hispanic_pct = (notHispCount / totalHisp) * 100;
+    }
   }
   basicDemoCache.set(key, result);
   return { ...result };
@@ -603,7 +670,25 @@ async function fetchTractDemographics(fipsList = []) {
     for (const ch of tractChunks) {
       const url =
         "https://api.census.gov/data/2022/acs/acs5/profile?get=" +
-        "DP05_0001E,DP05_0018E,DP03_0062E,DP03_0088E,DP03_0128PE,DP03_0009PE&for=tract:" +
+        [
+          "DP05_0001E", // total population
+          "DP05_0018E", // median age
+          "DP03_0062E", // median household income
+          "DP03_0088E", // per capita income
+          "DP03_0128PE", // poverty rate
+          "DP03_0009PE", // unemployment rate
+          // Race and ethnicity percentages
+          "DP05_0037PE", // White
+          "DP05_0038PE", // Black or African American
+          "DP05_0039PE", // American Indian/Alaska Native
+          "DP05_0044PE", // Asian
+          "DP05_0052PE", // Native Hawaiian/Pacific Islander
+          "DP05_0057PE", // Some other race
+          "DP05_0035PE", // Two or more races
+          "DP05_0073PE", // Hispanic or Latino
+          "DP05_0078PE", // Not Hispanic or Latino
+        ].join(",") +
+        "&for=tract:" +
         ch.join(",") +
         `&in=state:${g.state}%20county:${g.county}`;
       try {
@@ -617,6 +702,15 @@ async function fetchTractDemographics(fipsList = []) {
             perCap,
             povPct,
             unemp,
+            whitePct,
+            blackPct,
+            nativePct,
+            asianPct,
+            pacificPct,
+            otherPct,
+            twoPct,
+            hispPct,
+            notHispPct,
             state,
             county,
             tract,
@@ -629,6 +723,15 @@ async function fetchTractDemographics(fipsList = []) {
             per_capita_income: Number(perCap),
             poverty_rate: Number(povPct),
             unemployment_rate: Number(unemp),
+            white_pct: Number(whitePct),
+            black_pct: Number(blackPct),
+            native_pct: Number(nativePct),
+            asian_pct: Number(asianPct),
+            pacific_pct: Number(pacificPct),
+            other_race_pct: Number(otherPct),
+            two_or_more_races_pct: Number(twoPct),
+            hispanic_pct: Number(hispPct),
+            not_hispanic_pct: Number(notHispPct),
           };
         }
       } catch {
@@ -757,6 +860,15 @@ async function enrichTractDemographics(data = {}) {
     "per_capita_income",
     "poverty_rate",
     "unemployment_rate",
+    "white_pct",
+    "black_pct",
+    "native_pct",
+    "asian_pct",
+    "pacific_pct",
+    "other_race_pct",
+    "two_or_more_races_pct",
+    "hispanic_pct",
+    "not_hispanic_pct",
   ];
   const needsData = localFips && fields.some((k) => isMissing(data[k]));
   if (!needsData) return data;
