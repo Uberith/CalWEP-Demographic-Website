@@ -177,6 +177,25 @@ h1 {
   align-items: center;
 }
 
+.selections {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-4);
+  margin-top: var(--space-4);
+}
+.selections fieldset {
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: var(--space-3);
+}
+.selections legend {
+  font-weight: 600;
+}
+.selections label {
+  display: block;
+  margin-top: var(--space-2);
+}
+
 input[type="text"] {
   flex: 1;
   width: 100%;
