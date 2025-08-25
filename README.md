@@ -13,23 +13,55 @@ This project helps water agency staff explore neighborhood-level demographics an
 
 ## Google Maps API Key
 
-The site uses the Google Maps JavaScript API and loads the key from an environment variable.
+The site uses the Google Maps JavaScript API and reads the key from the `VITE_MAPS_API_KEY` environment variable at build time.
 
 ### Local development
 
 1. Copy `.env.example` to `.env` and set your key:
    ```bash
-   MAPS_API_KEY=your_google_maps_api_key
+   VITE_MAPS_API_KEY=your_google_maps_api_key
    ```
-2. The server loads this file via [dotenv](https://www.npmjs.com/package/dotenv). The key is exposed to the frontend at `/api/maps-key`.
-3. Start the development server with `npm start`.
+2. Run `npm run dev` for a development server or `npm run build` to generate static assets. The key is embedded directly into the frontend.
 
 ### Production (Render, Heroku, etc.)
 
-- In your hosting provider's dashboard, add an environment variable named `MAPS_API_KEY` with your key. The variable is available to the server at runtime; no `.env` file is needed.
+- Configure an environment variable named `VITE_MAPS_API_KEY` before building the site.
 - Do **not** commit real keys to Git. `.env` is already ignored by `.gitignore`.
 
 ### Security considerations
 
 - Restrict the Google Maps key to allowed domains/IPs and enable usage quotas in the Google Cloud Console.
 - Monitor usage and regenerate the key if it becomes compromised.
+
+## Accessing environment variables
+
+Environment variables can be read from the local machine in many languages:
+
+- **JavaScript**
+  ```js
+  const databaseUrl = process.env.DATABASE_URL;
+  ```
+- **Python**
+  ```python
+  import os
+  database_url = os.environ.get('DATABASE_URL')
+  ```
+- **Ruby**
+  ```ruby
+  database_url = ENV['DATABASE_URL']
+  ```
+- **Go**
+
+  ```go
+  package main
+  import "os"
+
+  func main() {
+      databaseURL := os.Getenv("DATABASE_URL")
+  }
+  ```
+
+- **Elixir**
+  ```elixir
+  database_url = System.get_env("DATABASE_URL")
+  ```
