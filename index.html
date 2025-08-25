@@ -1,60 +1,120 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
-<head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <meta name="description" content="Community Insights Tool helps water agency staff explore demographics, languages, and environmental conditions." />
-  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://maps.googleapis.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; connect-src 'self' https://nftapi.cyberwiz.io https://api.bigdatacloud.net https://geo.fcc.gov https://api.census.gov https://tigerweb.geo.census.gov https://gis.water.ca.gov https://services.arcgis.com https://overpass-api.de https://api.weather.gov https://maps.googleapis.com https://o0.ingest.sentry.io; img-src 'self' https://maps.googleapis.com data:" />
-  <title>Community Insights Tool</title>
-  <link rel="preconnect" href="https://fonts.googleapis.com" crossorigin>
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&display=swap" rel="stylesheet" integrity="sha384-jFkr5e7GEFjeV48fa6VnJHKsirpHrwnWNc273b/JrQ9xYl4t8qsMotJpCiiu389X" crossorigin="anonymous">
-  <link rel="stylesheet" href="style.css" />
-  <!-- Point the frontend at the correct API host -->
-  <meta name="api-base" content="https://nftapi.cyberwiz.io">
-  <meta name="sentry-dsn" content="">
-  <!-- Third-party libraries are loaded dynamically when needed -->
-</head>
-<body>
-  <div class="container">
-    <header class="page-header stack stack--xl">
-      <h1>Community Insights Tool</h1>
-      <p class="tagline">Turn any address into a snapshot of community needs and priorities.</p>
-      <p class="description">The Community Insights Tool helps water agency staff understand the unique communities they serve. By entering an address, you can explore neighborhood-level demographics, languages spoken, and environmental conditions, and see how that location compares to the broader service area. This tool combines U.S. Census (ACS) data with CalEPA Enviroscreen to support effective outreach, grant applications, and equitable program design.</p>
-      <div class="quick-instructions">
-        <strong>Quick Instructions</strong>
-        <ol>
-          <li><strong>Enter an address</strong> – Type in the location of your event, project, or service area.</li>
-          <li><strong>View insights</strong> – Explore demographic, language, and environmental data for the neighborhood.</li>
-          <li><strong>Compare &amp; apply</strong> – See how the area differs from the larger district and use the insights to guide outreach, tailor materials, and strengthen grant proposals.</li>
-        </ol>
-      </div>
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta
+      name="description"
+      content="Community Insights Tool helps water agency staff explore demographics, languages, and environmental conditions."
+    />
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'self'; script-src 'self' https://maps.googleapis.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; connect-src 'self' https://nftapi.cyberwiz.io https://api.bigdatacloud.net https://geo.fcc.gov https://api.census.gov https://tigerweb.geo.census.gov https://gis.water.ca.gov https://services.arcgis.com https://overpass-api.de https://api.weather.gov https://maps.googleapis.com https://o0.ingest.sentry.io; img-src 'self' https://maps.googleapis.com data:"
+    />
+    <title>Community Insights Tool</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" crossorigin />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&display=swap"
+      rel="stylesheet"
+      integrity="sha384-jFkr5e7GEFjeV48fa6VnJHKsirpHrwnWNc273b/JrQ9xYl4t8qsMotJpCiiu389X"
+      crossorigin="anonymous"
+    />
+    <link rel="stylesheet" href="style.css" />
+    <!-- Point the frontend at the correct API host -->
+    <meta name="api-base" content="https://nftapi.cyberwiz.io" />
+    <meta name="sentry-dsn" content="" />
+    <!-- Third-party libraries are loaded dynamically when needed -->
+  </head>
+  <body>
+    <nav class="skip-nav" aria-label="Skip navigation">
+      <a class="skip-link" href="#main-content">Skip to main content</a>
+    </nav>
+    <div class="container">
+      <header class="page-header stack stack--xl">
+        <h1>Community Insights Tool</h1>
+        <p class="tagline">
+          Turn any address into a snapshot of community needs and priorities.
+        </p>
+        <p class="description">
+          The Community Insights Tool helps water agency staff understand the
+          unique communities they serve. By entering an address, you can explore
+          neighborhood-level demographics, languages spoken, and environmental
+          conditions, and see how that location compares to the broader service
+          area. This tool combines U.S. Census (ACS) data with CalEPA
+          Enviroscreen to support effective outreach, grant applications, and
+          equitable program design.
+        </p>
+        <div class="quick-instructions">
+          <strong>Quick Instructions</strong>
+          <ol>
+            <li>
+              <strong>Enter an address</strong> – Type in the location of your
+              event, project, or service area.
+            </li>
+            <li>
+              <strong>View insights</strong> – Explore demographic, language,
+              and environmental data for the neighborhood.
+            </li>
+            <li>
+              <strong>Compare &amp; apply</strong> – See how the area differs
+              from the larger district and use the insights to guide outreach,
+              tailor materials, and strengthen grant proposals.
+            </li>
+          </ol>
+        </div>
 
-      <div class="controls">
-        <label class="visually-hidden" for="autocomplete">Search address</label>
-        <input id="autocomplete"
-               placeholder="123 Main St, Yucaipa, CA 92399"
-               type="text"
-               autocomplete="off"
-               inputmode="search"
-               aria-label="Address search" />
-        <button id="lookupBtn" type="button" aria-label="Lookup demographics">Lookup</button>
-      </div>
-    </header>
+        <div class="controls">
+          <label class="visually-hidden" for="autocomplete"
+            >Search address</label
+          >
+          <input
+            id="autocomplete"
+            placeholder="123 Main St, Yucaipa, CA 92399"
+            type="text"
+            autocomplete="off"
+            inputmode="search"
+            aria-label="Address search"
+          />
+          <button id="lookupBtn" type="button" aria-label="Lookup demographics">
+            Lookup
+          </button>
+        </div>
+      </header>
 
-    <main class="main-column stack stack--xxl">
-      <div id="result" class="result-box" aria-live="polite" aria-atomic="true"></div>
-    </main>
-  </div>
-
-    <footer class="page-footer" itemscope itemtype="https://schema.org/Organization">
-      <p>Community Insights Tool — Powered by <a href="https://cyberwiz.io" target="_blank" rel="noopener noreferrer" title="CyberWiz – Cybersecurity, SOC 2 Compliance, and Custom Programs" aria-label="CyberWiz: cybersecurity, compliance, and training programs" itemprop="url"><span itemprop="name">CyberWiz</span></a></p>
-    </footer>
-  <div id="spinnerOverlay" class="spinner-overlay" style="display: none;">
-    <div class="spinner">
-      <span id="spinnerTime">0m 00s</span>
+      <main id="main-content" class="main-column stack stack--xxl">
+        <div
+          id="result"
+          class="result-box"
+          aria-live="polite"
+          aria-atomic="true"
+        ></div>
+      </main>
     </div>
-  </div>
+
+    <footer
+      class="page-footer"
+      itemscope
+      itemtype="https://schema.org/Organization"
+    >
+      <p>
+        Community Insights Tool — Powered by
+        <a
+          href="https://cyberwiz.io"
+          target="_blank"
+          rel="noopener noreferrer"
+          title="CyberWiz – Cybersecurity, SOC 2 Compliance, and Custom Programs"
+          aria-label="CyberWiz: cybersecurity, compliance, and training programs"
+          itemprop="url"
+          ><span itemprop="name">CyberWiz</span></a
+        >
+      </p>
+    </footer>
+    <div id="spinnerOverlay" class="spinner-overlay" style="display: none">
+      <div class="spinner">
+        <span id="spinnerTime">0m 00s</span>
+      </div>
+    </div>
 
     <script type="module" src="dist/main.js"></script>
   </body>
