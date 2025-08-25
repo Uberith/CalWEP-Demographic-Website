@@ -13,19 +13,19 @@ This project helps water agency staff explore neighborhood-level demographics an
 
 ## Google Maps API Key
 
-The site uses the Google Maps JavaScript API and reads the key from the `VITE_MAPS_API_KEY` environment variable at build time.
+The site uses the Google Maps JavaScript API and reads the key from the `MAPS_API_KEY` environment variable at build time.
 
 ### Local development
 
 1. Copy `.env.example` to `.env` and set your key:
    ```bash
-   VITE_MAPS_API_KEY=your_google_maps_api_key
+   MAPS_API_KEY=your_google_maps_api_key
    ```
 2. Run `npm run dev` for a development server or `npm run build` to generate static assets. The key is embedded directly into the frontend.
 
 ### Production (Render, Heroku, etc.)
 
-- Configure an environment variable named `VITE_MAPS_API_KEY` before building the site.
+- Configure an environment variable named `MAPS_API_KEY` before building the site.
 - Do **not** commit real keys to Git. `.env` is already ignored by `.gitignore`.
 
 ### Security considerations
@@ -39,16 +39,16 @@ Environment variables can be read from the local machine in many languages:
 
 - **JavaScript**
   ```js
-  const databaseUrl = process.env.DATABASE_URL;
+  const databaseUrl = process.env.MAPS_API_KEY;
   ```
 - **Python**
   ```python
   import os
-  database_url = os.environ.get('DATABASE_URL')
+  maps_api_key = os.environ.get('MAPS_API_KEY')
   ```
 - **Ruby**
   ```ruby
-  database_url = ENV['DATABASE_URL']
+  maps_api_key = ENV['MAPS_API_KEY']
   ```
 - **Go**
 
@@ -57,11 +57,11 @@ Environment variables can be read from the local machine in many languages:
   import "os"
 
   func main() {
-      databaseURL := os.Getenv("DATABASE_URL")
+      mapsAPIKey := os.Getenv("MAPS_API_KEY")
   }
   ```
 
 - **Elixir**
   ```elixir
-  database_url = System.get_env("DATABASE_URL")
+  maps_api_key = System.get_env("MAPS_API_KEY")
   ```
