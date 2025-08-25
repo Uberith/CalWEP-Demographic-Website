@@ -1,5 +1,5 @@
 import { sanitizeHTML, nowStamp, formatDuration } from "../utils.js";
-import { API_BASE } from "../api.js";
+import { API_BASE_URL } from "../config.js";
 
 export function renderLoading(address) {
   document.getElementById("result").innerHTML = sanitizeHTML(`
@@ -27,7 +27,7 @@ export function renderError(message, address, elapsedMs) {
         ${sanitizeHTML(message || "Please try again with a different address.")}
       </div>
       <p class="note">Search took ${formatDuration(elapsedMs)}.</p>
-      <p class="note">API base: <code>${sanitizeHTML(API_BASE)}</code>. If your API has a prefix, adjust <code>API_PATH</code>.</p>
+      <p class="note">API base: <code>${sanitizeHTML(API_BASE_URL || "/api")}</code>.</p>
     </div>
   `);
 }
