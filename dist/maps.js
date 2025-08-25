@@ -1,2 +1,60 @@
-const g=new URLSearchParams(window.location.search).has("debug");let l=null;function y(...e){g&&(console.log(...e),l||(l=document.createElement("pre"),l.id="debugLog",document.body.appendChild(l)),l.textContent+=e.map(t=>typeof t=="string"?t:JSON.stringify(t)).join(" ")+`
-`)}async function m(e,t,o={}){var r,s,c;const a=performance.now();try{return await t()}catch(n){throw(r=window.Sentry)==null||r.captureException(n,{extra:{name:e,...o}}),n}finally{const n=performance.now()-a;y(e,{...o,duration:n}),(c=(s=window.Sentry)==null?void 0:s.addBreadcrumb)==null||c.call(s,{category:"async",message:e,data:{...o,duration:n}})}}const d="https://nftapi.cyberwiz.io",b="/demographics";function _(e,t={}){const o=d.endsWith("/")?d:d+"/",a=new URL(e.replace(/^\//,""),o);for(const[r,s]of Object.entries(t))s!=null&&String(s).length&&a.searchParams.set(r,s);return a.toString()}async function k(e){return m("fetchJsonWithDiagnostics",async()=>{let t;try{t=await fetch(e,{method:"GET",mode:"cors",cache:"no-store",headers:{Accept:"application/json"}})}catch(a){throw new Error(`Network error calling API: ${(a==null?void 0:a.message)||a}`)}const o=await t.text().catch(()=>"");if(!t.ok)throw new Error(`API ${t.status} ${t.statusText} for ${e} :: ${o||"<no body>"}`);try{return JSON.parse(o)}catch{throw new Error(`API 200 but response was not valid JSON for ${e} :: ${o.slice(0,200)}…`)}},{url:e})}let p=null,f="",u=null;function A(){return f}function h(){return u||(u=m("fetchMapsKey",async()=>{const e=await fetch("/api/maps-key");if(!e.ok)throw new Error("Failed to load Maps key");return f=(await e.json()).key||"",f},{url:"/api/maps-key"})),u}function w(){const e=document.getElementById("autocomplete");!e||typeof google>"u"||!google.maps||(p=new google.maps.places.Autocomplete(e,{types:["address"],componentRestrictions:{country:"us"},fields:["address_components","formatted_address"]}),p.addListener("place_changed",()=>{const t=p.getPlace();let o="",a="",r="",s="";for(const n of t.address_components||[]){const i=n.types||[];i.includes("street_number")?o=n.long_name+" ":i.includes("route")?o+=n.long_name:i.includes("locality")?a=n.long_name:i.includes("administrative_area_level_1")?r=n.short_name:i.includes("postal_code")&&(s=n.long_name)}if(!s&&t.formatted_address){const n=t.formatted_address.match(/\b\d{5}(?:-\d{4})?\b/);n&&(s=n[0])}const c=[o.trim(),a,r,s].filter(Boolean);c.length&&(e.value=c.join(", "))}),e.addEventListener("keydown",t=>{var o;t.key==="Enter"&&(t.preventDefault(),(o=document.getElementById("lookupBtn"))==null||o.click())}))}async function E(){try{const e=await h(),t=document.createElement("script");t.src=`https://maps.googleapis.com/maps/api/js?key=${encodeURIComponent(e)}&libraries=places&callback=initAutocomplete`,t.async=!0,document.head.appendChild(t)}catch(e){console.error("Failed to load Google Maps",e)}}window.initAutocomplete=w;export{d as A,E as a,h as b,_ as c,b as d,k as f,A as g,y as l,m};
+let a = null;
+const c = "";
+function m() {
+  return c;
+}
+function p() {
+  const e = document.getElementById("autocomplete");
+  !e ||
+    typeof google > "u" ||
+    !google.maps ||
+    ((a = new google.maps.places.Autocomplete(e, {
+      types: ["address"],
+      componentRestrictions: { country: "us" },
+      fields: ["address_components", "formatted_address"],
+    })),
+    a.addListener("place_changed", () => {
+      const o = a.getPlace();
+      let n = "",
+        i = "",
+        r = "",
+        l = "";
+      for (const t of o.address_components || []) {
+        const s = t.types || [];
+        s.includes("street_number")
+          ? (n = t.long_name + " ")
+          : s.includes("route")
+            ? (n += t.long_name)
+            : s.includes("locality")
+              ? (i = t.long_name)
+              : s.includes("administrative_area_level_1")
+                ? (r = t.short_name)
+                : s.includes("postal_code") && (l = t.long_name);
+      }
+      if (!l && o.formatted_address) {
+        const t = o.formatted_address.match(/\b\d{5}(?:-\d{4})?\b/);
+        t && (l = t[0]);
+      }
+      const d = [n.trim(), i, r, l].filter(Boolean);
+      d.length && (e.value = d.join(", "));
+    }),
+    e.addEventListener("keydown", (o) => {
+      var n;
+      o.key === "Enter" &&
+        (o.preventDefault(),
+        (n = document.getElementById("lookupBtn")) == null || n.click());
+    }));
+}
+async function u() {
+  try {
+    if (!c) throw new Error("Google Maps API key not configured");
+    const e = document.createElement("script");
+    ((e.src = `https://maps.googleapis.com/maps/api/js?key=${encodeURIComponent(c)}&libraries=places&callback=initAutocomplete`),
+      (e.async = !0),
+      document.head.appendChild(e));
+  } catch (e) {
+    console.error("Failed to load Google Maps", e);
+  }
+}
+window.initAutocomplete = p;
+export { m as g, u as l };

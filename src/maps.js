@@ -1,29 +1,8 @@
-import { monitorAsync } from "./api.js";
-
 let autocomplete = null;
-let googleMapsKey = "";
-// Cache the promise so we only hit the endpoint once per session
-let mapsKeyPromise = null;
+const googleMapsKey = import.meta.env.VITE_MAPS_API_KEY || "";
 
 export function getGoogleMapsKey() {
   return googleMapsKey;
-}
-
-export function fetchMapsKey() {
-  if (!mapsKeyPromise) {
-    mapsKeyPromise = monitorAsync(
-      "fetchMapsKey",
-      async () => {
-        const r = await fetch("/api/maps-key");
-        if (!r.ok) throw new Error("Failed to load Maps key");
-        const data = await r.json();
-        googleMapsKey = data.key || "";
-        return googleMapsKey;
-      },
-      { url: "/api/maps-key" },
-    );
-  }
-  return mapsKeyPromise;
 }
 
 export function initAutocomplete() {
@@ -70,9 +49,9 @@ export function initAutocomplete() {
 
 export async function loadGoogleMaps() {
   try {
-    const key = await fetchMapsKey();
+    if (!googleMapsKey) throw new Error("Google Maps API key not configured");
     const script = document.createElement("script");
-    script.src = `https://maps.googleapis.com/maps/api/js?key=${encodeURIComponent(key)}&libraries=places&callback=initAutocomplete`;
+    script.src = `https://maps.googleapis.com/maps/api/js?key=${encodeURIComponent(googleMapsKey)}&libraries=places&callback=initAutocomplete`;
     script.async = true;
     document.head.appendChild(script);
   } catch (err) {

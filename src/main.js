@@ -13,7 +13,7 @@ import {
   monitorAsync,
 } from "./api.js";
 import { renderLoading, renderError } from "./ui/error.js";
-import { fetchMapsKey, loadGoogleMaps, getGoogleMapsKey } from "./maps.js";
+import { loadGoogleMaps, getGoogleMapsKey } from "./maps.js";
 import { sanitizeHTML, nowStamp, formatDuration } from "./utils.js";
 
 const SENTRY_DSN =
@@ -49,7 +49,6 @@ window.addEventListener("unhandledrejection", (event) => {
 let lastReport = null;
 // Cache previously retrieved results to avoid redundant network requests
 const lookupCache = new Map();
-
 
 function printReport() {
   window.print();
@@ -302,7 +301,9 @@ async function aggregateLanguageForTracts(fipsList = []) {
   if (!codes.length) return {};
   const groups = {};
   for (const f of fipsList) {
-    const code = String(f).replace(/[^0-9]/g, "").padStart(11, "0");
+    const code = String(f)
+      .replace(/[^0-9]/g, "")
+      .padStart(11, "0");
     if (code.length !== 11) continue;
     const state = code.slice(0, 2);
     const county = code.slice(2, 5);
@@ -325,11 +326,8 @@ async function aggregateLanguageForTracts(fipsList = []) {
         for (let i = 0; i < codes.length; i += chunkSize) {
           const varChunk = codes.slice(i, i + chunkSize);
           const vars =
-            i === 0
-              ? ["C16001_001E", "C16001_002E", ...varChunk]
-              : varChunk;
-          const url =
-            `https://api.census.gov/data/2022/acs/acs5?get=${vars.join(",")}&for=tract:${tractStr}&in=state:${g.state}%20county:${g.county}`;
+            i === 0 ? ["C16001_001E", "C16001_002E", ...varChunk] : varChunk;
+          const url = `https://api.census.gov/data/2022/acs/acs5?get=${vars.join(",")}&for=tract:${tractStr}&in=state:${g.state}%20county:${g.county}`;
           tasks.push(
             fetch(url)
               .then((r) => r.json())
@@ -337,8 +335,7 @@ async function aggregateLanguageForTracts(fipsList = []) {
               .catch(() => null),
           );
         }
-        const url2 =
-          `https://api.census.gov/data/2022/acs/acs5/profile?get=DP02_0115E&for=tract:${tractStr}&in=state:${g.state}%20county:${g.county}`;
+        const url2 = `https://api.census.gov/data/2022/acs/acs5/profile?get=DP02_0115E&for=tract:${tractStr}&in=state:${g.state}%20county:${g.county}`;
         tasks.push(
           fetch(url2)
             .then((r) => r.json())
@@ -351,7 +348,8 @@ async function aggregateLanguageForTracts(fipsList = []) {
         let gEnglishLess = 0;
         const gLangCounts = {};
         for (const res of results) {
-          if (!res || !Array.isArray(res.rows) || res.rows.length <= 1) continue;
+          if (!res || !Array.isArray(res.rows) || res.rows.length <= 1)
+            continue;
           const { rows } = res;
           if (res.type === "lang") {
             const headers = rows[0];
@@ -411,8 +409,9 @@ async function aggregateLanguageForTracts(fipsList = []) {
   return {
     primary_language: sorted[0]?.[0],
     secondary_language: sorted[1]?.[0],
-    language_other_than_english_pct:
-      total ? ((total - englishOnly) / total) * 100 : null,
+    language_other_than_english_pct: total
+      ? ((total - englishOnly) / total) * 100
+      : null,
     english_less_than_very_well_pct: total ? (englishLess / total) * 100 : null,
     spanish_at_home_pct: total ? (spanishCount / total) * 100 : null,
   };
@@ -429,7 +428,9 @@ async function fetchLanguageAcs({ state_fips, county_fips, tract_code } = {}) {
 async function aggregateBasicDemographicsForTracts(fipsList = []) {
   const groups = {};
   for (const f of fipsList) {
-    const code = String(f).replace(/[^0-9]/g, "").padStart(11, "0");
+    const code = String(f)
+      .replace(/[^0-9]/g, "")
+      .padStart(11, "0");
     if (code.length !== 11) continue;
     const state = code.slice(0, 2);
     const county = code.slice(2, 5);
@@ -461,7 +462,8 @@ async function aggregateBasicDemographicsForTracts(fipsList = []) {
             totalPop += pop;
             if (Number.isFinite(age)) ageWeighted += age * pop;
             if (Number.isFinite(income)) incomeWeighted += income * pop;
-            if (Number.isFinite(perCapita)) perCapitaWeighted += perCapita * pop;
+            if (Number.isFinite(perCapita))
+              perCapitaWeighted += perCapita * pop;
             if (Number.isFinite(povPct) && povPct >= 0)
               povertyCount += (povPct / 100) * pop;
           }
@@ -490,7 +492,9 @@ async function aggregateBasicDemographicsForTracts(fipsList = []) {
 async function aggregateHousingEducationForTracts(fipsList = []) {
   const groups = {};
   for (const f of fipsList) {
-    const code = String(f).replace(/[^0-9]/g, "").padStart(11, "0");
+    const code = String(f)
+      .replace(/[^0-9]/g, "")
+      .padStart(11, "0");
     if (code.length !== 11) continue;
     const state = code.slice(0, 2);
     const county = code.slice(2, 5);
@@ -529,15 +533,9 @@ async function aggregateHousingEducationForTracts(fipsList = []) {
         const rows = await fetch(url).then((r) => r.json());
         if (!Array.isArray(rows) || rows.length < 2) continue;
         for (let i = 1; i < rows.length; i++) {
-          const [
-            occ,
-            owner,
-            renter,
-            homeVal,
-            pop25,
-            hsGrad,
-            bach,
-          ] = rows[i].slice(0, 7).map(Number);
+          const [occ, owner, renter, homeVal, pop25, hsGrad, bach] = rows[i]
+            .slice(0, 7)
+            .map(Number);
           if (Number.isFinite(occ) && occ > 0) occTotal += occ;
           if (Number.isFinite(owner) && owner > 0) {
             ownerTotal += owner;
@@ -547,8 +545,7 @@ async function aggregateHousingEducationForTracts(fipsList = []) {
           if (Number.isFinite(renter) && renter > 0) renterTotal += renter;
           if (Number.isFinite(pop25) && pop25 > 0) {
             pop25Total += pop25;
-            if (Number.isFinite(hsGrad) && hsGrad > 0)
-              hsGradTotal += hsGrad;
+            if (Number.isFinite(hsGrad) && hsGrad > 0) hsGradTotal += hsGrad;
             if (Number.isFinite(bach) && bach > 0) bachTotal += bach;
           }
         }
@@ -578,7 +575,9 @@ async function aggregateHousingEducationForTracts(fipsList = []) {
 async function fetchUnemploymentForTracts(fipsList = []) {
   const groups = {};
   for (const f of fipsList) {
-    const code = String(f).replace(/[^0-9]/g, "").padStart(11, "0");
+    const code = String(f)
+      .replace(/[^0-9]/g, "")
+      .padStart(11, "0");
     if (code.length !== 11) continue;
     const state = code.slice(0, 2);
     const county = code.slice(2, 5);
@@ -648,7 +647,11 @@ async function aggregateHardshipsForTracts(fipsList = []) {
   await Promise.all(
     fipsList.map(async (f) => {
       try {
-        const url = buildApiUrl(API_PATH, { fips: f, census_tract: f, geoid: f });
+        const url = buildApiUrl(API_PATH, {
+          fips: f,
+          census_tract: f,
+          geoid: f,
+        });
         const j = await fetchJsonWithDiagnostics(url);
         if (Array.isArray(j.environmental_hardships)) {
           j.environmental_hardships.forEach((h) => set.add(h));
@@ -667,10 +670,7 @@ async function enrichRegionBasics(data = {}) {
   const { surrounding_10_mile, water_district } = data || {};
   const out = { ...data };
   const s = surrounding_10_mile || {};
-  if (
-    Array.isArray(s.census_tracts_fips) &&
-    s.census_tracts_fips.length
-  ) {
+  if (Array.isArray(s.census_tracts_fips) && s.census_tracts_fips.length) {
     const basics = await aggregateBasicDemographicsForTracts(
       s.census_tracts_fips,
     );
@@ -772,15 +772,26 @@ async function enrichUnemployment(data = {}) {
   const s = surrounding_10_mile || {};
   const w = water_district || {};
   const needed = [];
-  const localFips = state_fips && county_fips && tract_code ? `${state_fips}${county_fips}${tract_code}` : null;
+  const localFips =
+    state_fips && county_fips && tract_code
+      ? `${state_fips}${county_fips}${tract_code}`
+      : null;
   if (isMissing(unemployment_rate) && localFips) needed.push(localFips);
   const sFips = Array.isArray(s.census_tracts_fips) ? s.census_tracts_fips : [];
-  if (s.demographics && isMissing(s.demographics.unemployment_rate) && sFips.length)
+  if (
+    s.demographics &&
+    isMissing(s.demographics.unemployment_rate) &&
+    sFips.length
+  )
     needed.push(...sFips);
   const wFips = Array.isArray(w.census_tracts_fips)
     ? w.census_tracts_fips.map(String)
     : [];
-  if (w.demographics && isMissing(w.demographics.unemployment_rate) && wFips.length)
+  if (
+    w.demographics &&
+    isMissing(w.demographics.unemployment_rate) &&
+    wFips.length
+  )
     needed.push(...wFips);
 
   const fipsSet = Array.from(new Set(needed));
@@ -791,12 +802,20 @@ async function enrichUnemployment(data = {}) {
   if (isMissing(unemployment_rate) && localFips && lookup[localFips])
     out.unemployment_rate = lookup[localFips].unemployment_rate;
 
-  if (s.demographics && isMissing(s.demographics.unemployment_rate) && sFips.length) {
+  if (
+    s.demographics &&
+    isMissing(s.demographics.unemployment_rate) &&
+    sFips.length
+  ) {
     let totPop = 0;
     let totWeighted = 0;
     for (const f of sFips) {
       const item = lookup[f];
-      if (item && Number.isFinite(item.unemployment_rate) && Number.isFinite(item.population)) {
+      if (
+        item &&
+        Number.isFinite(item.unemployment_rate) &&
+        Number.isFinite(item.population)
+      ) {
         totPop += item.population;
         totWeighted += item.unemployment_rate * item.population;
       }
@@ -804,16 +823,27 @@ async function enrichUnemployment(data = {}) {
     if (totPop > 0)
       out.surrounding_10_mile = {
         ...s,
-        demographics: { ...s.demographics, unemployment_rate: totWeighted / totPop },
+        demographics: {
+          ...s.demographics,
+          unemployment_rate: totWeighted / totPop,
+        },
       };
   }
 
-  if (w.demographics && isMissing(w.demographics.unemployment_rate) && wFips.length) {
+  if (
+    w.demographics &&
+    isMissing(w.demographics.unemployment_rate) &&
+    wFips.length
+  ) {
     let totPop = 0;
     let totWeighted = 0;
     for (const f of wFips) {
       const item = lookup[f];
-      if (item && Number.isFinite(item.unemployment_rate) && Number.isFinite(item.population)) {
+      if (
+        item &&
+        Number.isFinite(item.unemployment_rate) &&
+        Number.isFinite(item.population)
+      ) {
         totPop += item.population;
         totWeighted += item.unemployment_rate * item.population;
       }
@@ -821,7 +851,10 @@ async function enrichUnemployment(data = {}) {
     if (totPop > 0)
       out.water_district = {
         ...w,
-        demographics: { ...w.demographics, unemployment_rate: totWeighted / totPop },
+        demographics: {
+          ...w.demographics,
+          unemployment_rate: totWeighted / totPop,
+        },
       };
   }
 
@@ -832,10 +865,7 @@ async function enrichRegionLanguages(data = {}) {
   const { surrounding_10_mile, water_district } = data || {};
   const out = { ...data };
   const s = surrounding_10_mile || {};
-  if (
-    Array.isArray(s.census_tracts_fips) &&
-    s.census_tracts_fips.length
-  ) {
+  if (Array.isArray(s.census_tracts_fips) && s.census_tracts_fips.length) {
     const lang = await aggregateLanguageForTracts(s.census_tracts_fips);
     const d = s.demographics || {};
     out.surrounding_10_mile = { ...s, demographics: { ...d, ...lang } };
@@ -857,13 +887,15 @@ async function enrichRegionHardships(data = {}) {
   const { surrounding_10_mile, water_district } = data || {};
   const out = { ...data };
   const s = surrounding_10_mile || {};
-  const sFips = Array.isArray(s.census_tracts_fips) && s.census_tracts_fips.length
-    ? s.census_tracts_fips
-    : Array.isArray(s.census_tracts)
-      ? s.census_tracts
-      : [];
+  const sFips =
+    Array.isArray(s.census_tracts_fips) && s.census_tracts_fips.length
+      ? s.census_tracts_fips
+      : Array.isArray(s.census_tracts)
+        ? s.census_tracts
+        : [];
   if (
-    (!Array.isArray(s.environmental_hardships) || !s.environmental_hardships.length) &&
+    (!Array.isArray(s.environmental_hardships) ||
+      !s.environmental_hardships.length) &&
     sFips.length
   ) {
     const hardships = await aggregateHardshipsForTracts(sFips);
@@ -874,7 +906,8 @@ async function enrichRegionHardships(data = {}) {
     ? w.census_tracts_fips.map(String)
     : [];
   if (
-    (!Array.isArray(w.environmental_hardships) || !w.environmental_hardships.length) &&
+    (!Array.isArray(w.environmental_hardships) ||
+      !w.environmental_hardships.length) &&
     wFips.length
   ) {
     const hardships = await aggregateHardshipsForTracts(wFips);
@@ -907,8 +940,12 @@ async function enrichSurrounding(data = {}) {
         .catch(() => {}),
     );
   }
-  const existingTracts = Array.isArray(s.census_tracts) ? s.census_tracts.map(String) : [];
-  const existingFips = Array.isArray(s.census_tracts_fips) ? s.census_tracts_fips.map(String) : [];
+  const existingTracts = Array.isArray(s.census_tracts)
+    ? s.census_tracts.map(String)
+    : [];
+  const existingFips = Array.isArray(s.census_tracts_fips)
+    ? s.census_tracts_fips.map(String)
+    : [];
   const existingMap = { ...(s.census_tract_map || {}) };
   const tractUrl =
     "https://tigerweb.geo.census.gov/arcgis/rest/services/TIGERweb/Tracts_Blocks/MapServer/10/query" +
@@ -942,7 +979,9 @@ async function enrichSurrounding(data = {}) {
   );
   if (tasks.length) await Promise.all(tasks);
   if (!Array.isArray(s.cities)) s.cities = [];
-  const tractSet = new Set(Array.isArray(s.census_tracts) ? s.census_tracts : []);
+  const tractSet = new Set(
+    Array.isArray(s.census_tracts) ? s.census_tracts : [],
+  );
   if (census_tract) tractSet.add(String(census_tract));
   s.census_tracts = Array.from(tractSet);
   if (Array.isArray(s.census_tracts_fips)) {
@@ -1036,7 +1075,9 @@ async function enrichWaterDistrict(data = {}, address = "") {
             w.census_tracts = arr;
             const fipsArr = arr.filter((t) => /^\d{11}$/.test(t));
             if (fipsArr.length)
-              w.census_tracts_fips = [...new Set([...(w.census_tracts_fips || []), ...fipsArr])];
+              w.census_tracts_fips = [
+                ...new Set([...(w.census_tracts_fips || []), ...fipsArr]),
+              ];
           }
         })
         .catch(() => {}),
@@ -1139,9 +1180,7 @@ async function enrichWaterDistrict(data = {}, address = "") {
         if (names.length)
           w.census_tracts = [...new Set([...existing, ...names])];
         if (fips.length)
-          w.census_tracts_fips = [
-            ...new Set([...existingFips, ...fips]),
-          ];
+          w.census_tracts_fips = [...new Set([...existingFips, ...fips])];
         if (Object.keys(map).length)
           w.census_tract_map = { ...existingMap, ...map };
       }
@@ -1208,8 +1247,7 @@ async function enrichWaterDistrict(data = {}, address = "") {
       }
       if (totalPop > 0) w.dac_population_pct = (dacPop / totalPop) * 100;
       if (w.census_tracts_fips.length > 0)
-        w.dac_tracts_pct =
-          (dacFips.size / w.census_tracts_fips.length) * 100;
+        w.dac_tracts_pct = (dacFips.size / w.census_tracts_fips.length) * 100;
     } catch {
       // ignore errors
     }
@@ -1270,8 +1308,7 @@ async function enrichEnglishProficiency(data = {}) {
       const state = fips.slice(0, 2);
       const county = fips.slice(2, 5);
       const tract = fips.slice(5, 11);
-      const url =
-        `https://api.census.gov/data/2022/acs/acs5/profile?get=DP02_0111PE&for=tract:${tract}&in=state:${state}+county:${county}`;
+      const url = `https://api.census.gov/data/2022/acs/acs5/profile?get=DP02_0111PE&for=tract:${tract}&in=state:${state}+county:${county}`;
       const acs = await fetch(url).then((r) => r.json());
       const val = acs?.[1]?.[0];
       const num = Number(val);
@@ -1300,9 +1337,7 @@ async function enrichNwsAlerts(data = {}) {
     if (!res.ok) throw new Error("NWS response not ok");
     const j = await res.json();
     const alerts = Array.isArray(j?.features)
-      ? j.features
-          .map((f) => f?.properties?.headline)
-          .filter(Boolean)
+      ? j.features.map((f) => f?.properties?.headline).filter(Boolean)
       : [];
     return { ...data, alerts };
   } catch {
@@ -1414,8 +1449,7 @@ function buildComparisonRow(
 }
 
 function renderEnviroscreenContent(data) {
-  if (!data || typeof data !== "object")
-    return "<p class=\"note\">No data</p>";
+  if (!data || typeof data !== "object") return '<p class="note">No data</p>';
   const badge = (v) => {
     const { bg, fg } = cesColor(v);
     const val = Number.isFinite(Number(v)) ? Number(v).toFixed(1) : "—";
@@ -1516,7 +1550,7 @@ function renderResultOld(address, data, elapsedMs) {
       ? `<img class="map-image" src="https://maps.googleapis.com/maps/api/staticmap?center=${lat},${lon}&zoom=13&size=600x300&markers=color:red|${lat},${lon}&key=${getGoogleMapsKey()}" alt="Map of location" />`
       : "";
 
-const hardshipSection = `
+  const hardshipSection = `
     <section class="section-block">
       <h3 class="section-header">Environmental hardships</h3>
       ${hardshipList.length ? `<div class="stats">${hardshipList.map((h) => `<span class="pill">${sanitizeHTML(h)}</span>`).join("")}</div>` : `<p class="note">No environmental hardships recorded.</p>`}
@@ -1671,7 +1705,6 @@ const hardshipSection = `
       );
     return html;
   })();
-
 
   const localInfo = `
     <section class="section-block">
@@ -2030,7 +2063,8 @@ function renderResult(address, data, elapsedMs) {
       stats.push(`<li><strong>${fmtPct(popPct)}</strong> of population</li>`);
     if (Number.isFinite(tractPct))
       stats.push(`<li><strong>${fmtPct(tractPct)}</strong> of tracts</li>`);
-    if (stats.length) lines.push(`<ul class="dac-stats">${stats.join("")}</ul>`);
+    if (stats.length)
+      lines.push(`<ul class="dac-stats">${stats.join("")}</ul>`);
 
     if (Array.isArray(tracts) && tracts.length)
       lines.push(
@@ -2151,7 +2185,6 @@ async function lookup() {
     return;
   }
 
-  await fetchMapsKey();
   const cacheKey = address.toLowerCase();
   if (lookupCache.has(cacheKey)) {
     const cached = lookupCache.get(cacheKey);
@@ -2176,28 +2209,24 @@ async function lookup() {
     if (!data || typeof data !== "object")
       throw new Error("Malformed response.");
     data = await monitorAsync("enrichLocation", () => enrichLocation(data));
-    const [
-      lang,
-      surround,
-      water,
-      english,
-      alerts,
-    ] = await Promise.all([
+    const [lang, surround, water, english, alerts] = await Promise.all([
       monitorAsync("fetchLanguageAcs", () => fetchLanguageAcs(data)),
       monitorAsync("enrichSurrounding", () => enrichSurrounding(data)),
-      monitorAsync("enrichWaterDistrict", () => enrichWaterDistrict(data, address)),
-      monitorAsync("enrichEnglishProficiency", () => enrichEnglishProficiency(data)),
+      monitorAsync("enrichWaterDistrict", () =>
+        enrichWaterDistrict(data, address),
+      ),
+      monitorAsync("enrichEnglishProficiency", () =>
+        enrichEnglishProficiency(data),
+      ),
       monitorAsync("enrichNwsAlerts", () => enrichNwsAlerts(data)),
     ]);
     deepMerge(data, lang, surround, water, english, alerts);
 
-    const basics = await monitorAsync(
-      "enrichRegionBasics",
-      () => enrichRegionBasics(data),
+    const basics = await monitorAsync("enrichRegionBasics", () =>
+      enrichRegionBasics(data),
     );
-    const housingEd = await monitorAsync(
-      "enrichRegionHousingEducation",
-      () => enrichRegionHousingEducation(data),
+    const housingEd = await monitorAsync("enrichRegionHousingEducation", () =>
+      enrichRegionHousingEducation(data),
     );
     deepMerge(data, basics, housingEd);
 
