@@ -13,7 +13,7 @@ import {
   monitorAsync,
 } from "./api.js";
 import { renderLoading, renderError } from "./ui/error.js";
-import { loadGoogleMaps, getGoogleMapsKey } from "./maps.js";
+import { loadGoogleMaps, GOOGLE_MAPS_KEY } from "./maps.js";
 import { sanitizeHTML, nowStamp, formatDuration } from "./utils.js";
 
 const SENTRY_DSN =
@@ -1547,7 +1547,7 @@ function renderResultOld(address, data, elapsedMs) {
       : "—";
   const mapImgHtml =
     lat != null && lon != null
-      ? `<img class="map-image" src="https://maps.googleapis.com/maps/api/staticmap?center=${lat},${lon}&zoom=13&size=600x300&markers=color:red|${lat},${lon}&key=${getGoogleMapsKey()}" alt="Map of location" />`
+      ? `<img class="map-image" src="https://maps.googleapis.com/maps/api/staticmap?center=${lat},${lon}&zoom=13&size=600x300&markers=color:red|${lat},${lon}&key=${GOOGLE_MAPS_KEY}" alt="Map of location" />`
       : "";
 
   const hardshipSection = `
@@ -1876,7 +1876,7 @@ function renderResult(address, data, elapsedMs) {
       : "—";
   const mapImgHtml =
     lat != null && lon != null
-      ? `<img class="map-image" src="https://maps.googleapis.com/maps/api/staticmap?center=${lat},${lon}&zoom=13&size=600x300&markers=color:red|${lat},${lon}&key=${getGoogleMapsKey()}" alt="Map of location" />`
+      ? `<img class="map-image" src="https://maps.googleapis.com/maps/api/staticmap?center=${lat},${lon}&zoom=13&size=600x300&markers=color:red|${lat},${lon}&key=${GOOGLE_MAPS_KEY}" alt="Map of location" />`
       : "";
 
   const s = surrounding_10_mile || {};

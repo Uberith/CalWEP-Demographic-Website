@@ -1,9 +1,5 @@
 let autocomplete = null;
-const googleMapsKey = import.meta.env.VITE_MAPS_API_KEY || "";
-
-export function getGoogleMapsKey() {
-  return googleMapsKey;
-}
+export const GOOGLE_MAPS_KEY = import.meta.env.VITE_MAPS_API_KEY || "";
 
 export function initAutocomplete() {
   const input = document.getElementById("autocomplete");
@@ -49,9 +45,9 @@ export function initAutocomplete() {
 
 export async function loadGoogleMaps() {
   try {
-    if (!googleMapsKey) throw new Error("Google Maps API key not configured");
+    if (!GOOGLE_MAPS_KEY) throw new Error("Google Maps API key not configured");
     const script = document.createElement("script");
-    script.src = `https://maps.googleapis.com/maps/api/js?key=${encodeURIComponent(googleMapsKey)}&libraries=places&callback=initAutocomplete`;
+    script.src = `https://maps.googleapis.com/maps/api/js?key=${encodeURIComponent(GOOGLE_MAPS_KEY)}&libraries=places&callback=initAutocomplete`;
     script.async = true;
     document.head.appendChild(script);
   } catch (err) {
