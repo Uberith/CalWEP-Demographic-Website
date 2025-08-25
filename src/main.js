@@ -107,7 +107,8 @@ function attachCardActions() {
 // ---------- Config ----------
 // ---------- Utilities ----------
 function isMissing(n) {
-  return n == null || Number(n) === -888888888;
+  const num = Number(n);
+  return n == null || !Number.isFinite(num) || num === -888888888;
 }
 function fmtInt(n) {
   return !isMissing(n) && Number.isFinite(Number(n))
