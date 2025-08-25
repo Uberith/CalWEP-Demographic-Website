@@ -438,6 +438,20 @@ button:focus-visible {
 }
 
 /* Accessibility */
+.skip-link {
+  position: absolute;
+  top: -40px;
+  left: 0;
+  background: var(--surface);
+  color: var(--ink);
+  padding: var(--space-2);
+  z-index: 100;
+}
+
+.skip-link:focus {
+  top: 0;
+}
+
 .visually-hidden {
   position: absolute !important;
   height: 1px;
