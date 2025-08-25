@@ -1,22 +1,22 @@
-let a = null;
-const p = "".trim(),
-  d = p;
+var p = {};
+let l = null;
+const d = (p.MAPS_API_KEY || "").toString().trim();
 function m() {
   const e = document.getElementById("autocomplete");
   !e ||
     typeof google > "u" ||
     !google.maps ||
-    ((a = new google.maps.places.Autocomplete(e, {
+    ((l = new google.maps.places.Autocomplete(e, {
       types: ["address"],
       componentRestrictions: { country: "us" },
       fields: ["address_components", "formatted_address"],
     })),
-    a.addListener("place_changed", () => {
-      const o = a.getPlace();
+    l.addListener("place_changed", () => {
+      const o = l.getPlace();
       let n = "",
         c = "",
         i = "",
-        l = "";
+        a = "";
       for (const t of o.address_components || []) {
         const s = t.types || [];
         s.includes("street_number")
@@ -27,13 +27,13 @@ function m() {
               ? (c = t.long_name)
               : s.includes("administrative_area_level_1")
                 ? (i = t.short_name)
-                : s.includes("postal_code") && (l = t.long_name);
+                : s.includes("postal_code") && (a = t.long_name);
       }
-      if (!l && o.formatted_address) {
+      if (!a && o.formatted_address) {
         const t = o.formatted_address.match(/\b\d{5}(?:-\d{4})?\b/);
-        t && (l = t[0]);
+        t && (a = t[0]);
       }
-      const r = [n.trim(), c, i, l].filter(Boolean);
+      const r = [n.trim(), c, i, a].filter(Boolean);
       r.length && (e.value = r.join(", "));
     }),
     e.addEventListener("keydown", (o) => {
@@ -58,4 +58,4 @@ async function u() {
   }
 }
 window.initAutocomplete = m;
-export { d as G, u as l };
+export { d, u as l };

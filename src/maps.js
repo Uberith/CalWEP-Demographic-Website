@@ -1,13 +1,9 @@
 let autocomplete = null;
-const mapsApiKey = (
-  import.meta.env.MAPS_API_KEY ||
-  import.meta.env.VITE_MAPS_API_KEY ||
-  ""
-)
-  .toString()
-  .trim();
 
-export const GOOGLE_MAPS_KEY = mapsApiKey;
+// The Google Maps API key is injected from the environment at build/run time.
+// Never commit a real key to source control. Use MAPS_API_KEY in your
+// deployment environment instead.
+export const databaseUrl = (process.env.MAPS_API_KEY || "").toString().trim();
 
 export function initAutocomplete() {
   const input = document.getElementById("autocomplete");
@@ -52,14 +48,15 @@ export function initAutocomplete() {
 }
 
 export async function loadGoogleMaps() {
-  if (!GOOGLE_MAPS_KEY) {
+  if (!databaseUrl) {
+    // Fail fast if the key is missing so we don't attempt unauthenticated requests.
     console.error("Google Maps API key not configured");
     return;
   }
   try {
     const script = document.createElement("script");
     script.src = `https://maps.googleapis.com/maps/api/js?key=${encodeURIComponent(
-      GOOGLE_MAPS_KEY,
+      databaseUrl,
     )}&libraries=places&callback=initAutocomplete`;
     script.async = true;
     document.head.appendChild(script);

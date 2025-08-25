@@ -13,7 +13,7 @@ This project helps water agency staff explore neighborhood-level demographics an
 
 ## Google Maps API Key
 
-The site uses the Google Maps JavaScript API and reads the key from the `MAPS_API_KEY` environment variable at build time. Vite is configured to expose variables starting with `MAPS_` or `VITE_` to the frontend.
+The site uses the Google Maps JavaScript API and reads the key from the `MAPS_API_KEY` environment variable at runtime. The key is accessed on the server via `process.env.MAPS_API_KEY` and should never be committed to source control.
 
 ### Local development
 
@@ -21,17 +21,18 @@ The site uses the Google Maps JavaScript API and reads the key from the `MAPS_AP
    ```bash
    MAPS_API_KEY=your_google_maps_api_key
    ```
-2. Run `npm run dev` for a development server or `npm run build` to generate static assets. The key is embedded directly into the frontend.
+2. Run `npm run dev` for a development server or `npm run build` to generate static assets. The key is injected at runtime; avoid embedding it directly into the frontend.
 
 ### Production (Render, Heroku, etc.)
 
-- Configure an environment variable named `MAPS_API_KEY` (or `VITE_MAPS_API_KEY`) before building the site.
+- Configure an environment variable named `MAPS_API_KEY` before building the site.
 - Do **not** commit real keys to Git. `.env` is already ignored by `.gitignore`.
 
 ### Security considerations
 
 - Restrict the Google Maps key to allowed domains/IPs and enable usage quotas in the Google Cloud Console.
 - Monitor usage and regenerate the key if it becomes compromised.
+- When frontend code needs Google Maps data, proxy the request through your server. The server can append the API key from `process.env.MAPS_API_KEY` (exposed as `databaseUrl`) so the browser never sees the secret.
 
 ## Accessing environment variables
 
@@ -39,17 +40,16 @@ Environment variables can be read from the local machine in many languages:
 
 - **JavaScript**
   ```js
-  const mapsApiKey =
-    import.meta.env.MAPS_API_KEY || import.meta.env.VITE_MAPS_API_KEY;
+  const databaseUrl = process.env.MAPS_API_KEY;
   ```
 - **Python**
   ```python
   import os
-  maps_api_key = os.environ.get('MAPS_API_KEY')
+  database_url = os.environ.get('MAPS_API_KEY')
   ```
 - **Ruby**
   ```ruby
-  maps_api_key = ENV['MAPS_API_KEY']
+  database_url = ENV['MAPS_API_KEY']
   ```
 - **Go**
 
@@ -58,11 +58,11 @@ Environment variables can be read from the local machine in many languages:
   import "os"
 
   func main() {
-      mapsAPIKey := os.Getenv("MAPS_API_KEY")
+      databaseUrl := os.Getenv("MAPS_API_KEY")
   }
   ```
 
 - **Elixir**
   ```elixir
-  maps_api_key = System.get_env("MAPS_API_KEY")
+  database_url = System.get_env("MAPS_API_KEY")
   ```
