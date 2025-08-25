@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <meta name="description" content="Community Insights Tool helps water agency staff explore demographics, languages, and environmental conditions." />
-  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://cdnjs.cloudflare.com https://maps.googleapis.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; connect-src 'self' https://nftapi.cyberwiz.io https://api.bigdatacloud.net https://geo.fcc.gov https://api.census.gov https://tigerweb.geo.census.gov https://gis.water.ca.gov https://services.arcgis.com https://overpass-api.de https://api.weather.gov https://maps.googleapis.com; img-src 'self' https://maps.googleapis.com data:" />
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://cdnjs.cloudflare.com https://maps.googleapis.com https://browser.sentry-cdn.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; connect-src 'self' https://nftapi.cyberwiz.io https://api.bigdatacloud.net https://geo.fcc.gov https://api.census.gov https://tigerweb.geo.census.gov https://gis.water.ca.gov https://services.arcgis.com https://overpass-api.de https://api.weather.gov https://maps.googleapis.com https://o0.ingest.sentry.io; img-src 'self' https://maps.googleapis.com data:" />
   <title>Community Insights Tool</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" crossorigin>
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -12,8 +12,10 @@
   <link rel="stylesheet" href="style.css" />
   <!-- Point the frontend at the correct API host -->
   <meta name="api-base" content="https://nftapi.cyberwiz.io">
+  <meta name="sentry-dsn" content="">
   <!-- Client-side PDF generation -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js" integrity="sha384-Yv5O+t3uE3hunW8uyrbpPW3iw6/5/Y7HitWJBLgqfMoA36NogMmy+8wWZMpn3HWc" crossorigin="anonymous"></script>
+  <script src="https://browser.sentry-cdn.com/7.120.1/bundle.tracing.min.js" crossorigin="anonymous"></script>
 </head>
 <body>
   <div class="container">

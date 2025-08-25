@@ -4,6 +4,56 @@
    - Robust fetch diagnostics, Google Places autocomplete, Enter-to-search, aria-busy
 */
 
+const DEBUG = new URLSearchParams(window.location.search).has("debug");
+let debugEl = null;
+function logDebug(...args) {
+  if (!DEBUG) return;
+  console.log(...args);
+  if (!debugEl) {
+    debugEl = document.createElement("pre");
+    debugEl.id = "debugLog";
+    document.body.appendChild(debugEl);
+  }
+  debugEl.textContent +=
+    args.map((a) => (typeof a === "string" ? a : JSON.stringify(a))).join(" ") +
+    "\n";
+}
+
+const SENTRY_DSN =
+  document.querySelector('meta[name="sentry-dsn"]')?.content || "";
+if (SENTRY_DSN && window.Sentry) {
+  window.Sentry.init({ dsn: SENTRY_DSN });
+  logDebug("Sentry initialized");
+}
+window.addEventListener("error", (event) => {
+  logDebug("window.onerror", event.message);
+  window.Sentry?.captureException(
+    event.error || new Error(event.message || "Unknown error"),
+  );
+});
+window.addEventListener("unhandledrejection", (event) => {
+  logDebug("unhandledrejection", event.reason);
+  window.Sentry?.captureException(event.reason);
+});
+async function monitorAsync(name, fn, meta = {}) {
+  const start = performance.now();
+  try {
+    const result = await fn();
+    return result;
+  } catch (err) {
+    window.Sentry?.captureException(err, { extra: { name, ...meta } });
+    throw err;
+  } finally {
+    const duration = performance.now() - start;
+    logDebug(name, { ...meta, duration });
+    window.Sentry?.addBreadcrumb?.({
+      category: "async",
+      message: name,
+      data: { ...meta, duration },
+    });
+  }
+}
+
 let autocomplete = null;
 
 let lastReport = null;
@@ -14,15 +64,17 @@ let googleMapsKey = "";
 let mapsKeyPromise = null;
 function fetchMapsKey() {
   if (!mapsKeyPromise) {
-    mapsKeyPromise = fetch("/api/maps-key")
-      .then((r) => {
+    mapsKeyPromise = monitorAsync(
+      "fetchMapsKey",
+      async () => {
+        const r = await fetch("/api/maps-key");
         if (!r.ok) throw new Error("Failed to load Maps key");
-        return r.json();
-      })
-      .then((data) => {
+        const data = await r.json();
         googleMapsKey = data.key || "";
         return googleMapsKey;
-      });
+      },
+      { url: "/api/maps-key" },
+    );
   }
   return mapsKeyPromise;
 }
@@ -239,29 +291,35 @@ function buildApiUrl(path, params = {}) {
   return url.toString();
 }
 async function fetchJsonWithDiagnostics(url) {
-  let res;
-  try {
-    res = await fetch(url, {
-      method: "GET",
-      mode: "cors",
-      cache: "no-store",
-      headers: { Accept: "application/json" },
-    });
-  } catch (e) {
-    throw new Error(`Network error calling API: ${e?.message || e}`);
-  }
-  const txt = await res.text().catch(() => "");
-  if (!res.ok)
-    throw new Error(
-      `API ${res.status} ${res.statusText} for ${url} :: ${txt || "<no body>"}`,
-    );
-  try {
-    return JSON.parse(txt);
-  } catch {
-    throw new Error(
-      `API 200 but response was not valid JSON for ${url} :: ${txt.slice(0, 200)}…`,
-    );
-  }
+  return monitorAsync(
+    "fetchJsonWithDiagnostics",
+    async () => {
+      let res;
+      try {
+        res = await fetch(url, {
+          method: "GET",
+          mode: "cors",
+          cache: "no-store",
+          headers: { Accept: "application/json" },
+        });
+      } catch (e) {
+        throw new Error(`Network error calling API: ${e?.message || e}`);
+      }
+      const txt = await res.text().catch(() => "");
+      if (!res.ok)
+        throw new Error(
+          `API ${res.status} ${res.statusText} for ${url} :: ${txt || "<no body>"}`,
+        );
+      try {
+        return JSON.parse(txt);
+      } catch {
+        throw new Error(
+          `API 200 but response was not valid JSON for ${url} :: ${txt.slice(0, 200)}…`,
+        );
+      }
+    },
+    { url },
+  );
 }
 
 // Attempt to fill in missing city or census tract using public geocoders
@@ -2285,7 +2343,7 @@ async function lookup() {
     let data = await fetchJsonWithDiagnostics(url);
     if (!data || typeof data !== "object")
       throw new Error("Malformed response.");
-    data = await enrichLocation(data);
+    data = await monitorAsync("enrichLocation", () => enrichLocation(data));
     const [
       lang,
       surround,
@@ -2293,22 +2351,28 @@ async function lookup() {
       english,
       alerts,
     ] = await Promise.all([
-      fetchLanguageAcs(data),
-      enrichSurrounding(data),
-      enrichWaterDistrict(data, address),
-      enrichEnglishProficiency(data),
-      enrichNwsAlerts(data),
+      monitorAsync("fetchLanguageAcs", () => fetchLanguageAcs(data)),
+      monitorAsync("enrichSurrounding", () => enrichSurrounding(data)),
+      monitorAsync("enrichWaterDistrict", () => enrichWaterDistrict(data, address)),
+      monitorAsync("enrichEnglishProficiency", () => enrichEnglishProficiency(data)),
+      monitorAsync("enrichNwsAlerts", () => enrichNwsAlerts(data)),
     ]);
     deepMerge(data, lang, surround, water, english, alerts);
 
-    const basics = await enrichRegionBasics(data);
-    const housingEd = await enrichRegionHousingEducation(data);
+    const basics = await monitorAsync(
+      "enrichRegionBasics",
+      () => enrichRegionBasics(data),
+    );
+    const housingEd = await monitorAsync(
+      "enrichRegionHousingEducation",
+      () => enrichRegionHousingEducation(data),
+    );
     deepMerge(data, basics, housingEd);
 
     const [regionLangs, regionHard, unemployment] = await Promise.all([
-      enrichRegionLanguages(data),
-      enrichRegionHardships(data),
-      enrichUnemployment(data),
+      monitorAsync("enrichRegionLanguages", () => enrichRegionLanguages(data)),
+      monitorAsync("enrichRegionHardships", () => enrichRegionHardships(data)),
+      monitorAsync("enrichUnemployment", () => enrichUnemployment(data)),
     ]);
     deepMerge(data, regionLangs, regionHard, unemployment);
 
