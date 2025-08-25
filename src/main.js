@@ -2207,15 +2207,25 @@ function renderResult(address, data, elapsedMs) {
   );
 
   const enviroscreenFields = (d = {}) => {
-    const score = d.enviroscreen_score ?? d.score;
-    const percentileRaw = d.enviroscreen_percentile ?? d.percentile;
-    const percentile =
-      Number.isFinite(Number(percentileRaw)) && Number(percentileRaw) <= 1
-        ? Number(percentileRaw) * 100
-        : percentileRaw;
+    // Accept either raw score/percentile or strings that include symbols.
+    // CalEnviroScreen data sometimes arrives as strings like "48.5%"; strip
+    // non-numeric characters so we can format consistently.
+    const rawScore = d.enviroscreen_score ?? d.score;
+    const score =
+      typeof rawScore === "string"
+        ? Number(rawScore.replace(/[^0-9.-]/g, ""))
+        : rawScore;
+
+    const rawPct = d.enviroscreen_percentile ?? d.percentile;
+    let pct =
+      typeof rawPct === "string"
+        ? Number(rawPct.replace(/[^0-9.-]/g, ""))
+        : rawPct;
+    if (Number.isFinite(pct) && pct <= 1) pct *= 100;
+
     const entries = [
       ["Score", fmtNumber(score)],
-      ["Percentile", fmtPct(percentile)],
+      ["Percentile", fmtPct(pct)],
     ];
     return `<div class="kv">${entries
       .map(([k, v]) => `<div class="key">${k}</div><div class="val">${v}</div>`)
@@ -2223,10 +2233,12 @@ function renderResult(address, data, elapsedMs) {
   };
   const enviroscreenRow = buildComparisonRow(
     "EnviroScreen (CalEnviroScreen 4.0)",
-    enviroscreenFields({
-      enviroscreen_score,
-      enviroscreen_percentile,
-    }),
+    // Prefer the full Enviroscreen object when available so that score and
+    // percentile can be derived from it. Fall back to individual fields if
+    // necessary.
+    enviroscreenFields(
+      enviroscreen || { enviroscreen_score, enviroscreen_percentile },
+    ),
     enviroscreenFields(s.environment || {}),
     enviroscreenFields(w.environment || {}),
     '<p class="section-description">This section shows the CalEnviroScreen 4.0 score and percentile for the selected area and comparison regions.</p>',
