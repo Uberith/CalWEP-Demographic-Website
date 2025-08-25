@@ -8,8 +8,9 @@ export function setupAutocomplete() {
   if (!input || !list) return;
 
   // Backend endpoint for autocomplete suggestions. Update here if the
-  // server route changes.
-  const AUTOCOMPLETE_ENDPOINT = "/api/autocomplete";
+  // server route changes. All autocomplete requests should go through
+  // this endpoint and never talk to Google directly.
+  const AUTOCOMPLETE_ENDPOINT = "https://nftapi.cyberwiz.io/api/autocomplete";
 
   let debounceId = null;
   let suggestions = [];
@@ -74,6 +75,7 @@ export function setupAutocomplete() {
         );
         if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
         const data = await resp.json();
+        if (data.error) throw new Error(data.error);
         const preds = Array.isArray(data.predictions) ? data.predictions : [];
         if (!preds.length) {
           clearSuggestions(
