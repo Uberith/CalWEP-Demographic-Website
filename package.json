@@ -1,0 +1,38 @@
+{
+  "name": "calwep-demographic-website",
+  "version": "1.0.0",
+  "description": "CalWEP Demographic Website",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "vite",
+    "build": "vite build",
+    "test": "vitest run",
+    "lint": "eslint src/utils.js test",
+    "format": "prettier --write .",
+    "prepare": "husky install"
+  },
+  "dependencies": {
+    "@sentry/browser": "^10.5.0",
+    "@sentry/node": "^7.120.1",
+    "html2pdf.js": "^0.11.1",
+    "dompurify": "^3.0.6"
+  },
+  "devDependencies": {
+    "vite": "^5.0.0",
+    "jsdom": "^24.0.0",
+    "vitest": "^1.4.0",
+    "eslint": "^8.57.0",
+    "eslint-config-prettier": "^10.1.8",
+    "eslint-plugin-prettier": "^5.0.0",
+    "prettier": "^3.2.5",
+    "husky": "^9.0.0",
+    "lint-staged": "^15.2.0"
+  },
+  "lint-staged": {
+    "**/*.{js,css,json,md}": [
+      "prettier --write",
+      "eslint --fix"
+    ]
+  }
+}

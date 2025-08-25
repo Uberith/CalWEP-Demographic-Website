@@ -4,15 +4,58 @@
    - Robust fetch diagnostics, Google Places autocomplete, Enter-to-search, aria-busy
 */
 
-let autocomplete = null;
+import {
+  API_BASE,
+  API_PATH,
+  buildApiUrl,
+  fetchJsonWithDiagnostics,
+  logDebug,
+  monitorAsync,
+} from "./api.js";
+import { renderLoading, renderError } from "./ui/error.js";
+import { fetchMapsKey, loadGoogleMaps, getGoogleMapsKey } from "./maps.js";
+import { sanitizeHTML, nowStamp, formatDuration } from "./utils.js";
+
+const SENTRY_DSN =
+  document.querySelector('meta[name="sentry-dsn"]')?.content || "";
+if (SENTRY_DSN) {
+  import("@sentry/browser")
+    .then((Sentry) => {
+      window.Sentry = Sentry;
+      Sentry.init({ dsn: SENTRY_DSN });
+      logDebug("Sentry initialized");
+    })
+    .catch((err) => console.error("Sentry failed to load", err));
+}
+
+if ("serviceWorker" in navigator) {
+  window.addEventListener("load", () => {
+    navigator.serviceWorker
+      .register("/sw.js")
+      .catch((err) => console.error("SW registration failed", err));
+  });
+}
+window.addEventListener("error", (event) => {
+  logDebug("window.onerror", event.message);
+  window.Sentry?.captureException(
+    event.error || new Error(event.message || "Unknown error"),
+  );
+});
+window.addEventListener("unhandledrejection", (event) => {
+  logDebug("unhandledrejection", event.reason);
+  window.Sentry?.captureException(event.reason);
+});
 
 let lastReport = null;
 // Cache previously retrieved results to avoid redundant network requests
 const lookupCache = new Map();
 
+
 function printReport() {
   window.print();
 }
+
+window.printReport = printReport;
 
 function downloadRawData() {
   if (!lastReport) return;
@@ -32,22 +75,12 @@ function downloadRawData() {
   URL.revokeObjectURL(url);
 }
 
-function downloadPdf() {
-  if (!lastReport) return;
-  const safe = (lastReport.address || "report")
-    .replace(/[^a-z0-9]+/gi, "_")
-    .toLowerCase();
-  const element = document.querySelector("#result .card");
-  if (!element) return;
-  const opt = {
-    margin: 0.5,
-    filename: `calwep_report_${safe}.pdf`,
-    image: { type: "jpeg", quality: 0.98 },
-    html2canvas: { scale: 2 },
-    jsPDF: { unit: "in", format: "letter", orientation: "portrait" },
-  };
-  html2pdf().set(opt).from(element).save();
-}
+window.downloadRawData = downloadRawData;
+
+window.downloadPdf = async function () {
+  const { downloadPdf } = await import("./pdf.js");
+  downloadPdf(lastReport);
+};
 
 function shareReport() {
   const link = window.location.href;
@@ -63,20 +96,10 @@ function shareReport() {
   }
 }
 
-// ---------- Config ----------
-const API_BASE = "https://nftapi.cyberwiz.io";
-const API_PATH = "/demographics"; // see section 2 for why '/api' is safest
+window.shareReport = shareReport;
 
+// ---------- Config ----------
 // ---------- Utilities ----------
-function escapeHTML(str = "") {
-  if (str === null || str === undefined) return "";
-  return String(str)
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;")
-    .replace(/'/g, "&#39;");
-}
 function isMissing(n) {
   return n == null || Number(n) === -888888888;
 }
@@ -173,21 +196,9 @@ const CES_GROUP_ORDER = {
     "housing_burden",
   ],
 };
-function nowStamp() {
-  return new Date().toLocaleString();
-}
-
 // Simple search timer
 let searchTimerInterval = null;
 let searchTimerStart = null;
-function formatDuration(ms = 0) {
-  const totalSeconds = Math.round(ms / 1000);
-  const minutes = Math.floor(totalSeconds / 60);
-  const seconds = totalSeconds % 60;
-  const mLabel = minutes === 1 ? "Minute" : "Minutes";
-  const sLabel = seconds === 1 ? "Second" : "Seconds";
-  return `${minutes} ${mLabel} and ${seconds} ${sLabel}`;
-}
 function startSearchTimer() {
   searchTimerStart = Date.now();
   const setText = (text) => {
@@ -212,41 +223,6 @@ function stopSearchTimer() {
   searchTimerStart = null;
   return elapsed;
 }
-function buildApiUrl(path, params = {}) {
-  const base = API_BASE.endsWith("/") ? API_BASE : API_BASE + "/";
-  const url = new URL(path.replace(/^\//, ""), base);
-  for (const [k, v] of Object.entries(params)) {
-    if (v !== undefined && v !== null && String(v).length)
-      url.searchParams.set(k, v);
-  }
-  return url.toString();
-}
-async function fetchJsonWithDiagnostics(url) {
-  let res;
-  try {
-    res = await fetch(url, {
-      method: "GET",
-      mode: "cors",
-      cache: "no-store",
-      headers: { Accept: "application/json" },
-    });
-  } catch (e) {
-    throw new Error(`Network error calling API: ${e?.message || e}`);
-  }
-  const txt = await res.text().catch(() => "");
-  if (!res.ok)
-    throw new Error(
-      `API ${res.status} ${res.statusText} for ${url} :: ${txt || "<no body>"}`,
-    );
-  try {
-    return JSON.parse(txt);
-  } catch {
-    throw new Error(
-      `API 200 but response was not valid JSON for ${url} :: ${txt.slice(0, 200)}…`,
-    );
-  }
-}
-
 // Attempt to fill in missing city or census tract using public geocoders
 async function enrichLocation(data = {}) {
   let { city, census_tract, lat, lon, state_fips, county_fips, tract_code } =
@@ -1379,7 +1355,7 @@ function renderEnviroscreenSection(title, data, includeDescription = false) {
     const kv = entries
       .map(
         ([k, v]) =>
-          `<div class="key">${escapeHTML(
+          `<div class="key">${sanitizeHTML(
             CES_LABELS[k] || titleCase(k),
           )}</div><div class="val">${badge(v)}</div>`,
       )
@@ -1411,78 +1387,9 @@ function renderEnviroscreenSection(title, data, includeDescription = false) {
 }
 
 // ---------- Places Autocomplete ----------
-function initAutocomplete() {
-  const input = document.getElementById("autocomplete");
-  if (!input || typeof google === "undefined" || !google.maps) return;
-
-  autocomplete = new google.maps.places.Autocomplete(input, {
-    types: ["address"],
-    componentRestrictions: { country: "us" },
-    fields: ["address_components", "formatted_address"],
-  });
-
-  autocomplete.addListener("place_changed", () => {
-    const p = autocomplete.getPlace();
-    let street = "",
-      city = "",
-      state = "",
-      zip = "";
-    for (const comp of p.address_components || []) {
-      const t = comp.types || [];
-      if (t.includes("street_number")) street = comp.long_name + " ";
-      else if (t.includes("route")) street += comp.long_name;
-      else if (t.includes("locality")) city = comp.long_name;
-      else if (t.includes("administrative_area_level_1"))
-        state = comp.short_name;
-      else if (t.includes("postal_code")) zip = comp.long_name;
-    }
-    if (!zip && p.formatted_address) {
-      const m = p.formatted_address.match(/\b\d{5}(?:-\d{4})?\b/);
-      if (m) zip = m[0];
-    }
-    const parts = [street.trim(), city, state, zip].filter(Boolean);
-    if (parts.length) input.value = parts.join(", ");
-  });
-
-  // Enter triggers lookup
-  input.addEventListener("keydown", (e) => {
-    if (e.key === "Enter") {
-      e.preventDefault();
-      document.getElementById("lookupBtn")?.click();
-    }
-  });
-}
+// initAutocomplete moved to maps.js
 
 // ---------- Rendering ----------
-function renderLoading(address) {
-  document.getElementById("result").innerHTML = `
-    <div class="card">
-      <div class="card__header">
-        <h2 class="card__title">Looking up demographics…</h2>
-        <span class="updated">Started ${nowStamp()}</span>
-      </div>
-      ${address ? `<p class="note">Address: <strong>${escapeHTML(address)}</strong></p>` : ""}
-      <div class="callout">Fetching county, languages, English proficiency, population, income, DAC, and alerts…</div>
-      <p class="note">Elapsed: <span id="searchTimer">0m 00s</span></p>
-    </div>
-  `;
-}
-function renderError(message, address, elapsedMs) {
-  document.getElementById("result").innerHTML = `
-    <div class="card" role="alert">
-      <div class="card__header">
-        <h2 class="card__title">Unable to retrieve data</h2>
-        <span class="updated">${nowStamp()}</span>
-      </div>
-      ${address ? `<p class="note">Address: <strong>${escapeHTML(address)}</strong></p>` : ""}
-      <div class="callout" style="border-left-color:#b45309;">
-        ${escapeHTML(message || "Please try again with a different address.")}
-      </div>
-      <p class="note">Search took ${formatDuration(elapsedMs)}.</p>
-      <p class="note">API base: <code>${escapeHTML(API_BASE)}</code>. If your API has a prefix, adjust <code>API_PATH</code>.</p>
-    </div>
-  `;
-}
 
 function buildComparisonRow(
   title,
@@ -1530,7 +1437,7 @@ function renderEnviroscreenContent(data) {
     const kv = entries
       .map(
         ([k, v]) =>
-          `<div class=\"key\">${escapeHTML(
+          `<div class=\"key\">${sanitizeHTML(
             CES_LABELS[k] || titleCase(k),
           )}</div><div class=\"val\">${badge(v)}</div>`,
       )
@@ -1606,13 +1513,13 @@ function renderResultOld(address, data, elapsedMs) {
       : "—";
   const mapImgHtml =
     lat != null && lon != null
-      ? `<img class="map-image" src="https://maps.googleapis.com/maps/api/staticmap?center=${lat},${lon}&zoom=13&size=600x300&markers=color:red|${lat},${lon}&key=${GOOGLE_MAPS_KEY}" alt="Map of location" />`
+      ? `<img class="map-image" src="https://maps.googleapis.com/maps/api/staticmap?center=${lat},${lon}&zoom=13&size=600x300&markers=color:red|${lat},${lon}&key=${getGoogleMapsKey()}" alt="Map of location" />`
       : "";
 
 const hardshipSection = `
     <section class="section-block">
       <h3 class="section-header">Environmental hardships</h3>
-      ${hardshipList.length ? `<div class="stats">${hardshipList.map((h) => `<span class="pill">${escapeHTML(h)}</span>`).join("")}</div>` : `<p class="note">No environmental hardships recorded.</p>`}
+      ${hardshipList.length ? `<div class="stats">${hardshipList.map((h) => `<span class="pill">${sanitizeHTML(h)}</span>`).join("")}</div>` : `<p class="note">No environmental hardships recorded.</p>`}
     </section>
   `;
 
@@ -1655,10 +1562,10 @@ const hardshipSection = `
     if (Object.keys(d).length) {
       const tractList = Array.isArray(s.census_tracts)
         ? s.census_tracts.join(", ")
-        : escapeHTML(s.census_tracts) || "—";
+        : sanitizeHTML(s.census_tracts) || "—";
       const cityList = Array.isArray(s.cities)
         ? s.cities.join(", ")
-        : escapeHTML(s.cities) || "—";
+        : sanitizeHTML(s.cities) || "—";
       html += `
       <section class="section-block">
         <h3 class="section-header">Surrounding 10‑Mile Area (ACS)</h3>
@@ -1676,8 +1583,8 @@ const hardshipSection = `
           <div class="key">Median home value</div><div class="val">${fmtCurrency(d.median_home_value)}</div>
           <div class="key">High school or higher</div><div class="val">${fmtPct(d.high_school_or_higher_pct)}</div>
           <div class="key">Bachelor's degree or higher</div><div class="val">${fmtPct(d.bachelors_or_higher_pct)}</div>
-          <div class="key">Primary language</div><div class="val">${escapeHTML(d.primary_language) || "—"}</div>
-          <div class="key">Second most common</div><div class="val">${escapeHTML(d.secondary_language) || "—"}</div>
+          <div class="key">Primary language</div><div class="val">${sanitizeHTML(d.primary_language) || "—"}</div>
+          <div class="key">Second most common</div><div class="val">${sanitizeHTML(d.secondary_language) || "—"}</div>
           <div class="key">People who speak a language other than English at home</div><div class="val">${fmtPct(d.language_other_than_english_pct)}</div>
           <div class="key">People who speak English less than \"very well\"</div><div class="val">${fmtPct(d.english_less_than_very_well_pct)}</div>
           <div class="key">People who speak Spanish at home</div><div class="val">${fmtPct(d.spanish_at_home_pct)}</div>
@@ -1708,16 +1615,16 @@ const hardshipSection = `
     const d = w.demographics || {};
     const tractList = Array.isArray(w.census_tracts)
       ? w.census_tracts.join(", ")
-      : escapeHTML(w.census_tracts) || "—";
+      : sanitizeHTML(w.census_tracts) || "—";
     const cityList = Array.isArray(w.cities)
       ? w.cities.join(", ")
-      : escapeHTML(w.cities) || "—";
+      : sanitizeHTML(w.cities) || "—";
     if (w.name || w.census_tracts || w.cities)
       html += `
       <section class="section-block">
         <h3 class="section-header">Location Summary</h3>
         <div class="kv">
-          <div class="key">District</div><div class="val">${escapeHTML(w.name) || "—"}</div>
+          <div class="key">District</div><div class="val">${sanitizeHTML(w.name) || "—"}</div>
           <div class="key">Cities</div><div class="val">${cityList}</div>
           <div class="key">Census tracts</div><div class="val">${tractList}</div>
         </div>
@@ -1726,7 +1633,7 @@ const hardshipSection = `
     if (Object.keys(d).length) {
       html += `
       <section class="section-block">
-        <h3 class="section-header">${escapeHTML(w.name) || "Water District Region"} (ACS)</h3>
+        <h3 class="section-header">${sanitizeHTML(w.name) || "Water District Region"} (ACS)</h3>
         <div class="kv">
           <div class="key">Population</div><div class="val">${fmtInt(d.population)}</div>
           <div class="key">Median age</div><div class="val">${fmtNumber(d.median_age)}</div>
@@ -1739,8 +1646,8 @@ const hardshipSection = `
           <div class="key">Median home value</div><div class="val">${fmtCurrency(d.median_home_value)}</div>
           <div class="key">High school or higher</div><div class="val">${fmtPct(d.high_school_or_higher_pct)}</div>
           <div class="key">Bachelor's degree or higher</div><div class="val">${fmtPct(d.bachelors_or_higher_pct)}</div>
-          <div class="key">Primary language</div><div class="val">${escapeHTML(d.primary_language) || "—"}</div>
-          <div class="key">Second most common</div><div class="val">${escapeHTML(d.secondary_language) || "—"}</div>
+          <div class="key">Primary language</div><div class="val">${sanitizeHTML(d.primary_language) || "—"}</div>
+          <div class="key">Second most common</div><div class="val">${sanitizeHTML(d.secondary_language) || "—"}</div>
           <div class="key">People who speak a language other than English at home</div><div class="val">${fmtPct(d.language_other_than_english_pct)}</div>
           <div class="key">People who speak Spanish at home</div><div class="val">${fmtPct(d.spanish_at_home_pct)}</div>
           <div class="key">Speak English less than \"very well\"</div><div class="val">${fmtPct(d.english_less_than_very_well_pct)}</div>
@@ -1770,10 +1677,10 @@ const hardshipSection = `
     <section class="section-block">
       <h3 class="section-header">Location Summary</h3>
       <div class="kv">
-        <div class="key">City</div><div class="val">${escapeHTML(city) || "—"}</div>
-        <div class="key">Census tract</div><div class="val">${escapeHTML(census_tract) || "—"}</div>
-        <div class="key">ZIP code</div><div class="val">${escapeHTML(zip) || "—"}</div>
-        <div class="key">County</div><div class="val">${escapeHTML(county) || "—"}</div>
+        <div class="key">City</div><div class="val">${sanitizeHTML(city) || "—"}</div>
+        <div class="key">Census tract</div><div class="val">${sanitizeHTML(census_tract) || "—"}</div>
+        <div class="key">ZIP code</div><div class="val">${sanitizeHTML(zip) || "—"}</div>
+        <div class="key">County</div><div class="val">${sanitizeHTML(county) || "—"}</div>
         <div class="key">Coordinates</div><div class="val">${coords}</div>
       </div>
       ${mapImgHtml}
@@ -1809,8 +1716,8 @@ const hardshipSection = `
       <h3 class="section-header">Language (ACS)</h3>
       <p class="section-description">This section highlights the primary and secondary languages spoken in the community and key language indicators based on American Community Survey (ACS) 5‑year estimates.</p>
       <div class="kv">
-        <div class="key">Primary language</div><div class="val">${escapeHTML(primary_language) || "—"}</div>
-        <div class="key">Second most common</div><div class="val">${escapeHTML(secondary_language) || "—"}</div>
+        <div class="key">Primary language</div><div class="val">${sanitizeHTML(primary_language) || "—"}</div>
+        <div class="key">Second most common</div><div class="val">${sanitizeHTML(secondary_language) || "—"}</div>
         <div class="key">People who speak a language other than English at home</div><div class="val">${fmtPct(language_other_than_english_pct)}</div>
         <div class="key">People who speak English less than \"very well\"</div><div class="val">${fmtPct(english_less_than_very_well_pct)}</div>
         <div class="key">People who speak Spanish at home</div><div class="val">${fmtPct(spanish_at_home_pct)}</div>
@@ -1839,7 +1746,7 @@ const hardshipSection = `
         alertList.length
           ? `
         <div class="stats">
-          ${alertList.map((a) => `<span class="pill">${escapeHTML(a)}</span>`).join("")}
+          ${alertList.map((a) => `<span class="pill">${sanitizeHTML(a)}</span>`).join("")}
         </div>
       `
           : `<p class="note">No active alerts found for this location.</p>`
@@ -1847,11 +1754,11 @@ const hardshipSection = `
     </section>
   `;
 
-  document.getElementById("result").innerHTML = `
+  document.getElementById("result").innerHTML = sanitizeHTML(`
     <article class="card">
       <div class="card__header">
         <div class="card__head-left">
-          <h2 class="card__title">Results for: ${escapeHTML(address)}</h2>
+          <h2 class="card__title">Results for: ${sanitizeHTML(address)}</h2>
           <div class="card__actions">
             <button type="button" onclick="printReport()">Print</button>
             <button type="button" onclick="downloadPdf()">Download PDF</button>
@@ -1880,7 +1787,7 @@ const hardshipSection = `
         Sources: FCC Block for county &amp; tract; US Census ACS 5‑year (languages, population, median income); CalEnviroScreen 4.0; NWS alerts.
       </span>
     </article>
-  `;
+    `);
 }
 
 // New row-based renderer
@@ -1936,7 +1843,7 @@ function renderResult(address, data, elapsedMs) {
       : "—";
   const mapImgHtml =
     lat != null && lon != null
-      ? `<img class="map-image" src="https://maps.googleapis.com/maps/api/staticmap?center=${lat},${lon}&zoom=13&size=600x300&markers=color:red|${lat},${lon}&key=${GOOGLE_MAPS_KEY}" alt="Map of location" />`
+      ? `<img class="map-image" src="https://maps.googleapis.com/maps/api/staticmap?center=${lat},${lon}&zoom=13&size=600x300&markers=color:red|${lat},${lon}&key=${getGoogleMapsKey()}" alt="Map of location" />`
       : "";
 
   const s = surrounding_10_mile || {};
@@ -1949,23 +1856,23 @@ function renderResult(address, data, elapsedMs) {
     : [];
   const sTracts = Array.isArray(s.census_tracts)
     ? s.census_tracts.join(", ")
-    : escapeHTML(s.census_tracts) || "—";
+    : sanitizeHTML(s.census_tracts) || "—";
   const sCities = Array.isArray(s.cities)
     ? s.cities.join(", ")
-    : escapeHTML(s.cities) || "—";
+    : sanitizeHTML(s.cities) || "—";
   const wTracts = Array.isArray(w.census_tracts)
     ? w.census_tracts.join(", ")
-    : escapeHTML(w.census_tracts) || "—";
+    : sanitizeHTML(w.census_tracts) || "—";
   const wCities = Array.isArray(w.cities)
     ? w.cities.join(", ")
-    : escapeHTML(w.cities) || "—";
+    : sanitizeHTML(w.cities) || "—";
 
   const locLocal = `
     <div class="kv">
-      <div class="key">City</div><div class="val">${escapeHTML(city) || "—"}</div>
-      <div class="key">Census tract</div><div class="val">${escapeHTML(census_tract) || "—"}</div>
-      <div class="key">ZIP code</div><div class="val">${escapeHTML(zip) || "—"}</div>
-      <div class="key">County</div><div class="val">${escapeHTML(county) || "—"}</div>
+      <div class="key">City</div><div class="val">${sanitizeHTML(city) || "—"}</div>
+      <div class="key">Census tract</div><div class="val">${sanitizeHTML(census_tract) || "—"}</div>
+      <div class="key">ZIP code</div><div class="val">${sanitizeHTML(zip) || "—"}</div>
+      <div class="key">County</div><div class="val">${sanitizeHTML(county) || "—"}</div>
       <div class="key">Coordinates</div><div class="val">${coords}</div>
     </div>
     ${mapImgHtml}
@@ -1978,7 +1885,7 @@ function renderResult(address, data, elapsedMs) {
   `;
   const locDistrict = `
     <div class="kv">
-      <div class="key">District</div><div class="val">${escapeHTML(w.name) || "—"}</div>
+      <div class="key">District</div><div class="val">${sanitizeHTML(w.name) || "—"}</div>
       <div class="key">Cities</div><div class="val">${wCities}</div>
       <div class="key">Census tracts</div><div class="val">${wTracts}</div>
     </div>
@@ -2020,8 +1927,8 @@ function renderResult(address, data, elapsedMs) {
   );
   const languageFields = (d = {}) => {
     const entries = [
-      ["Primary language", escapeHTML(d.primary_language) || "—"],
-      ["Second most common", escapeHTML(d.secondary_language) || "—"],
+      ["Primary language", sanitizeHTML(d.primary_language) || "—"],
+      ["Second most common", sanitizeHTML(d.secondary_language) || "—"],
       [
         "People who speak a language other than English at home",
         fmtPct(d.language_other_than_english_pct),
@@ -2128,7 +2035,7 @@ function renderResult(address, data, elapsedMs) {
     if (Array.isArray(tracts) && tracts.length)
       lines.push(
         `<div class="dac-tracts">Tracts ${tracts
-          .map((t) => escapeHTML(t))
+          .map((t) => sanitizeHTML(t))
           .join(", ")}</div>`,
       );
 
@@ -2159,17 +2066,17 @@ function renderResult(address, data, elapsedMs) {
     "Environmental Hardships",
     hardshipList.length
       ? `<div class="stats">${hardshipList
-          .map((h) => `<span class="pill">${escapeHTML(h)}</span>`)
+          .map((h) => `<span class="pill">${sanitizeHTML(h)}</span>`)
           .join("")}</div>`
       : "",
     sHardships.length
       ? `<div class="stats">${sHardships
-          .map((h) => `<span class="pill">${escapeHTML(h)}</span>`)
+          .map((h) => `<span class="pill">${sanitizeHTML(h)}</span>`)
           .join("")}</div>`
       : "",
     wHardships.length
       ? `<div class="stats">${wHardships
-          .map((h) => `<span class="pill">${escapeHTML(h)}</span>`)
+          .map((h) => `<span class="pill">${sanitizeHTML(h)}</span>`)
           .join("")}</div>`
       : "",
     '<p class="section-description">This section lists environmental hardships reported for the selected location, highlighting challenges that may affect residents and program planning.</p>',
@@ -2182,7 +2089,7 @@ function renderResult(address, data, elapsedMs) {
       ${
         alertList.length
           ? `<div class="stats">${alertList
-              .map((a) => `<span class="pill">${escapeHTML(a)}</span>`)
+              .map((a) => `<span class="pill">${sanitizeHTML(a)}</span>`)
               .join("")}</div>`
           : '<p class="note">No active alerts found for this location.</p>'
       }
@@ -2197,11 +2104,11 @@ function renderResult(address, data, elapsedMs) {
     </div>
   `;
 
-  document.getElementById("result").innerHTML = `
+  document.getElementById("result").innerHTML = sanitizeHTML(`
     <article class="card">
       <div class="card__header">
         <div class="card__head-left">
-          <h2 class="card__title">Results for: ${escapeHTML(address)}</h2>
+          <h2 class="card__title">Results for: ${sanitizeHTML(address)}</h2>
           <div class="card__actions">
             <button type="button" onclick="printReport()">Print</button>
             <button type="button" onclick="downloadPdf()">Download PDF</button>
@@ -2227,7 +2134,7 @@ function renderResult(address, data, elapsedMs) {
         Sources: FCC Block for county &amp; tract; US Census ACS 5‑year (languages, population, median income); CalEnviroScreen 4.0; NWS alerts.
       </span>
     </article>
-  `;
+    `);
 }
 // ---------- Flow ----------
 async function lookup() {
@@ -2244,6 +2151,7 @@ async function lookup() {
     return;
   }
 
+  await fetchMapsKey();
   const cacheKey = address.toLowerCase();
   if (lookupCache.has(cacheKey)) {
     const cached = lookupCache.get(cacheKey);
@@ -2267,7 +2175,7 @@ async function lookup() {
     let data = await fetchJsonWithDiagnostics(url);
     if (!data || typeof data !== "object")
       throw new Error("Malformed response.");
-    data = await enrichLocation(data);
+    data = await monitorAsync("enrichLocation", () => enrichLocation(data));
     const [
       lang,
       surround,
@@ -2275,22 +2183,28 @@ async function lookup() {
       english,
       alerts,
     ] = await Promise.all([
-      fetchLanguageAcs(data),
-      enrichSurrounding(data),
-      enrichWaterDistrict(data, address),
-      enrichEnglishProficiency(data),
-      enrichNwsAlerts(data),
+      monitorAsync("fetchLanguageAcs", () => fetchLanguageAcs(data)),
+      monitorAsync("enrichSurrounding", () => enrichSurrounding(data)),
+      monitorAsync("enrichWaterDistrict", () => enrichWaterDistrict(data, address)),
+      monitorAsync("enrichEnglishProficiency", () => enrichEnglishProficiency(data)),
+      monitorAsync("enrichNwsAlerts", () => enrichNwsAlerts(data)),
     ]);
     deepMerge(data, lang, surround, water, english, alerts);
 
-    const basics = await enrichRegionBasics(data);
-    const housingEd = await enrichRegionHousingEducation(data);
+    const basics = await monitorAsync(
+      "enrichRegionBasics",
+      () => enrichRegionBasics(data),
+    );
+    const housingEd = await monitorAsync(
+      "enrichRegionHousingEducation",
+      () => enrichRegionHousingEducation(data),
+    );
     deepMerge(data, basics, housingEd);
 
     const [regionLangs, regionHard, unemployment] = await Promise.all([
-      enrichRegionLanguages(data),
-      enrichRegionHardships(data),
-      enrichUnemployment(data),
+      monitorAsync("enrichRegionLanguages", () => enrichRegionLanguages(data)),
+      monitorAsync("enrichRegionHardships", () => enrichRegionHardships(data)),
+      monitorAsync("enrichUnemployment", () => enrichUnemployment(data)),
     ]);
     deepMerge(data, regionLangs, regionHard, unemployment);
 
@@ -2321,13 +2235,6 @@ function bindLookupTrigger() {
     e.preventDefault();
     lookup().catch(console.error);
   });
-}
-
-function loadGoogleMaps() {
-  const script = document.createElement("script");
-  script.src = `https://maps.googleapis.com/maps/api/js?key=${GOOGLE_MAPS_KEY}&libraries=places&callback=initAutocomplete`;
-  script.async = true;
-  document.head.appendChild(script);
 }
 
 // Warm language metadata so the first lookup is faster
