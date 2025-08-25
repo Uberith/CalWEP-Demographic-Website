@@ -32,12 +32,12 @@ export async function monitorAsync(name, fn, meta = {}) {
   }
 }
 
-export const API_BASE = "https://nftapi.cyberwiz.io";
-export const API_PATH = "/demographics"; // see section 2 for why '/api' is safest
+import { API_BASE_URL } from "./config.js";
 
 export function buildApiUrl(path, params = {}) {
-  const base = API_BASE.endsWith("/") ? API_BASE : API_BASE + "/";
-  const url = new URL(path.replace(/^\//, ""), base);
+  const base = API_BASE_URL.replace(/\/$/, "");
+  const fullPath = `${base}${path.startsWith("/") ? path : "/" + path}`;
+  const url = new URL(fullPath, window.location.origin);
   for (const [k, v] of Object.entries(params)) {
     if (v !== undefined && v !== null && String(v).length)
       url.searchParams.set(k, v);
@@ -46,6 +46,7 @@ export function buildApiUrl(path, params = {}) {
 }
 
 export async function fetchJsonWithDiagnostics(url) {
+  console.log("API request:", url);
   return monitorAsync(
     "fetchJsonWithDiagnostics",
     async () => {
@@ -61,10 +62,16 @@ export async function fetchJsonWithDiagnostics(url) {
         throw new Error(`Network error calling API: ${e?.message || e}`);
       }
       const txt = await res.text().catch(() => "");
-      if (!res.ok)
-        throw new Error(
-          `API ${res.status} ${res.statusText} for ${url} :: ${txt || "<no body>"}`,
-        );
+      if (!res.ok) {
+        console.error("API error", res.status, txt, "for", url);
+        let msg = `Request failed (HTTP ${res.status})`;
+        if (res.status === 400) msg = "Bad request. Please check the input.";
+        else if (res.status === 404)
+          msg = "Address not found. Please refine your search.";
+        else if (res.status >= 500)
+          msg = "Server error. Please try again later.";
+        throw new Error(msg);
+      }
       try {
         return JSON.parse(txt);
       } catch {

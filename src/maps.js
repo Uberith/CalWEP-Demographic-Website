@@ -9,11 +9,10 @@ export function setupAutocomplete() {
   const list = document.getElementById("autocomplete-list");
   if (!input || !list) return;
 
-  // Backend endpoint for autocomplete suggestions.  The base host can be
-  // configured via <meta name="api-base"> in index.html or by editing
-  // API_BASE in api.js.  All autocomplete requests must go through this
-  // backend endpoint and never talk to Google directly or expose the
-  // Maps API key.
+  // Backend endpoint for autocomplete suggestions. The base host is
+  // resolved at runtime in config.js so API calls hit the correct domain.
+  // All autocomplete requests must go through this backend endpoint and
+  // never talk to Google directly or expose the Maps API key.
   const AUTOCOMPLETE_PATH = "/api/autocomplete";
 
   let debounceId = null;

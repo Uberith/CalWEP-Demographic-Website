@@ -1,12 +1,10 @@
-/* script.js — Demographics Lookup (API-base aware)
-   - Reads API base from <meta name="api-base"> (https://nftapi.cyberwiz.io)
-   - Calls GET /demographics?address=...
+/* script.js — Demographics Lookup
+   - Determines API base via config.js
+   - Calls GET /lookup?address=...
    - Robust fetch diagnostics, Google Places autocomplete, Enter-to-search, aria-busy
 */
 
 import {
-  API_BASE,
-  API_PATH,
   buildApiUrl,
   fetchJsonWithDiagnostics,
   logDebug,
@@ -647,7 +645,7 @@ async function aggregateHardshipsForTracts(fipsList = []) {
   await Promise.all(
     fipsList.map(async (f) => {
       try {
-        const url = buildApiUrl(API_PATH, {
+        const url = buildApiUrl("/lookup", {
           fips: f,
           census_tract: f,
           geoid: f,
@@ -2204,7 +2202,8 @@ async function lookup() {
   let elapsed = 0;
 
   try {
-    const url = buildApiUrl(API_PATH, { address });
+    const url = buildApiUrl("/lookup", { address });
+    console.log("Lookup request:", url);
     let data = await fetchJsonWithDiagnostics(url);
     if (!data || typeof data !== "object")
       throw new Error("Malformed response.");
