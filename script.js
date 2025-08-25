@@ -797,7 +797,7 @@ async function enrichRegionHardships(data = {}) {
 }
 
 // Fetch surrounding cities and census tracts if API didn't provide them
-async function enrichSurrounding(data = {}) {
+async function enrichSurrounding(data = {}, categories = {}) {
   const { lat, lon, census_tract, surrounding_10_mile } = data || {};
   if (lat == null || lon == null) return data;
   const radiusMeters = 1609.34 * 10; // 10 miles
@@ -865,7 +865,11 @@ async function enrichSurrounding(data = {}) {
       fipsSet.add(`${state_fips}${county_fips}${tract_code}`);
     s.census_tracts_fips = Array.from(fipsSet);
   }
-  if (Array.isArray(s.census_tracts_fips) && s.census_tracts_fips.length) {
+  if (
+    categories.dac &&
+    Array.isArray(s.census_tracts_fips) &&
+    s.census_tracts_fips.length
+  ) {
     try {
       const dacFips = await fetchDacFips(s.census_tracts_fips);
       const names = [];
@@ -883,7 +887,11 @@ async function enrichSurrounding(data = {}) {
       // ignore errors
     }
   }
-  if (Array.isArray(s.census_tracts_fips) && s.census_tracts_fips.length) {
+  if (
+    categories.dac &&
+    Array.isArray(s.census_tracts_fips) &&
+    s.census_tracts_fips.length
+  ) {
     try {
       const lookup = await fetchUnemploymentForTracts(s.census_tracts_fips);
       let totalPop = 0;
@@ -907,7 +915,7 @@ async function enrichSurrounding(data = {}) {
 }
 
 // Fill in missing water district basics if the API doesn't provide them
-async function enrichWaterDistrict(data = {}, address = "") {
+async function enrichWaterDistrict(data = {}, address = "", categories = {}) {
   const {
     lat,
     lon,
@@ -1088,7 +1096,11 @@ async function enrichWaterDistrict(data = {}, address = "") {
     fipsList.unshift(`${state_fips}${county_fips}${tract_code}`);
   w.census_tracts_fips = [...new Set(fipsList)];
 
-  if (Array.isArray(w.census_tracts_fips) && w.census_tracts_fips.length) {
+  if (
+    categories.dac &&
+    Array.isArray(w.census_tracts_fips) &&
+    w.census_tracts_fips.length
+  ) {
     try {
       const dacFips = await fetchDacFips(w.census_tracts_fips);
       const names = [];
@@ -1106,7 +1118,11 @@ async function enrichWaterDistrict(data = {}, address = "") {
       // ignore errors
     }
   }
-  if (Array.isArray(w.census_tracts_fips) && w.census_tracts_fips.length) {
+  if (
+    categories.dac &&
+    Array.isArray(w.census_tracts_fips) &&
+    w.census_tracts_fips.length
+  ) {
     try {
       const lookup = await fetchUnemploymentForTracts(w.census_tracts_fips);
       let totalPop = 0;
@@ -1128,43 +1144,45 @@ async function enrichWaterDistrict(data = {}, address = "") {
     }
   }
 
-  // Hard-coded CalEnviroScreen indicators for the water district region
-  w.environment = {
-    percentile: 48.5,
-    overall_percentiles: {
-      pollution_burden: 37.2,
-      population_characteristics: 56.5,
-    },
-    exposures: {
-      ozone: 98.8,
-      pm25: 34.0,
-      diesel: 24.2,
-      toxic_releases: 32.7,
-      traffic: 12.3,
-      pesticides: 22.7,
-      drinking_water: 61.8,
-      lead: 49.1,
-    },
-    environmental_effects: {
-      cleanup_sites: 25.2,
-      groundwater_threats: 20.4,
-      hazardous_waste: 27.8,
-      impaired_waters: 23.0,
-      solid_waste: 45.7,
-    },
-    sensitive_populations: {
-      asthma: 58.9,
-      low_birth_weight: 52.8,
-      cardiovascular_disease: 81.6,
-    },
-    socioeconomic_factors: {
-      education: 45.5,
-      linguistic_isolation: 17.0,
-      poverty: 54.5,
-      unemployment: 63.2,
-      housing_burden: 38.8,
-    },
-  };
+  if (categories.enviroscreen) {
+    // Hard-coded CalEnviroScreen indicators for the water district region
+    w.environment = {
+      percentile: 48.5,
+      overall_percentiles: {
+        pollution_burden: 37.2,
+        population_characteristics: 56.5,
+      },
+      exposures: {
+        ozone: 98.8,
+        pm25: 34.0,
+        diesel: 24.2,
+        toxic_releases: 32.7,
+        traffic: 12.3,
+        pesticides: 22.7,
+        drinking_water: 61.8,
+        lead: 49.1,
+      },
+      environmental_effects: {
+        cleanup_sites: 25.2,
+        groundwater_threats: 20.4,
+        hazardous_waste: 27.8,
+        impaired_waters: 23.0,
+        solid_waste: 45.7,
+      },
+      sensitive_populations: {
+        asthma: 58.9,
+        low_birth_weight: 52.8,
+        cardiovascular_disease: 81.6,
+      },
+      socioeconomic_factors: {
+        education: 45.5,
+        linguistic_isolation: 17.0,
+        poverty: 54.5,
+        unemployment: 63.2,
+        housing_burden: 38.8,
+      },
+    };
+  }
 
   return { ...data, water_district: w };
 }
@@ -2201,8 +2219,8 @@ async function lookup() {
     data = await enrichLocation(data);
     const tasks = [];
     tasks.push(categories.language ? fetchLanguageAcs(data) : Promise.resolve({}));
-    tasks.push(scopes.radius ? enrichSurrounding(data) : Promise.resolve({}));
-    tasks.push(scopes.water ? enrichWaterDistrict(data, address) : Promise.resolve({}));
+    tasks.push(scopes.radius ? enrichSurrounding(data, categories) : Promise.resolve({}));
+    tasks.push(scopes.water ? enrichWaterDistrict(data, address, categories) : Promise.resolve({}));
     tasks.push(categories.language ? enrichEnglishProficiency(data) : Promise.resolve({}));
     tasks.push(categories.alerts ? enrichNwsAlerts(data) : Promise.resolve({}));
     const [lang, surround, water, english, alerts] = await Promise.all(tasks);
