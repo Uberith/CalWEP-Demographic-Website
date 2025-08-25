@@ -175,6 +175,7 @@ h1 {
   display: flex;
   gap: var(--space-3);
   align-items: center;
+  position: relative; /* Allows absolute positioning of suggestion list */
 }
 
 input[type="text"] {
@@ -197,6 +198,44 @@ input[type="text"]:focus {
   outline: none;
   border-color: var(--brand);
   box-shadow: 0 0 0 3px rgba(29, 101, 166, 0.15);
+}
+
+/* Autocomplete suggestion list */
+.autocomplete-list {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  z-index: 1000;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-top: none;
+  max-height: 220px;
+  overflow-y: auto;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: none;
+}
+
+.autocomplete-item {
+  padding: var(--space-2);
+  cursor: pointer;
+}
+
+.autocomplete-item strong {
+  font-weight: 700;
+}
+
+.autocomplete-item.active,
+.autocomplete-item:hover {
+  background: var(--accent-bg);
+}
+
+.autocomplete-list .no-suggestions,
+.autocomplete-list .error {
+  padding: var(--space-2);
+  color: var(--muted);
 }
 
 button {
