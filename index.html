@@ -63,7 +63,7 @@
           </ol>
         </div>
 
-        <div class="controls">
+        <form id="lookupForm" class="controls" role="search" aria-label="Address lookup">
           <label class="visually-hidden" for="autocomplete"
             >Search address</label
           >
@@ -76,10 +76,10 @@
               aria-label="Address search"
             />
             <ul id="autocomplete-list" class="autocomplete-list"></ul>
-            <button id="lookupBtn" type="button" aria-label="Lookup demographics">
+            <button id="lookupBtn" type="submit" aria-label="Lookup demographics">
             Lookup
           </button>
-        </div>
+        </form>
       </header>
 
       <main id="main-content" class="main-column stack stack--xxl">
