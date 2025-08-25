@@ -12,6 +12,6 @@
     "@sentry/node": "^7.120.1"
   },
   "devDependencies": {
-    "vite": "^5.0.0"
+    "vite": "^7.1.3"
   }
 }
