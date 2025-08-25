@@ -40,6 +40,24 @@
                aria-label="Address search" />
         <button id="lookupBtn" type="button" aria-label="Lookup demographics">Lookup</button>
       </div>
+      <div class="selections">
+        <fieldset class="scope-options">
+          <legend>Geographic Scope</legend>
+          <label><input type="checkbox" id="scope-tract" checked /> Census tract</label>
+          <label><input type="checkbox" id="scope-radius" checked /> 10 mile radius</label>
+          <label><input type="checkbox" id="scope-water" checked /> Water district</label>
+        </fieldset>
+        <fieldset class="category-options">
+          <legend>Data Categories</legend>
+          <label><input type="checkbox" id="cat-demographics" checked /> Demographics</label>
+          <label><input type="checkbox" id="cat-language" checked /> Language</label>
+          <label><input type="checkbox" id="cat-housing" checked /> Housing &amp; Education</label>
+          <label><input type="checkbox" id="cat-enviroscreen" checked /> Enviroscreen</label>
+          <label><input type="checkbox" id="cat-dac" checked /> DAC</label>
+          <label><input type="checkbox" id="cat-race" checked /> Race &amp; Ethnicity</label>
+          <label><input type="checkbox" id="cat-alerts" checked /> Alerts</label>
+        </fieldset>
+      </div>
     </header>
 
     <main class="main-column stack stack--xxl">

@@ -10,6 +10,24 @@ let lastReport = null;
 // Cache previously retrieved results to avoid redundant network requests
 const lookupCache = new Map();
 
+function getSelections() {
+  const scopes = {
+    tract: document.getElementById("scope-tract")?.checked ?? true,
+    radius: document.getElementById("scope-radius")?.checked ?? true,
+    water: document.getElementById("scope-water")?.checked ?? true,
+  };
+  const categories = {
+    demographics: document.getElementById("cat-demographics")?.checked ?? true,
+    language: document.getElementById("cat-language")?.checked ?? true,
+    housing: document.getElementById("cat-housing")?.checked ?? true,
+    enviroscreen: document.getElementById("cat-enviroscreen")?.checked ?? true,
+    dac: document.getElementById("cat-dac")?.checked ?? true,
+    race: document.getElementById("cat-race")?.checked ?? true,
+    alerts: document.getElementById("cat-alerts")?.checked ?? true,
+  };
+  return { scopes, categories };
+}
+
 function printReport() {
   window.print();
 }
@@ -1325,7 +1343,27 @@ function initAutocomplete() {
 }
 
 // ---------- Rendering ----------
-function renderLoading(address) {
+function renderLoading(address, selections) {
+  const { scopes, categories } = selections;
+  const loadingCell = '<p class="note">Loading…</p>';
+  const rows = [];
+  const makeRow = (title) =>
+    buildComparisonRow(title, loadingCell, loadingCell, loadingCell, "", scopes);
+  rows.push(makeRow("Location Summary"));
+  if (categories.demographics) rows.push(makeRow("Population &amp; Income"));
+  if (categories.language) rows.push(makeRow("Language"));
+  if (categories.race) rows.push(makeRow("Race &amp; Ethnicity"));
+  if (categories.housing) rows.push(makeRow("Housing &amp; Education"));
+  if (categories.dac) rows.push(makeRow("Disadvantaged Community (DAC) Status"));
+  if (categories.enviroscreen) {
+    rows.push(makeRow("Environmental Indicators"));
+    rows.push(makeRow("Environmental Hardships"));
+  }
+  if (categories.alerts)
+    rows.push(
+      `<section class="section-block"><h3 class="section-header">Active Alerts</h3><p class="note">Loading…</p></section>`,
+    );
+  const columnHeaders = buildColumnHeaders(scopes);
   document.getElementById("result").innerHTML = `
     <div class="card">
       <div class="card__header">
@@ -1333,7 +1371,8 @@ function renderLoading(address) {
         <span class="updated">Started ${nowStamp()}</span>
       </div>
       ${address ? `<p class="note">Address: <strong>${escapeHTML(address)}</strong></p>` : ""}
-      <div class="callout">Fetching county, languages, English proficiency, population, income, DAC, and alerts…</div>
+      ${columnHeaders}
+      ${rows.join("")}
       <p class="note">Elapsed: <span id="searchTimer">0m 00s</span></p>
     </div>
   `;
@@ -1361,20 +1400,31 @@ function buildComparisonRow(
   surroundingHtml,
   districtHtml,
   descriptionHtml = "",
+  scopes = { tract: true, radius: true, water: true },
 ) {
   const cell = (html) =>
     html && String(html).trim() ? html : '<p class="note">No data</p>';
+  const cols = [];
+  if (scopes.tract) cols.push(`<div class="col local">${cell(localHtml)}</div>`);
+  if (scopes.radius)
+    cols.push(`<div class="col surrounding">${cell(surroundingHtml)}</div>`);
+  if (scopes.water) cols.push(`<div class="col district">${cell(districtHtml)}</div>`);
   return `
     <section class="section-block">
       <h3 class="section-header">${title}</h3>
       ${descriptionHtml}
-      <div class="comparison-grid">
-        <div class="col local">${cell(localHtml)}</div>
-        <div class="col surrounding">${cell(surroundingHtml)}</div>
-        <div class="col district">${cell(districtHtml)}</div>
-      </div>
+      <div class="comparison-grid">${cols.join("")}</div>
     </section>
   `;
+}
+
+function buildColumnHeaders(scopes = { tract: true, radius: true, water: true }) {
+  const cols = [];
+  if (scopes.tract) cols.push('<div class="col">Census tract</div>');
+  if (scopes.radius) cols.push('<div class="col">10 mile radius</div>');
+  if (scopes.water) cols.push('<div class="col">Water district</div>');
+  if (!cols.length) return "";
+  return `<div class="comparison-grid column-headers">${cols.join("")}</div>`;
 }
 
 function renderEnviroscreenContent(data) {
@@ -1755,7 +1805,8 @@ const hardshipSection = `
 }
 
 // New row-based renderer
-function renderResult(address, data, elapsedMs) {
+function renderResult(address, data, elapsedMs, selections) {
+  const { scopes, categories } = selections;
   const {
     city,
     zip,
@@ -1860,6 +1911,7 @@ function renderResult(address, data, elapsedMs) {
     locSurround,
     locDistrict,
     '<p class="section-description">This section lists basic geographic information for the census tract, surrounding 10&#8209;mile area, and water district, such as city, ZIP code, county, and coordinates.</p>',
+    scopes,
   );
 
   const popFields = (d = {}) => {
@@ -1888,6 +1940,7 @@ function renderResult(address, data, elapsedMs) {
     popFields(s.demographics || {}),
     popFields(w.demographics || {}),
     '<p class="section-description">This section provides a snapshot of the people living in the selected area, drawn from the American Community Survey (ACS). It includes the total population, median age, household income, poverty rate, and unemployment rate. These indicators offer a quick view of community size, economic stability, and social conditions.</p><p class="section-description"><em>Values for the surrounding 10-mile area and water district are population-weighted averages.</em></p>',
+    scopes,
   );
   const languageFields = (d = {}) => {
     const entries = [
@@ -1919,6 +1972,7 @@ function renderResult(address, data, elapsedMs) {
     languageFields(s.demographics || {}),
     languageFields(w.demographics || {}),
     '<p class="section-description">This section highlights the primary and secondary languages spoken in the community and key language indicators based on American Community Survey (ACS) 5&#8209;year estimates.</p><p class="section-description"><em>Values for the surrounding 10-mile area and water district are population-weighted averages.</em></p>',
+    scopes,
   );
 
   const raceContent = (d = {}) => {
@@ -1953,6 +2007,7 @@ function renderResult(address, data, elapsedMs) {
     raceContent(s.demographics || {}),
     raceContent(w.demographics || {}),
     '<p class="section-description">This section shows the racial and ethnic composition of the community, expressed as percentages of the total population using American Community Survey (ACS) data. These insights help identify the diversity of the area and support efforts to ensure programs, outreach, and engagement strategies reflect and serve all community groups.</p><p class="section-description"><em>Values for the surrounding 10-mile area and water district are population-weighted averages.</em></p>',
+    scopes,
   );
 
   const housingContent = (d = {}) => {
@@ -1979,6 +2034,7 @@ function renderResult(address, data, elapsedMs) {
     housingContent(s.demographics || {}),
     housingContent(w.demographics || {}),
     '<p class="section-description">This section combines information on housing and educational attainment in the community. It includes the percentage of owner&#8209;occupied and renter&#8209;occupied homes, median home value, and levels of education such as high school completion and bachelor’s degree or higher. These indicators provide insight into community stability, affordability, and educational opportunities, helping inform outreach strategies and program planning.</p><p class="section-description"><em>Values for the surrounding 10-mile area and water district are population-weighted averages.</em></p>',
+    scopes,
   );
 
   const dacCallout = (status, tracts, popPct, tractPct) => {
@@ -2016,6 +2072,7 @@ function renderResult(address, data, elapsedMs) {
       ? dacCallout(null, w.dac_tracts, w.dac_population_pct, w.dac_tracts_pct)
       : "",
     '<p class="section-description">This section indicates whether the selected area is designated as a Disadvantaged Community (DAC) using the California Department of Water Resources (DWR) mapping tool. DAC status is determined by household income and is shown as a simple yes/no outcome. This designation is important for identifying areas eligible for certain state and federal funding opportunities and for ensuring that equity considerations are included in outreach and program planning.</p>',
+    scopes,
   );
 
   const enviroscreenRow = buildComparisonRow(
@@ -2024,6 +2081,7 @@ function renderResult(address, data, elapsedMs) {
     renderEnviroscreenContent(s.environment),
     renderEnviroscreenContent(w.environment),
     '<p class="section-description">This section shows environmental and community health indicators from California’s Enviroscreen tool. Results are presented as percentiles, with higher numbers (and darker colors) indicating greater environmental burdens compared to other areas in the state. These measures include factors such as air quality, traffic pollution, and access to safe drinking water.</p><p class="section-description">Staff can use this information to understand potential environmental challenges facing a neighborhood, strengthen grant applications that require equity or environmental justice considerations, and design outreach that addresses local concerns. For example, if an event is planned in an area with a high Enviroscreen percentile, staff may want to highlight programs or benefits related to clean water, pollution reduction, or community health.</p><p class="section-description"><strong>How to Read This</strong><br>Green = Low burden (fewer environmental and health challenges)<br>Yellow/Orange = Moderate burden<br>Red = High burden (greater environmental and health challenges)<br>Percentile score shows how the community compares to others across California.</p>',
+    scopes,
   );
 
   const hardshipRow = buildComparisonRow(
@@ -2044,6 +2102,7 @@ function renderResult(address, data, elapsedMs) {
           .join("")}</div>`
       : "",
     '<p class="section-description">This section lists environmental hardships reported for the selected location, highlighting challenges that may affect residents and program planning.</p>',
+    scopes,
   );
 
   const alertsRow = `
@@ -2059,15 +2118,17 @@ function renderResult(address, data, elapsedMs) {
       }
     </section>
   `;
-
-  const columnHeaders = `
-    <div class="comparison-grid column-headers">
-      <div class="col">Census tract</div>
-      <div class="col">10 mile radius</div>
-      <div class="col">Water district</div>
-    </div>
-  `;
-
+  const columnHeaders = buildColumnHeaders(scopes);
+  const rows = [locationRow];
+  if (categories.demographics) rows.push(populationRow);
+  if (categories.language) rows.push(languageRow);
+  if (categories.race) rows.push(raceRow);
+  if (categories.housing) rows.push(housingRow);
+  if (categories.dac) rows.push(dacRow);
+  if (categories.enviroscreen) {
+    rows.push(enviroscreenRow);
+    rows.push(hardshipRow);
+  }
   document.getElementById("result").innerHTML = `
     <article class="card">
       <div class="card__header">
@@ -2083,15 +2144,8 @@ function renderResult(address, data, elapsedMs) {
         <span class="updated">Updated ${nowStamp()}</span>
       </div>
       ${columnHeaders}
-      ${locationRow}
-      ${populationRow}
-      ${languageRow}
-      ${raceRow}
-      ${housingRow}
-      ${dacRow}
-      ${enviroscreenRow}
-      ${hardshipRow}
-      ${alertsRow}
+      ${rows.join("")}
+      ${categories.alerts ? alertsRow : ""}
       <p class="note">Search took ${formatDuration(elapsedMs)}.</p>
       <p class="note">Values for the surrounding 10-mile area and water district are population-weighted averages.</p>
       <span class="updated--footer">
@@ -2105,6 +2159,12 @@ async function lookup() {
   const input = document.getElementById("autocomplete");
   const resultBox = document.getElementById("result");
   const address = (input?.value || "").trim();
+  const selections = getSelections();
+  const { scopes, categories } = selections;
+  if (!scopes.tract && !scopes.radius && !scopes.water) {
+    renderError("Please select at least one geographic scope.", address, 0);
+    return;
+  }
 
   if (address.length < 4) {
     renderError(
@@ -2122,12 +2182,12 @@ async function lookup() {
     const locUrl = new URL(window.location);
     locUrl.searchParams.set("address", address);
     window.history.replaceState(null, "", locUrl.toString());
-    renderResult(address, cached, 0);
+    renderResult(address, cached, 0, selections);
     return;
   }
 
   resultBox.setAttribute("aria-busy", "true");
-  renderLoading(address);
+  renderLoading(address, selections);
   const overlay = document.getElementById("spinnerOverlay");
   if (overlay) overlay.style.display = "flex";
   startSearchTimer();
@@ -2139,30 +2199,30 @@ async function lookup() {
     if (!data || typeof data !== "object")
       throw new Error("Malformed response.");
     data = await enrichLocation(data);
-    const [
-      lang,
-      surround,
-      water,
-      english,
-      alerts,
-    ] = await Promise.all([
-      fetchLanguageAcs(data),
-      enrichSurrounding(data),
-      enrichWaterDistrict(data, address),
-      enrichEnglishProficiency(data),
-      enrichNwsAlerts(data),
-    ]);
+    const tasks = [];
+    tasks.push(categories.language ? fetchLanguageAcs(data) : Promise.resolve({}));
+    tasks.push(scopes.radius ? enrichSurrounding(data) : Promise.resolve({}));
+    tasks.push(scopes.water ? enrichWaterDistrict(data, address) : Promise.resolve({}));
+    tasks.push(categories.language ? enrichEnglishProficiency(data) : Promise.resolve({}));
+    tasks.push(categories.alerts ? enrichNwsAlerts(data) : Promise.resolve({}));
+    const [lang, surround, water, english, alerts] = await Promise.all(tasks);
     deepMerge(data, lang, surround, water, english, alerts);
 
-    const basics = await enrichRegionBasics(data);
-    deepMerge(data, basics);
-
-    const [regionLangs, regionHard, unemployment] = await Promise.all([
-      enrichRegionLanguages(data),
-      enrichRegionHardships(data),
-      enrichUnemployment(data),
-    ]);
-    deepMerge(data, regionLangs, regionHard, unemployment);
+    const regionTasks = [];
+    if ((scopes.radius || scopes.water) && (categories.demographics || categories.housing || categories.race))
+      regionTasks.push(enrichRegionBasics(data));
+    else regionTasks.push(Promise.resolve({}));
+    if ((scopes.radius || scopes.water) && categories.language)
+      regionTasks.push(enrichRegionLanguages(data));
+    else regionTasks.push(Promise.resolve({}));
+    if ((scopes.radius || scopes.water) && categories.enviroscreen)
+      regionTasks.push(enrichRegionHardships(data));
+    else regionTasks.push(Promise.resolve({}));
+    if ((scopes.radius || scopes.water) && categories.demographics)
+      regionTasks.push(enrichUnemployment(data));
+    else regionTasks.push(Promise.resolve({}));
+    const [basics, regionLangs, regionHard, unemployment] = await Promise.all(regionTasks);
+    deepMerge(data, basics, regionLangs, regionHard, unemployment);
 
     lastReport = { address, data };
     lookupCache.set(cacheKey, data);
@@ -2170,7 +2230,7 @@ async function lookup() {
     locUrl.searchParams.set("address", address);
     window.history.replaceState(null, "", locUrl.toString());
     elapsed = stopSearchTimer();
-    renderResult(address, data, elapsed);
+    renderResult(address, data, elapsed, selections);
   } catch (err) {
     if (!elapsed) elapsed = stopSearchTimer();
     renderError(String(err), address, elapsed);
