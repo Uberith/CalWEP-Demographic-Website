@@ -1939,10 +1939,10 @@ function renderResult(address, data, elapsedMs) {
         <div class="card__head-left">
           <h2 class="card__title">Results for: ${sanitizeHTML(address)}</h2>
           <div class="card__actions">
-            <button type="button" onclick="printReport()">Print</button>
-            <button type="button" onclick="downloadPdf()">Download PDF</button>
-            <button type="button" onclick="downloadRawData()">Raw Data</button>
-            <button type="button" onclick="shareReport()">Share Link</button>
+            <button type="button" id="printBtn">Print</button>
+            <button type="button" id="pdfBtn">Download PDF</button>
+            <button type="button" id="rawBtn">Raw Data</button>
+            <button type="button" id="shareBtn">Share Link</button>
           </div>
         </div>
         <span class="updated">Updated ${nowStamp()}</span>
@@ -1964,6 +1964,11 @@ function renderResult(address, data, elapsedMs) {
       </span>
     </article>
   `);
+
+  document.getElementById("printBtn")?.addEventListener("click", printReport);
+  document.getElementById("pdfBtn")?.addEventListener("click", downloadPdf);
+  document.getElementById("rawBtn")?.addEventListener("click", downloadRawData);
+  document.getElementById("shareBtn")?.addEventListener("click", shareReport);
 }
 // ---------- Flow ----------
 async function lookup() {
