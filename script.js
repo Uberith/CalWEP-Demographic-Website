@@ -471,6 +471,7 @@ async function aggregateBasicDemographicsForTracts(fipsList = []) {
   let perCapitaWeighted = 0;
   let povertyCount = 0;
 
+  const tasks = [];
   for (const g of Object.values(groups)) {
     const tractChunks = chunk(g.tracts, 50);
     for (const ch of tractChunks) {
@@ -478,22 +479,26 @@ async function aggregateBasicDemographicsForTracts(fipsList = []) {
         "https://api.census.gov/data/2022/acs/acs5/profile?get=DP05_0001E,DP05_0018E,DP03_0062E,DP03_0088E,DP03_0128PE&for=tract:" +
         ch.join(",") +
         `&in=state:${g.state}%20county:${g.county}`;
-      try {
-        const rows = await fetch(url).then((r) => r.json());
-        if (!Array.isArray(rows) || rows.length < 2) continue;
-        for (let i = 1; i < rows.length; i++) {
-          const [pop, age, income, perCapita, povPct] = rows[i].map(Number);
-          if (Number.isFinite(pop) && pop > 0) {
-            totalPop += pop;
-            if (Number.isFinite(age)) ageWeighted += age * pop;
-            if (Number.isFinite(income)) incomeWeighted += income * pop;
-            if (Number.isFinite(perCapita)) perCapitaWeighted += perCapita * pop;
-            if (Number.isFinite(povPct) && povPct >= 0)
-              povertyCount += (povPct / 100) * pop;
-          }
-        }
-      } catch {
-        // ignore errors for this chunk
+      tasks.push(
+        fetch(url)
+          .then((r) => r.json())
+          .catch(() => null),
+      );
+    }
+  }
+
+  const responses = await Promise.all(tasks);
+  for (const rows of responses) {
+    if (!Array.isArray(rows) || rows.length < 2) continue;
+    for (let i = 1; i < rows.length; i++) {
+      const [pop, age, income, perCapita, povPct] = rows[i].map(Number);
+      if (Number.isFinite(pop) && pop > 0) {
+        totalPop += pop;
+        if (Number.isFinite(age)) ageWeighted += age * pop;
+        if (Number.isFinite(income)) incomeWeighted += income * pop;
+        if (Number.isFinite(perCapita)) perCapitaWeighted += perCapita * pop;
+        if (Number.isFinite(povPct) && povPct >= 0)
+          povertyCount += (povPct / 100) * pop;
       }
     }
   }
@@ -525,6 +530,7 @@ async function fetchUnemploymentForTracts(fipsList = []) {
     groups[key].tracts.push(tract);
   }
   const results = {};
+  const tasks = [];
   for (const g of Object.values(groups)) {
     const tractChunks = chunk(g.tracts, 50);
     for (const ch of tractChunks) {
@@ -532,20 +538,23 @@ async function fetchUnemploymentForTracts(fipsList = []) {
         "https://api.census.gov/data/2022/acs/acs5/profile?get=DP03_0009PE,DP05_0001E&for=tract:" +
         ch.join(",") +
         `&in=state:${g.state}%20county:${g.county}`;
-      try {
-        const rows = await fetch(url).then((r) => r.json());
-        if (!Array.isArray(rows) || rows.length < 2) continue;
-        for (let i = 1; i < rows.length; i++) {
-          const [unemp, pop, state, county, tract] = rows[i];
-          const geoid = `${state}${county}${tract}`;
-          results[geoid] = {
-            unemployment_rate: Number(unemp),
-            population: Number(pop),
-          };
-        }
-      } catch {
-        // ignore errors for this chunk
-      }
+      tasks.push(
+        fetch(url)
+          .then((r) => r.json())
+          .catch(() => null),
+      );
+    }
+  }
+  const responses = await Promise.all(tasks);
+  for (const rows of responses) {
+    if (!Array.isArray(rows) || rows.length < 2) continue;
+    for (let i = 1; i < rows.length; i++) {
+      const [unemp, pop, state, county, tract] = rows[i];
+      const geoid = `${state}${county}${tract}`;
+      results[geoid] = {
+        unemployment_rate: Number(unemp),
+        population: Number(pop),
+      };
     }
   }
   return results;
@@ -557,6 +566,7 @@ async function fetchDacFips(fipsList = []) {
     "https://gis.water.ca.gov/arcgis/rest/services/Society/i16_Census_Tract_DisadvantagedCommunities_2020/MapServer/0/query";
   const out = new Set();
   const chunkSize = 50;
+  const tasks = [];
   for (let i = 0; i < fipsList.length; i += chunkSize) {
     const chunk = fipsList.slice(i, i + chunkSize);
     if (!chunk.length) continue;
@@ -564,16 +574,20 @@ async function fetchDacFips(fipsList = []) {
     const url =
       baseUrl +
       `?where=${encodeURIComponent(where)}&outFields=GEOID20,DAC20&returnGeometry=false&f=json`;
-    try {
-      const j = await fetch(url).then((r) => r.json());
-      for (const f of j.features || []) {
-        const attrs = f.attributes || {};
-        const geoid = String(attrs.GEOID20);
-        const status = String(attrs.DAC20 || "").toUpperCase();
-        if (status === "Y") out.add(geoid);
-      }
-    } catch {
-      // ignore errors for this chunk
+    tasks.push(
+      fetch(url)
+        .then((r) => r.json())
+        .catch(() => null),
+    );
+  }
+  const results = await Promise.all(tasks);
+  for (const j of results) {
+    if (!j) continue;
+    for (const f of j.features || []) {
+      const attrs = f.attributes || {};
+      const geoid = String(attrs.GEOID20);
+      const status = String(attrs.DAC20 || "").toUpperCase();
+      if (status === "Y") out.add(geoid);
     }
   }
   return Array.from(out);
