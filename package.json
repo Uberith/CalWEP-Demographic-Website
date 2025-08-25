@@ -4,9 +4,19 @@
   "description": "CalWEP Demographic Website",
   "main": "server.js",
   "scripts": {
-    "start": "node server.js"
+    "start": "node server.js",
+    "test": "jest"
   },
   "dependencies": {
     "@sentry/node": "^7.120.1"
+  },
+  "devDependencies": {
+    "dompurify": "^3.0.8",
+    "jest": "^29.7.0",
+    "jsdom": "^22.1.0",
+    "jest-environment-jsdom": "^29.7.0"
+  },
+  "jest": {
+    "testEnvironment": "jsdom"
   }
 }

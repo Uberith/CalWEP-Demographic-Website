@@ -137,14 +137,9 @@ const API_BASE = "https://nftapi.cyberwiz.io";
 const API_PATH = "/demographics"; // see section 2 for why '/api' is safest
 
 // ---------- Utilities ----------
-function escapeHTML(str = "") {
+function sanitizeHTML(str = "") {
   if (str === null || str === undefined) return "";
-  return String(str)
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;")
-    .replace(/'/g, "&#39;");
+  return DOMPurify.sanitize(String(str), { ALLOWED_TAGS: [], ALLOWED_ATTR: [] });
 }
 function isMissing(n) {
   return n == null || Number(n) === -888888888;
@@ -1454,7 +1449,7 @@ function renderEnviroscreenSection(title, data, includeDescription = false) {
     const kv = entries
       .map(
         ([k, v]) =>
-          `<div class="key">${escapeHTML(
+          `<div class="key">${sanitizeHTML(
             CES_LABELS[k] || titleCase(k),
           )}</div><div class="val">${badge(v)}</div>`,
       )
@@ -1530,33 +1525,33 @@ function initAutocomplete() {
 
 // ---------- Rendering ----------
 function renderLoading(address) {
-  document.getElementById("result").innerHTML = `
+  document.getElementById("result").innerHTML = DOMPurify.sanitize(`
     <div class="card">
       <div class="card__header">
         <h2 class="card__title">Looking up demographics…</h2>
         <span class="updated">Started ${nowStamp()}</span>
       </div>
-      ${address ? `<p class="note">Address: <strong>${escapeHTML(address)}</strong></p>` : ""}
+      ${address ? `<p class="note">Address: <strong>${sanitizeHTML(address)}</strong></p>` : ""}
       <div class="callout">Fetching county, languages, English proficiency, population, income, DAC, and alerts…</div>
       <p class="note">Elapsed: <span id="searchTimer">0m 00s</span></p>
     </div>
-  `;
+  `);
 }
 function renderError(message, address, elapsedMs) {
-  document.getElementById("result").innerHTML = `
+  document.getElementById("result").innerHTML = DOMPurify.sanitize(`
     <div class="card" role="alert">
       <div class="card__header">
         <h2 class="card__title">Unable to retrieve data</h2>
         <span class="updated">${nowStamp()}</span>
       </div>
-      ${address ? `<p class="note">Address: <strong>${escapeHTML(address)}</strong></p>` : ""}
+      ${address ? `<p class="note">Address: <strong>${sanitizeHTML(address)}</strong></p>` : ""}
       <div class="callout" style="border-left-color:#b45309;">
-        ${escapeHTML(message || "Please try again with a different address.")}
+        ${sanitizeHTML(message || "Please try again with a different address.")}
       </div>
       <p class="note">Search took ${formatDuration(elapsedMs)}.</p>
-      <p class="note">API base: <code>${escapeHTML(API_BASE)}</code>. If your API has a prefix, adjust <code>API_PATH</code>.</p>
+      <p class="note">API base: <code>${sanitizeHTML(API_BASE)}</code>. If your API has a prefix, adjust <code>API_PATH</code>.</p>
     </div>
-  `;
+  `);
 }
 
 function buildComparisonRow(
@@ -1605,7 +1600,7 @@ function renderEnviroscreenContent(data) {
     const kv = entries
       .map(
         ([k, v]) =>
-          `<div class=\"key\">${escapeHTML(
+          `<div class=\"key\">${sanitizeHTML(
             CES_LABELS[k] || titleCase(k),
           )}</div><div class=\"val\">${badge(v)}</div>`,
       )
@@ -1624,340 +1619,6 @@ function renderEnviroscreenContent(data) {
     ${renderGroup("Socioeconomic factors", data.socioeconomic_factors, CES_GROUP_ORDER.socioeconomic_factors)}
   `;
 }
-function renderResultOld(address, data, elapsedMs) {
-  const {
-    city,
-    zip,
-    county,
-    census_tract,
-    lat,
-    lon,
-    primary_language,
-    secondary_language,
-    english_less_than_very_well_pct,
-    language_other_than_english_pct,
-    spanish_at_home_pct,
-    median_household_income,
-    per_capita_income,
-    median_age,
-    poverty_rate,
-    unemployment_rate,
-    population,
-    people_below_poverty,
-    dac_status,
-    environmental_hardships,
-    white_pct,
-    black_pct,
-    native_pct,
-    asian_pct,
-    pacific_pct,
-    other_race_pct,
-    two_or_more_races_pct,
-    hispanic_pct,
-    not_hispanic_pct,
-    owner_occupied_pct,
-    renter_occupied_pct,
-    median_home_value,
-    high_school_or_higher_pct,
-    bachelors_or_higher_pct,
-    alerts,
-    enviroscreen,
-    surrounding_10_mile,
-    water_district,
-  } = data || {};
-
-  const hardshipList = Array.isArray(environmental_hardships)
-    ? Array.from(new Set(environmental_hardships))
-    : [];
-  const alertList = Array.isArray(alerts) ? alerts : [];
-  const cesSection = renderEnviroscreenSection(
-    "Environmental Indicators (CalEPA Enviroscreen)",
-    enviroscreen,
-    true,
-  );
-  const coords =
-    lat != null && lon != null
-      ? `${Number(lat).toFixed(6)}, ${Number(lon).toFixed(6)}`
-      : "—";
-  const mapImgHtml =
-    lat != null && lon != null
-      ? `<img class="map-image" src="https://maps.googleapis.com/maps/api/staticmap?center=${lat},${lon}&zoom=13&size=600x300&markers=color:red|${lat},${lon}&key=${googleMapsKey}" alt="Map of location" />`
-      : "";
-
-const hardshipSection = `
-    <section class="section-block">
-      <h3 class="section-header">Environmental hardships</h3>
-      ${hardshipList.length ? `<div class="stats">${hardshipList.map((h) => `<span class="pill">${escapeHTML(h)}</span>`).join("")}</div>` : `<p class="note">No environmental hardships recorded.</p>`}
-    </section>
-  `;
-
-  const raceSection = `
-    <section class="section-block">
-      <h3 class="section-header">Race &amp; Ethnicity (ACS)</h3>
-      <p class="section-description">This section shows the racial and ethnic composition of the community, expressed as percentages of the total population using American Community Survey (ACS) data. These insights help identify the diversity of the area and support efforts to ensure programs, outreach, and engagement strategies reflect and serve all community groups.</p>
-      <div class="kv">
-        <div class="key">White</div><div class="val">${fmtPct(white_pct)}</div>
-        <div class="key">Black or African American</div><div class="val">${fmtPct(black_pct)}</div>
-        <div class="key">American Indian / Alaska Native</div><div class="val">${fmtPct(native_pct)}</div>
-        <div class="key">Asian</div><div class="val">${fmtPct(asian_pct)}</div>
-        <div class="key">Native Hawaiian / Pacific Islander</div><div class="val">${fmtPct(pacific_pct)}</div>
-        <div class="key">Other race</div><div class="val">${fmtPct(other_race_pct)}</div>
-        <div class="key">Two or more races</div><div class="val">${fmtPct(two_or_more_races_pct)}</div>
-        <div class="key">Hispanic</div><div class="val">${fmtPct(hispanic_pct)}</div>
-        <div class="key">Not Hispanic</div><div class="val">${fmtPct(not_hispanic_pct)}</div>
-      </div>
-    </section>
-  `;
-
-  const housingSection = `
-    <section class="section-block">
-      <h3 class="section-header">Housing &amp; Education (ACS)</h3>
-      <p class="section-description">This section combines information on housing and educational attainment in the community. It includes the percentage of owner-occupied and renter-occupied homes, median home value, and levels of education such as high school completion and bachelor’s degree or higher. These indicators provide insight into community stability, affordability, and educational opportunities, helping inform outreach strategies and program planning.</p>
-      <div class="kv">
-        <div class="key">Owner occupied</div><div class="val">${fmtPct(owner_occupied_pct)}</div>
-        <div class="key">Renter occupied</div><div class="val">${fmtPct(renter_occupied_pct)}</div>
-        <div class="key">Median home value</div><div class="val">${fmtCurrency(median_home_value)}</div>
-        <div class="key">High school or higher</div><div class="val">${fmtPct(high_school_or_higher_pct)}</div>
-        <div class="key">Bachelor's degree or higher</div><div class="val">${fmtPct(bachelors_or_higher_pct)}</div>
-      </div>
-    </section>
-  `;
-
-  const surroundingSection = (() => {
-    const s = surrounding_10_mile || {};
-    let html = "";
-    const d = s.demographics || {};
-    if (Object.keys(d).length) {
-      const tractList = Array.isArray(s.census_tracts)
-        ? s.census_tracts.join(", ")
-        : escapeHTML(s.census_tracts) || "—";
-      const cityList = Array.isArray(s.cities)
-        ? s.cities.join(", ")
-        : escapeHTML(s.cities) || "—";
-      html += `
-      <section class="section-block">
-        <h3 class="section-header">Surrounding 10‑Mile Area (ACS)</h3>
-        <div class="kv">
-          <div class="key">Cities</div><div class="val">${cityList}</div>
-          <div class="key">Census tracts</div><div class="val">${tractList}</div>
-          <div class="key">Population</div><div class="val">${fmtInt(d.population)}</div>
-          <div class="key">Median age</div><div class="val">${fmtNumber(d.median_age)}</div>
-          <div class="key">Median household income</div><div class="val">${fmtCurrency(d.median_household_income)}</div>
-          <div class="key">Per capita income</div><div class="val">${fmtCurrency(d.per_capita_income)}</div>
-          <div class="key">Poverty rate</div><div class="val">${fmtPct(d.poverty_rate)}</div>
-          <div class="key">Unemployment rate</div><div class="val">${fmtPct(d.unemployment_rate)}</div>
-          <div class="key">Owner occupied</div><div class="val">${fmtPct(d.owner_occupied_pct)}</div>
-          <div class="key">Renter occupied</div><div class="val">${fmtPct(d.renter_occupied_pct)}</div>
-          <div class="key">Median home value</div><div class="val">${fmtCurrency(d.median_home_value)}</div>
-          <div class="key">High school or higher</div><div class="val">${fmtPct(d.high_school_or_higher_pct)}</div>
-          <div class="key">Bachelor's degree or higher</div><div class="val">${fmtPct(d.bachelors_or_higher_pct)}</div>
-          <div class="key">Primary language</div><div class="val">${escapeHTML(d.primary_language) || "—"}</div>
-          <div class="key">Second most common</div><div class="val">${escapeHTML(d.secondary_language) || "—"}</div>
-          <div class="key">People who speak a language other than English at home</div><div class="val">${fmtPct(d.language_other_than_english_pct)}</div>
-          <div class="key">People who speak English less than \"very well\"</div><div class="val">${fmtPct(d.english_less_than_very_well_pct)}</div>
-          <div class="key">People who speak Spanish at home</div><div class="val">${fmtPct(d.spanish_at_home_pct)}</div>
-          <div class="key">White</div><div class="val">${fmtPct(d.white_pct)}</div>
-          <div class="key">Black or African American</div><div class="val">${fmtPct(d.black_pct)}</div>
-          <div class="key">American Indian / Alaska Native</div><div class="val">${fmtPct(d.native_pct)}</div>
-          <div class="key">Asian</div><div class="val">${fmtPct(d.asian_pct)}</div>
-          <div class="key">Native Hawaiian / Pacific Islander</div><div class="val">${fmtPct(d.pacific_pct)}</div>
-          <div class="key">Other race</div><div class="val">${fmtPct(d.other_race_pct)}</div>
-          <div class="key">Two or more races</div><div class="val">${fmtPct(d.two_or_more_races_pct)}</div>
-          <div class="key">Hispanic</div><div class="val">${fmtPct(d.hispanic_pct)}</div>
-          <div class="key">Not Hispanic</div><div class="val">${fmtPct(d.not_hispanic_pct)}</div>
-        </div>
-      </section>
-    `;
-    }
-    if (s.environment)
-      html += renderEnviroscreenSection(
-        "Surrounding 10‑Mile Area Environment (CalEPA Enviroscreen)",
-        s.environment,
-      );
-    return html;
-  })();
-
-  const waterDistrictSection = (() => {
-    const w = water_district || {};
-    let html = "";
-    const d = w.demographics || {};
-    const tractList = Array.isArray(w.census_tracts)
-      ? w.census_tracts.join(", ")
-      : escapeHTML(w.census_tracts) || "—";
-    const cityList = Array.isArray(w.cities)
-      ? w.cities.join(", ")
-      : escapeHTML(w.cities) || "—";
-    if (w.name || w.census_tracts || w.cities)
-      html += `
-      <section class="section-block">
-        <h3 class="section-header">Location Summary</h3>
-        <div class="kv">
-          <div class="key">District</div><div class="val">${escapeHTML(w.name) || "—"}</div>
-          <div class="key">Cities</div><div class="val">${cityList}</div>
-          <div class="key">Census tracts</div><div class="val">${tractList}</div>
-        </div>
-      </section>
-    `;
-    if (Object.keys(d).length) {
-      html += `
-      <section class="section-block">
-        <h3 class="section-header">${escapeHTML(w.name) || "Water District Region"} (ACS)</h3>
-        <div class="kv">
-          <div class="key">Population</div><div class="val">${fmtInt(d.population)}</div>
-          <div class="key">Median age</div><div class="val">${fmtNumber(d.median_age)}</div>
-          <div class="key">Median household income</div><div class="val">${fmtCurrency(d.median_household_income)}</div>
-          <div class="key">Per capita income</div><div class="val">${fmtCurrency(d.per_capita_income)}</div>
-          <div class="key">Poverty rate</div><div class="val">${fmtPct(d.poverty_rate)}</div>
-          <div class="key">Unemployment rate</div><div class="val">${fmtPct(d.unemployment_rate)}</div>
-          <div class="key">Owner occupied</div><div class="val">${fmtPct(d.owner_occupied_pct)}</div>
-          <div class="key">Renter occupied</div><div class="val">${fmtPct(d.renter_occupied_pct)}</div>
-          <div class="key">Median home value</div><div class="val">${fmtCurrency(d.median_home_value)}</div>
-          <div class="key">High school or higher</div><div class="val">${fmtPct(d.high_school_or_higher_pct)}</div>
-          <div class="key">Bachelor's degree or higher</div><div class="val">${fmtPct(d.bachelors_or_higher_pct)}</div>
-          <div class="key">Primary language</div><div class="val">${escapeHTML(d.primary_language) || "—"}</div>
-          <div class="key">Second most common</div><div class="val">${escapeHTML(d.secondary_language) || "—"}</div>
-          <div class="key">People who speak a language other than English at home</div><div class="val">${fmtPct(d.language_other_than_english_pct)}</div>
-          <div class="key">People who speak Spanish at home</div><div class="val">${fmtPct(d.spanish_at_home_pct)}</div>
-          <div class="key">Speak English less than \"very well\"</div><div class="val">${fmtPct(d.english_less_than_very_well_pct)}</div>
-          <div class="key">White</div><div class="val">${fmtPct(d.white_pct)}</div>
-          <div class="key">Black or African American</div><div class="val">${fmtPct(d.black_pct)}</div>
-          <div class="key">American Indian / Alaska Native</div><div class="val">${fmtPct(d.native_pct)}</div>
-          <div class="key">Asian</div><div class="val">${fmtPct(d.asian_pct)}</div>
-          <div class="key">Native Hawaiian / Pacific Islander</div><div class="val">${fmtPct(d.pacific_pct)}</div>
-          <div class="key">Other race</div><div class="val">${fmtPct(d.other_race_pct)}</div>
-          <div class="key">Two or more races</div><div class="val">${fmtPct(d.two_or_more_races_pct)}</div>
-          <div class="key">Hispanic</div><div class="val">${fmtPct(d.hispanic_pct)}</div>
-          <div class="key">Not Hispanic</div><div class="val">${fmtPct(d.not_hispanic_pct)}</div>
-        </div>
-      </section>
-    `;
-    }
-    if (w.environment && Object.keys(w.environment).length)
-      html += renderEnviroscreenSection(
-        "Water District Region Environment (CalEPA Enviroscreen)",
-        w.environment,
-      );
-    return html;
-  })();
-
-
-  const localInfo = `
-    <section class="section-block">
-      <h3 class="section-header">Location Summary</h3>
-      <div class="kv">
-        <div class="key">City</div><div class="val">${escapeHTML(city) || "—"}</div>
-        <div class="key">Census tract</div><div class="val">${escapeHTML(census_tract) || "—"}</div>
-        <div class="key">ZIP code</div><div class="val">${escapeHTML(zip) || "—"}</div>
-        <div class="key">County</div><div class="val">${escapeHTML(county) || "—"}</div>
-        <div class="key">Coordinates</div><div class="val">${coords}</div>
-      </div>
-      ${mapImgHtml}
-    </section>
-      <p class="note">Search took ${formatDuration(elapsedMs)}.</p>
-
-    <section class="section-block">
-      <h3 class="section-header">Population &amp; Income (ACS)</h3>
-      <p class="section-description">This section provides a snapshot of the people living in the selected area, drawn from the American Community Survey (ACS). It includes the total population, median age, household income, poverty rate, and unemployment rate. These indicators offer a quick view of community size, economic stability, and social conditions.</p>
-      <div class="kv">
-        ${(() => {
-          const popEntries = [
-            ["Total population", fmtInt(population)],
-            ["Median age", fmtNumber(median_age)],
-            ["Median household income", fmtCurrency(median_household_income)],
-            ["Per capita income", fmtCurrency(per_capita_income)],
-            ["People below poverty", fmtInt(people_below_poverty)],
-            ["Poverty rate", fmtPct(poverty_rate)],
-            ["Unemployment rate", fmtPct(unemployment_rate)],
-          ];
-          return popEntries
-            .filter(([, v]) => v !== "—")
-            .map(
-              ([k, v]) =>
-                `<div class="key">${k}</div><div class="val">${v}</div>`,
-            )
-            .join("");
-        })()}
-      </div>
-    </section>
-
-    <section class="section-block">
-      <h3 class="section-header">Language (ACS)</h3>
-      <p class="section-description">This section highlights the primary and secondary languages spoken in the community and key language indicators based on American Community Survey (ACS) 5‑year estimates.</p>
-      <div class="kv">
-        <div class="key">Primary language</div><div class="val">${escapeHTML(primary_language) || "—"}</div>
-        <div class="key">Second most common</div><div class="val">${escapeHTML(secondary_language) || "—"}</div>
-        <div class="key">People who speak a language other than English at home</div><div class="val">${fmtPct(language_other_than_english_pct)}</div>
-        <div class="key">People who speak English less than \"very well\"</div><div class="val">${fmtPct(english_less_than_very_well_pct)}</div>
-        <div class="key">People who speak Spanish at home</div><div class="val">${fmtPct(spanish_at_home_pct)}</div>
-      </div>
-      <p class="note">Source: Latest ACS 5-Year Estimates<br>Data Profiles/Social Characteristics</p>
-    </section>
-
-    ${raceSection}
-    ${housingSection}
-    <section class="section-block">
-      <h3 class="section-header">Disadvantaged Community (DAC) Status</h3>
-      <p class="section-description">This section indicates whether the selected area is designated as a Disadvantaged Community (DAC) using the California Department of Water Resources (DWR) mapping tool. DAC status is determined by household income and is shown as a simple yes/no outcome. This designation is important for identifying areas eligible for certain state and federal funding opportunities and for ensuring that equity considerations are included in outreach and program planning.</p>
-      <div class="callout" style="border-left-color:${
-        dac_status ? "var(--success)" : "var(--border-strong)"
-      }">
-        Disadvantaged community: <strong>${dac_status ? "Yes" : "No"}</strong>
-      </div>
-    </section>
-
-    ${cesSection}
-    ${hardshipSection}
-    <section class="section-block">
-      <h3 class="section-header">Active Alerts (National Weather Service)</h3>
-      <p class="section-description">This section displays any current weather alerts issued by the National Weather Service (NWS) for the selected location. Alerts may include warnings for extreme heat, flooding, wildfire smoke, or other hazardous conditions. Having this information alongside demographic and environmental data helps staff anticipate safety concerns for events, tailor outreach, and ensure programs are responsive to current community conditions.</p>
-      ${
-        alertList.length
-          ? `
-        <div class="stats">
-          ${alertList.map((a) => `<span class="pill">${escapeHTML(a)}</span>`).join("")}
-        </div>
-      `
-          : `<p class="note">No active alerts found for this location.</p>`
-      }
-    </section>
-  `;
-
-  document.getElementById("result").innerHTML = `
-    <article class="card">
-      <div class="card__header">
-        <div class="card__head-left">
-          <h2 class="card__title">Results for: ${escapeHTML(address)}</h2>
-          <div class="card__actions">
-            <button type="button" onclick="printReport()">Print</button>
-            <button type="button" onclick="downloadPdf()">Download PDF</button>
-            <button type="button" onclick="downloadRawData()">Raw Data</button>
-            <button type="button" onclick="shareReport()">Share Link</button>
-          </div>
-        </div>
-        <span class="updated">Updated ${nowStamp()}</span>
-      </div>
-      <div class="comparison-grid">
-        <div class="col local">
-          ${localInfo}
-        </div>
-        ${
-          surroundingSection
-            ? `<div class="col surrounding">${surroundingSection}</div>`
-            : ""
-        }
-        ${
-          waterDistrictSection
-            ? `<div class="col district">${waterDistrictSection}</div>`
-            : ""
-        }
-      </div>
-      <span class="updated--footer">
-        Sources: FCC Block for county &amp; tract; US Census ACS 5‑year (languages, population, median income); CalEnviroScreen 4.0; NWS alerts.
-      </span>
-    </article>
-  `;
-}
-
 // New row-based renderer
 function renderResult(address, data, elapsedMs) {
   const {
@@ -2024,23 +1685,23 @@ function renderResult(address, data, elapsedMs) {
     : [];
   const sTracts = Array.isArray(s.census_tracts)
     ? s.census_tracts.join(", ")
-    : escapeHTML(s.census_tracts) || "—";
+    : sanitizeHTML(s.census_tracts) || "—";
   const sCities = Array.isArray(s.cities)
     ? s.cities.join(", ")
-    : escapeHTML(s.cities) || "—";
+    : sanitizeHTML(s.cities) || "—";
   const wTracts = Array.isArray(w.census_tracts)
     ? w.census_tracts.join(", ")
-    : escapeHTML(w.census_tracts) || "—";
+    : sanitizeHTML(w.census_tracts) || "—";
   const wCities = Array.isArray(w.cities)
     ? w.cities.join(", ")
-    : escapeHTML(w.cities) || "—";
+    : sanitizeHTML(w.cities) || "—";
 
   const locLocal = `
     <div class="kv">
-      <div class="key">City</div><div class="val">${escapeHTML(city) || "—"}</div>
-      <div class="key">Census tract</div><div class="val">${escapeHTML(census_tract) || "—"}</div>
-      <div class="key">ZIP code</div><div class="val">${escapeHTML(zip) || "—"}</div>
-      <div class="key">County</div><div class="val">${escapeHTML(county) || "—"}</div>
+      <div class="key">City</div><div class="val">${sanitizeHTML(city) || "—"}</div>
+      <div class="key">Census tract</div><div class="val">${sanitizeHTML(census_tract) || "—"}</div>
+      <div class="key">ZIP code</div><div class="val">${sanitizeHTML(zip) || "—"}</div>
+      <div class="key">County</div><div class="val">${sanitizeHTML(county) || "—"}</div>
       <div class="key">Coordinates</div><div class="val">${coords}</div>
     </div>
     ${mapImgHtml}
@@ -2053,7 +1714,7 @@ function renderResult(address, data, elapsedMs) {
   `;
   const locDistrict = `
     <div class="kv">
-      <div class="key">District</div><div class="val">${escapeHTML(w.name) || "—"}</div>
+      <div class="key">District</div><div class="val">${sanitizeHTML(w.name) || "—"}</div>
       <div class="key">Cities</div><div class="val">${wCities}</div>
       <div class="key">Census tracts</div><div class="val">${wTracts}</div>
     </div>
@@ -2095,8 +1756,8 @@ function renderResult(address, data, elapsedMs) {
   );
   const languageFields = (d = {}) => {
     const entries = [
-      ["Primary language", escapeHTML(d.primary_language) || "—"],
-      ["Second most common", escapeHTML(d.secondary_language) || "—"],
+      ["Primary language", sanitizeHTML(d.primary_language) || "—"],
+      ["Second most common", sanitizeHTML(d.secondary_language) || "—"],
       [
         "People who speak a language other than English at home",
         fmtPct(d.language_other_than_english_pct),
@@ -2203,7 +1864,7 @@ function renderResult(address, data, elapsedMs) {
     if (Array.isArray(tracts) && tracts.length)
       lines.push(
         `<div class="dac-tracts">Tracts ${tracts
-          .map((t) => escapeHTML(t))
+          .map((t) => sanitizeHTML(t))
           .join(", ")}</div>`,
       );
 
@@ -2234,17 +1895,17 @@ function renderResult(address, data, elapsedMs) {
     "Environmental Hardships",
     hardshipList.length
       ? `<div class="stats">${hardshipList
-          .map((h) => `<span class="pill">${escapeHTML(h)}</span>`)
+          .map((h) => `<span class="pill">${sanitizeHTML(h)}</span>`)
           .join("")}</div>`
       : "",
     sHardships.length
       ? `<div class="stats">${sHardships
-          .map((h) => `<span class="pill">${escapeHTML(h)}</span>`)
+          .map((h) => `<span class="pill">${sanitizeHTML(h)}</span>`)
           .join("")}</div>`
       : "",
     wHardships.length
       ? `<div class="stats">${wHardships
-          .map((h) => `<span class="pill">${escapeHTML(h)}</span>`)
+          .map((h) => `<span class="pill">${sanitizeHTML(h)}</span>`)
           .join("")}</div>`
       : "",
     '<p class="section-description">This section lists environmental hardships reported for the selected location, highlighting challenges that may affect residents and program planning.</p>',
@@ -2257,7 +1918,7 @@ function renderResult(address, data, elapsedMs) {
       ${
         alertList.length
           ? `<div class="stats">${alertList
-              .map((a) => `<span class="pill">${escapeHTML(a)}</span>`)
+              .map((a) => `<span class="pill">${sanitizeHTML(a)}</span>`)
               .join("")}</div>`
           : '<p class="note">No active alerts found for this location.</p>'
       }
@@ -2272,11 +1933,11 @@ function renderResult(address, data, elapsedMs) {
     </div>
   `;
 
-  document.getElementById("result").innerHTML = `
+  document.getElementById("result").innerHTML = DOMPurify.sanitize(`
     <article class="card">
       <div class="card__header">
         <div class="card__head-left">
-          <h2 class="card__title">Results for: ${escapeHTML(address)}</h2>
+          <h2 class="card__title">Results for: ${sanitizeHTML(address)}</h2>
           <div class="card__actions">
             <button type="button" onclick="printReport()">Print</button>
             <button type="button" onclick="downloadPdf()">Download PDF</button>
@@ -2302,7 +1963,7 @@ function renderResult(address, data, elapsedMs) {
         Sources: FCC Block for county &amp; tract; US Census ACS 5‑year (languages, population, median income); CalEnviroScreen 4.0; NWS alerts.
       </span>
     </article>
-  `;
+  `);
 }
 // ---------- Flow ----------
 async function lookup() {
@@ -2433,3 +2094,8 @@ window.onload = () => {
     }
   }
 };
+
+// Export rendering functions for testing in Node
+if (typeof module !== "undefined") {
+  module.exports = { renderLoading, renderError, renderResult };
+}
