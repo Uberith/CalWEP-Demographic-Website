@@ -2,6 +2,7 @@ import { monitorAsync } from "./api.js";
 
 let autocomplete = null;
 let googleMapsKey = "";
+// Cache the promise so we only hit the endpoint once per session
 let mapsKeyPromise = null;
 
 export function getGoogleMapsKey() {

@@ -16,7 +16,8 @@
     "@sentry/browser": "^10.5.0",
     "@sentry/node": "^7.120.1",
     "html2pdf.js": "^0.11.1",
-    "dompurify": "^3.0.6"
+    "dompurify": "^3.0.6",
+    "dotenv": "^16.6.1"
   },
   "devDependencies": {
     "vite": "^5.0.0",
