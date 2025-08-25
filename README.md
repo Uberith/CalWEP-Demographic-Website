@@ -39,7 +39,8 @@ Environment variables can be read from the local machine in many languages:
 
 - **JavaScript**
   ```js
-  const mapsApiKey = import.meta.env.MAPS_API_KEY;
+  const mapsApiKey =
+    import.meta.env.MAPS_API_KEY || import.meta.env.VITE_MAPS_API_KEY;
   ```
 - **Python**
   ```python
