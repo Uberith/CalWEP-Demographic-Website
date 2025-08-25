@@ -47,6 +47,13 @@ window.addEventListener("unhandledrejection", (event) => {
 let lastReport = null;
 // Cache previously retrieved results to avoid redundant network requests
 const lookupCache = new Map();
+// Memoization caches for bulk tract lookups
+const basicDemoCache = new Map();
+const housingEduCache = new Map();
+const languageCache = new Map();
+const unemploymentCache = new Map();
+const dacCache = new Map();
+const hardshipCache = new Map();
 
 function printReport() {
   window.print();
@@ -290,6 +297,8 @@ async function getLanguageMeta() {
 }
 
 async function aggregateLanguageForTracts(fipsList = []) {
+  const key = [...new Set(fipsList.map(String))].sort().join(",");
+  if (languageCache.has(key)) return { ...languageCache.get(key) };
   const { codes, names } = await getLanguageMeta();
   if (!codes.length) return {};
   const groups = {};
@@ -399,7 +408,7 @@ async function aggregateLanguageForTracts(fipsList = []) {
   langCounts.English = englishOnly;
   const spanishCount = langCounts.Spanish || 0;
   const sorted = Object.entries(langCounts).sort((a, b) => b[1] - a[1]);
-  return {
+  const result = {
     primary_language: sorted[0]?.[0],
     secondary_language: sorted[1]?.[0],
     language_other_than_english_pct: total
@@ -408,6 +417,8 @@ async function aggregateLanguageForTracts(fipsList = []) {
     english_less_than_very_well_pct: total ? (englishLess / total) * 100 : null,
     spanish_at_home_pct: total ? (spanishCount / total) * 100 : null,
   };
+  languageCache.set(key, result);
+  return { ...result };
 }
 
 async function fetchLanguageAcs({ state_fips, county_fips, tract_code } = {}) {
@@ -419,6 +430,8 @@ async function fetchLanguageAcs({ state_fips, county_fips, tract_code } = {}) {
 // Aggregate basic demographic fields for a set of census tracts using
 // population-weighted averages.
 async function aggregateBasicDemographicsForTracts(fipsList = []) {
+  const key = [...new Set(fipsList.map(String))].sort().join(",");
+  if (basicDemoCache.has(key)) return { ...basicDemoCache.get(key) };
   const groups = {};
   for (const f of fipsList) {
     const code = String(f)
@@ -477,12 +490,15 @@ async function aggregateBasicDemographicsForTracts(fipsList = []) {
       result.per_capita_income = perCapitaWeighted / totalPop;
     if (povertyCount > 0) result.poverty_rate = (povertyCount / totalPop) * 100;
   }
-  return result;
+  basicDemoCache.set(key, result);
+  return { ...result };
 }
 
 // Aggregate housing and education fields for a set of census tracts using
 // population- or unit-weighted averages.
 async function aggregateHousingEducationForTracts(fipsList = []) {
+  const key = [...new Set(fipsList.map(String))].sort().join(",");
+  if (housingEduCache.has(key)) return { ...housingEduCache.get(key) };
   const groups = {};
   for (const f of fipsList) {
     const code = String(f)
@@ -561,7 +577,8 @@ async function aggregateHousingEducationForTracts(fipsList = []) {
     res.high_school_or_higher_pct = (hsGradTotal / pop25Total) * 100;
     res.bachelors_or_higher_pct = (bachTotal / pop25Total) * 100;
   }
-  return res;
+  housingEduCache.set(key, res);
+  return { ...res };
 }
 
 // Fetch detailed demographics for one or more census tracts
@@ -623,6 +640,8 @@ async function fetchTractDemographics(fipsList = []) {
 
 // Fetch unemployment rate and population for one or more census tracts
 async function fetchUnemploymentForTracts(fipsList = []) {
+  const key = [...new Set(fipsList.map(String))].sort().join(",");
+  if (unemploymentCache.has(key)) return { ...unemploymentCache.get(key) };
   const groups = {};
   for (const f of fipsList) {
     const code = String(f)
@@ -660,11 +679,14 @@ async function fetchUnemploymentForTracts(fipsList = []) {
       }
     }
   }
-  return results;
+  unemploymentCache.set(key, results);
+  return { ...results };
 }
 
 // Fetch a list of census tract FIPS codes flagged as disadvantaged communities
 async function fetchDacFips(fipsList = []) {
+  const key = [...new Set(fipsList.map(String))].sort().join(",");
+  if (dacCache.has(key)) return [...dacCache.get(key)];
   const baseUrl =
     "https://gis.water.ca.gov/arcgis/rest/services/Society/i16_Census_Tract_DisadvantagedCommunities_2020/MapServer/0/query";
   const out = new Set();
@@ -688,11 +710,15 @@ async function fetchDacFips(fipsList = []) {
       // ignore errors for this chunk
     }
   }
-  return Array.from(out);
+  const arr = Array.from(out);
+  dacCache.set(key, arr);
+  return [...arr];
 }
 
 // Fetch environmental hardships for one or more census tracts and merge them
 async function aggregateHardshipsForTracts(fipsList = []) {
+  const key = [...new Set(fipsList.map(String))].sort().join(",");
+  if (hardshipCache.has(key)) return [...hardshipCache.get(key)];
   const set = new Set();
   await Promise.all(
     fipsList.map(async (f) => {
@@ -711,7 +737,9 @@ async function aggregateHardshipsForTracts(fipsList = []) {
       }
     }),
   );
-  return Array.from(set).sort();
+  const arr = Array.from(set).sort();
+  hardshipCache.set(key, arr);
+  return [...arr];
 }
 
 // Populate missing basic demographics for the local census tract
