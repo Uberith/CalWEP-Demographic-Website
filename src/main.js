@@ -117,25 +117,26 @@ function isMissing(n) {
   const num = Number(n);
   return n == null || !Number.isFinite(num) || num === -888888888;
 }
+const NO_DATA_TEXT = "No data available";
 function fmtInt(n) {
   return !isMissing(n) && Number.isFinite(Number(n))
     ? Number(n).toLocaleString()
-    : "Not available";
+    : NO_DATA_TEXT;
 }
 function fmtCurrency(n) {
-  if (isMissing(n) || !Number.isFinite(Number(n))) return "Not available";
+  if (isMissing(n) || !Number.isFinite(Number(n))) return NO_DATA_TEXT;
   const r = Math.round(Number(n));
   return `$${r.toLocaleString()}`;
 }
 function fmtNumber(n) {
   return !isMissing(n) && Number.isFinite(Number(n))
     ? Number(n).toLocaleString(undefined, { maximumFractionDigits: 1 })
-    : "Not available";
+    : NO_DATA_TEXT;
 }
 function fmtPct(n) {
   return !isMissing(n) && Number.isFinite(Number(n))
     ? `${Number(n).toFixed(1)}%`
-    : "Not available";
+    : NO_DATA_TEXT;
 }
 function titleCase(str = "") {
   return str.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
@@ -1474,7 +1475,10 @@ function cesColor(percentile) {
 }
 
 function renderEnviroscreenSection(title, data, includeDescription = false) {
-  if (!data || typeof data !== "object") return "";
+  if (!data || typeof data !== "object")
+    return `<section class="section-block"><h3 class="section-header">${sanitizeHTML(
+      title,
+    )}</h3><p class="note">${NO_DATA_TEXT}</p></section>`;
   const badge = (v) => {
     const { bg, fg } = cesColor(v);
     const val = Number.isFinite(Number(v)) ? Number(v).toFixed(1) : "—";
@@ -1512,7 +1516,7 @@ function renderEnviroscreenSection(title, data, includeDescription = false) {
     : "";
   return `
       <section class="section-block">
-        <h3 class="section-header">${title}</h3>
+        <h3 class="section-header">${sanitizeHTML(title)}</h3>
         ${desc}
         <div class="kv">
           <div class="key">Overall percentile</div><div class="val">${badge(overall)}</div>
@@ -1540,15 +1544,23 @@ function buildComparisonRow(
   descriptionHtml = "",
 ) {
   const cell = (html) =>
-    html && String(html).trim() ? html : '<p class="note">No data</p>';
+    html && String(html).trim() ? html : `<p class="note">${NO_DATA_TEXT}</p>`;
   return `
     <section class="section-block">
-      <h3 class="section-header">${title}</h3>
+      <h3 class="section-header">${sanitizeHTML(title)}</h3>
       ${descriptionHtml}
-      <div class="comparison-grid">
-        <div class="col local">${cell(localHtml)}</div>
-        <div class="col surrounding">${cell(surroundingHtml)}</div>
-        <div class="col district">${cell(districtHtml)}</div>
+      <div class="comparison-grid" role="table" aria-label="${sanitizeHTML(
+        title,
+      )}">
+        <div class="col local" role="cell" aria-label="Census tract">${cell(
+          localHtml,
+        )}</div>
+        <div class="col surrounding" role="cell" aria-label="10-mile radius">${cell(
+          surroundingHtml,
+        )}</div>
+        <div class="col district" role="cell" aria-label="Water district">${cell(
+          districtHtml,
+        )}</div>
       </div>
     </section>
   `;
@@ -2382,6 +2394,11 @@ function bindLookupTrigger() {
   const clone = btn.cloneNode(true);
   btn.replaceWith(clone);
   clone.addEventListener("click", (e) => {
+    e.preventDefault();
+    lookup().catch(console.error);
+  });
+  const form = document.getElementById("lookupForm");
+  form?.addEventListener("submit", (e) => {
     e.preventDefault();
     lookup().catch(console.error);
   });
