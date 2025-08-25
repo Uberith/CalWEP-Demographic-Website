@@ -1,5 +1,5 @@
 import { _ as pn } from "./pdf.js";
-import { l as Nn, g as Ln } from "./maps.js";
+import { l as Nn, G as Ln } from "./maps.js";
 const Dn = new URLSearchParams(window.location.search).has("debug");
 let Xe = null;
 function gt(...e) {
@@ -298,7 +298,7 @@ const Jt = J([
     "video",
     "wbr",
   ]),
-  Tt = J([
+  St = J([
     "svg",
     "a",
     "altglyph",
@@ -343,7 +343,7 @@ const Jt = J([
     "view",
     "vkern",
   ]),
-  St = J([
+  Tt = J([
     "feBlend",
     "feColorMatrix",
     "feComponentTransfer",
@@ -877,7 +877,7 @@ const et = {
   };
 function gn() {
   let e = arguments.length > 0 && arguments[0] !== void 0 ? arguments[0] : Jn();
-  const n = (T) => gn(T);
+  const n = (S) => gn(S);
   if (
     ((n.version = "3.2.6"),
     (n.removed = []),
@@ -905,8 +905,8 @@ function gn() {
     g = Qe(m, "childNodes"),
     E = Qe(m, "parentNode");
   if (typeof o == "function") {
-    const T = s.createElement("template");
-    T.content && T.content.ownerDocument && (s = T.content.ownerDocument);
+    const S = s.createElement("template");
+    S.content && S.content.ownerDocument && (s = S.content.ownerDocument);
   }
   let b,
     C = "";
@@ -933,9 +933,9 @@ function gn() {
     ATTR_WHITESPACE: ae,
     CUSTOM_ELEMENT: ce,
   } = en;
-  let { IS_ALLOWED_URI: Te } = en,
+  let { IS_ALLOWED_URI: Se } = en,
     $ = null;
-  const st = R({}, [...Jt, ...Tt, ...St, ...bt, ...Kt]);
+  const st = R({}, [...Jt, ...St, ...Tt, ...bt, ...Kt]);
   let U = null;
   const Ue = R({}, [...Zt, ...Rt, ...Qt, ...ut]);
   let O = Object.seal(
@@ -960,7 +960,7 @@ function gn() {
         },
       }),
     ),
-    Se = null,
+    Te = null,
     He = null,
     M = !0,
     I = !0,
@@ -1029,17 +1029,17 @@ function gn() {
     ]),
     Oe = "http://www.w3.org/1998/Math/MathML",
     Pe = "http://www.w3.org/2000/svg",
-    S = "http://www.w3.org/1999/xhtml";
-  let j = S,
+    T = "http://www.w3.org/1999/xhtml";
+  let j = T,
     Z = !1,
     Q = null;
-  const ct = R({}, [Oe, Pe, S], Et);
+  const ct = R({}, [Oe, Pe, T], Et);
   let Ie = R({}, ["mi", "mo", "mn", "ms", "mtext"]),
     ve = R({}, ["annotation-xml"]);
   const ke = R({}, ["title", "style", "font", "a", "script"]);
   let be = null;
-  const Tn = ["application/xhtml+xml", "text/html"],
-    Sn = "text/html";
+  const Sn = ["application/xhtml+xml", "text/html"],
+    Tn = "text/html";
   let W = null,
     $e = null;
   const bn = s.createElement("form"),
@@ -1054,7 +1054,7 @@ function gn() {
           ((!t || typeof t != "object") && (t = {}),
           (t = ge(t)),
           (be =
-            Tn.indexOf(t.PARSER_MEDIA_TYPE) === -1 ? Sn : t.PARSER_MEDIA_TYPE),
+            Sn.indexOf(t.PARSER_MEDIA_TYPE) === -1 ? Tn : t.PARSER_MEDIA_TYPE),
           (W = be === "application/xhtml+xml" ? Et : ft),
           ($ = le(t, "ALLOWED_TAGS") ? R({}, t.ALLOWED_TAGS, W) : st),
           (U = le(t, "ALLOWED_ATTR") ? R({}, t.ALLOWED_ATTR, W) : Ue),
@@ -1068,7 +1068,7 @@ function gn() {
             ? R(ge(rt), t.ADD_DATA_URI_TAGS, W)
             : rt),
           (pe = le(t, "FORBID_CONTENTS") ? R({}, t.FORBID_CONTENTS, W) : ot),
-          (Se = le(t, "FORBID_TAGS") ? R({}, t.FORBID_TAGS, W) : ge({})),
+          (Te = le(t, "FORBID_TAGS") ? R({}, t.FORBID_TAGS, W) : ge({})),
           (He = le(t, "FORBID_ATTR") ? R({}, t.FORBID_ATTR, W) : ge({})),
           (we = le(t, "USE_PROFILES") ? t.USE_PROFILES : !1),
           (M = t.ALLOW_ARIA_ATTR !== !1),
@@ -1086,8 +1086,8 @@ function gn() {
           (it = t.SANITIZE_NAMED_PROPS || !1),
           (Ye = t.KEEP_CONTENT !== !1),
           (me = t.IN_PLACE || !1),
-          (Te = t.ALLOWED_URI_REGEXP || hn),
-          (j = t.NAMESPACE || S),
+          (Se = t.ALLOWED_URI_REGEXP || hn),
+          (j = t.NAMESPACE || T),
           (Ie = t.MATHML_TEXT_INTEGRATION_POINTS || Ie),
           (ve = t.HTML_INTEGRATION_POINTS || ve),
           (O = t.CUSTOM_ELEMENT_HANDLING || {}),
@@ -1109,8 +1109,8 @@ function gn() {
             (($ = R({}, Kt)),
             (U = []),
             we.html === !0 && (R($, Jt), R(U, Zt)),
-            we.svg === !0 && (R($, Tt), R(U, Rt), R(U, ut)),
-            we.svgFilters === !0 && (R($, St), R(U, Rt), R(U, ut)),
+            we.svg === !0 && (R($, St), R(U, Rt), R(U, ut)),
+            we.svgFilters === !0 && (R($, Tt), R(U, Rt), R(U, ut)),
             we.mathMl === !0 && (R($, bt), R(U, Qt), R(U, ut))),
           t.ADD_TAGS && ($ === st && ($ = ge($)), R($, t.ADD_TAGS, W)),
           t.ADD_ATTR && (U === Ue && (U = ge(U)), R(U, t.ADD_ATTR, W)),
@@ -1119,7 +1119,7 @@ function gn() {
             (pe === ot && (pe = ge(pe)), R(pe, t.FORBID_CONTENTS, W)),
           Ye && ($["#text"] = !0),
           fe && R($, ["html", "head", "body"]),
-          $.table && (R($, ["tbody"]), delete Se.tbody),
+          $.table && (R($, ["tbody"]), delete Te.tbody),
           t.TRUSTED_TYPES_POLICY)
         ) {
           if (typeof t.TRUSTED_TYPES_POLICY.createHTML != "function")
@@ -1137,7 +1137,7 @@ function gn() {
         (J && J(t), ($e = t));
       }
     },
-    Mt = R({}, [...Tt, ...St, ...Hn]),
+    Mt = R({}, [...St, ...Tt, ...Hn]),
     xt = R({}, [...bt, ...Gn]),
     Rn = function (t) {
       let u = E(t);
@@ -1146,18 +1146,18 @@ function gn() {
         P = ft(u.tagName);
       return Q[t.namespaceURI]
         ? t.namespaceURI === Pe
-          ? u.namespaceURI === S
+          ? u.namespaceURI === T
             ? A === "svg"
             : u.namespaceURI === Oe
               ? A === "svg" && (P === "annotation-xml" || Ie[P])
               : !!Mt[A]
           : t.namespaceURI === Oe
-            ? u.namespaceURI === S
+            ? u.namespaceURI === T
               ? A === "math"
               : u.namespaceURI === Pe
                 ? A === "math" && ve[P]
                 : !!xt[A]
-            : t.namespaceURI === S
+            : t.namespaceURI === T
               ? (u.namespaceURI === Pe && !ve[P]) ||
                 (u.namespaceURI === Oe && !Ie[P])
                 ? !1
@@ -1198,13 +1198,13 @@ function gn() {
         A = H && H[0];
       }
       be === "application/xhtml+xml" &&
-        j === S &&
+        j === T &&
         (t =
           '<html xmlns="http://www.w3.org/1999/xhtml"><head></head><body>' +
           t +
           "</body></html>");
       const P = b ? b.createHTML(t) : t;
-      if (j === S)
+      if (j === T)
         try {
           u = new v().parseFromString(P, be);
         } catch {}
@@ -1217,7 +1217,7 @@ function gn() {
       const Y = u.body || u.documentElement;
       return (
         t && A && Y.insertBefore(s.createTextNode(A), Y.childNodes[0] || null),
-        j === S
+        j === T
           ? G.call(u, fe ? "html" : "body")[0]
           : fe
             ? u.documentElement
@@ -1253,8 +1253,8 @@ function gn() {
     Ht = function (t) {
       return typeof r == "function" && t instanceof r;
     };
-  function he(T, t, u) {
-    lt(T, (A) => {
+  function he(S, t, u) {
+    lt(S, (A) => {
       A.call(n, t, u, $e);
     });
   }
@@ -1273,9 +1273,9 @@ function gn() {
           (Re && t.nodeType === et.comment && X(/<[/\w]/g, t.data)))
       )
         return (de(t), !0);
-      if (!$[A] || Se[A]) {
+      if (!$[A] || Te[A]) {
         if (
-          !Se[A] &&
+          !Te[A] &&
           zt(A) &&
           ((O.tagNameCheck instanceof RegExp && X(O.tagNameCheck, A)) ||
             (O.tagNameCheck instanceof Function && O.tagNameCheck(A)))
@@ -1333,7 +1333,7 @@ function gn() {
             )
               return !1;
           } else if (!Ve[u]) {
-            if (!X(Te, Ke(A, ae, ""))) {
+            if (!X(Se, Ke(A, ae, ""))) {
               if (
                 !(
                   (u === "src" || u === "xlink:href" || u === "href") &&
@@ -1430,55 +1430,55 @@ function gn() {
       }
       he(N.afterSanitizeAttributes, t, null);
     },
-    Cn = function T(t) {
+    Cn = function S(t) {
       let u = null;
       const A = Ut(t);
       for (he(N.beforeSanitizeShadowDOM, t, null); (u = A.nextNode()); )
         (he(N.uponSanitizeShadowNode, u, null),
           Gt(u),
           Bt(u),
-          u.content instanceof c && T(u.content));
+          u.content instanceof c && S(u.content));
       he(N.afterSanitizeShadowDOM, t, null);
     };
   return (
-    (n.sanitize = function (T) {
+    (n.sanitize = function (S) {
       let t =
           arguments.length > 1 && arguments[1] !== void 0 ? arguments[1] : {},
         u = null,
         A = null,
         P = null,
         Y = null;
-      if (((Z = !T), Z && (T = "<!-->"), typeof T != "string" && !Ht(T)))
-        if (typeof T.toString == "function") {
-          if (((T = T.toString()), typeof T != "string"))
+      if (((Z = !S), Z && (S = "<!-->"), typeof S != "string" && !Ht(S)))
+        if (typeof S.toString == "function") {
+          if (((S = S.toString()), typeof S != "string"))
             throw Ze("dirty is not a string, aborting");
         } else throw Ze("toString is not a function");
-      if (!n.isSupported) return T;
+      if (!n.isSupported) return S;
       if (
-        (ze || At(t), (n.removed = []), typeof T == "string" && (me = !1), me)
+        (ze || At(t), (n.removed = []), typeof S == "string" && (me = !1), me)
       ) {
-        if (T.nodeName) {
-          const _e = W(T.nodeName);
-          if (!$[_e] || Se[_e])
+        if (S.nodeName) {
+          const _e = W(S.nodeName);
+          if (!$[_e] || Te[_e])
             throw Ze("root node is forbidden and cannot be sanitized in-place");
         }
-      } else if (T instanceof r)
+      } else if (S instanceof r)
         ((u = Ft("<!---->")),
-          (A = u.ownerDocument.importNode(T, !0)),
+          (A = u.ownerDocument.importNode(S, !0)),
           (A.nodeType === et.element && A.nodeName === "BODY") ||
           A.nodeName === "HTML"
             ? (u = A)
             : u.appendChild(A));
       else {
-        if (!Ae && !ye && !fe && T.indexOf("<") === -1)
-          return b && Ne ? b.createHTML(T) : T;
-        if (((u = Ft(T)), !u)) return Ae ? null : Ne ? C : "";
+        if (!Ae && !ye && !fe && S.indexOf("<") === -1)
+          return b && Ne ? b.createHTML(S) : S;
+        if (((u = Ft(S)), !u)) return Ae ? null : Ne ? C : "";
       }
       u && Be && de(u.firstChild);
-      const H = Ut(me ? T : u);
+      const H = Ut(me ? S : u);
       for (; (P = H.nextNode()); )
         (Gt(P), Bt(P), P.content instanceof c && Cn(P.content));
-      if (me) return T;
+      if (me) return S;
       if (Ae) {
         if (Ce)
           for (Y = z.call(u.ownerDocument); u.firstChild; )
@@ -1511,31 +1511,31 @@ function gn() {
       );
     }),
     (n.setConfig = function () {
-      let T =
+      let S =
         arguments.length > 0 && arguments[0] !== void 0 ? arguments[0] : {};
-      (At(T), (ze = !0));
+      (At(S), (ze = !0));
     }),
     (n.clearConfig = function () {
       (($e = null), (ze = !1));
     }),
-    (n.isValidAttribute = function (T, t, u) {
+    (n.isValidAttribute = function (S, t, u) {
       $e || At({});
-      const A = W(T),
+      const A = W(S),
         P = W(t);
       return Wt(A, P, u);
     }),
-    (n.addHook = function (T, t) {
-      typeof t == "function" && Je(N[T], t);
+    (n.addHook = function (S, t) {
+      typeof t == "function" && Je(N[S], t);
     }),
-    (n.removeHook = function (T, t) {
+    (n.removeHook = function (S, t) {
       if (t !== void 0) {
-        const u = kn(N[T], t);
-        return u === -1 ? void 0 : $n(N[T], u, 1)[0];
+        const u = kn(N[S], t);
+        return u === -1 ? void 0 : $n(N[S], u, 1)[0];
       }
-      return qt(N[T]);
+      return qt(N[S]);
     }),
-    (n.removeHooks = function (T) {
-      N[T] = [];
+    (n.removeHooks = function (S) {
+      N[S] = [];
     }),
     (n.removeAllHooks = function () {
       N = tn();
@@ -1924,8 +1924,8 @@ async function Pt(e = []) {
                     (G += re.C16001_002E || 0));
                   for (const ae of L.chunk) {
                     const ce = s[ae],
-                      Te = re[ae] || 0;
-                    ce && (N[ce] = (N[ce] || 0) + Te);
+                      Se = re[ae] || 0;
+                    ce && (N[ce] = (N[ce] || 0) + Se);
                   }
                 }
               } else if (L.type === "english") {
@@ -2871,20 +2871,20 @@ function ln(e, n, s) {
       median_home_value: re,
       high_school_or_higher_pct: ae,
       bachelors_or_higher_pct: ce,
-      alerts: Te,
+      alerts: Se,
       enviroscreen: $,
       surrounding_10_mile: st,
       water_district: U,
     } = n || {},
     Ue = Array.isArray(C) ? Array.from(new Set(C)) : [],
-    O = Array.isArray(Te) ? Te : [],
-    Se =
+    O = Array.isArray(Se) ? Se : [],
+    Te =
       r != null && d != null
         ? `${Number(r).toFixed(6)}, ${Number(d).toFixed(6)}`
         : "—",
     He =
       r != null && d != null
-        ? `<img class="map-image" src="https://maps.googleapis.com/maps/api/staticmap?center=${r},${d}&zoom=13&size=600x300&markers=color:red|${r},${d}&key=${Ln()}" alt="Map of location" />`
+        ? `<img class="map-image" src="https://maps.googleapis.com/maps/api/staticmap?center=${r},${d}&zoom=13&size=600x300&markers=color:red|${r},${d}&key=${Ln}" alt="Map of location" />`
         : "",
     M = st || {},
     I = U || {},
@@ -2908,7 +2908,7 @@ function ln(e, n, s) {
       <div class="key">Census tract</div><div class="val">${D(o) || "—"}</div>
       <div class="key">ZIP code</div><div class="val">${D(a) || "—"}</div>
       <div class="key">County</div><div class="val">${D(c) || "—"}</div>
-      <div class="key">Coordinates</div><div class="val">${Se}</div>
+      <div class="key">Coordinates</div><div class="val">${Te}</div>
     </div>
     ${He}
   `,
@@ -2932,14 +2932,14 @@ function ln(e, n, s) {
       Ce,
       '<p class="section-description">This section lists basic geographic information for the census tract, surrounding 10&#8209;mile area, and water district, such as city, ZIP code, county, and coordinates.</p>',
     ),
-    Le = (S = {}) =>
+    Le = (T = {}) =>
       `<div class="kv">${[
-        ["Total population", ns(S.population)],
-        ["Median age", ss(S.median_age)],
-        ["Median household income", Nt(S.median_household_income)],
-        ["Per capita income", Nt(S.per_capita_income)],
-        ["Poverty rate", x(S.poverty_rate)],
-        ["Unemployment rate", x(S.unemployment_rate)],
+        ["Total population", ns(T.population)],
+        ["Median age", ss(T.median_age)],
+        ["Median household income", Nt(T.median_household_income)],
+        ["Per capita income", Nt(T.per_capita_income)],
+        ["Poverty rate", x(T.poverty_rate)],
+        ["Unemployment rate", x(T.unemployment_rate)],
       ]
         .map(
           ([Z, Q]) => `<div class="key">${Z}</div><div class="val">${Q}</div>`,
@@ -2959,19 +2959,19 @@ function ln(e, n, s) {
       Le(I.demographics || {}),
       '<p class="section-description">This section provides a snapshot of the people living in the selected area, drawn from the American Community Survey (ACS). It includes the total population, median age, household income, poverty rate, and unemployment rate. These indicators offer a quick view of community size, economic stability, and social conditions.</p><p class="section-description"><em>Values for the surrounding 10-mile area and water district are population-weighted averages.</em></p>',
     ),
-    je = (S = {}) =>
+    je = (T = {}) =>
       `<div class="kv">${[
-        ["Primary language", D(S.primary_language) || "—"],
-        ["Second most common", D(S.secondary_language) || "—"],
+        ["Primary language", D(T.primary_language) || "—"],
+        ["Second most common", D(T.secondary_language) || "—"],
         [
           "People who speak a language other than English at home",
-          x(S.language_other_than_english_pct),
+          x(T.language_other_than_english_pct),
         ],
         [
           'People who speak English less than "very well"',
-          x(S.english_less_than_very_well_pct),
+          x(T.english_less_than_very_well_pct),
         ],
-        ["People who speak Spanish at home", x(S.spanish_at_home_pct)],
+        ["People who speak Spanish at home", x(T.spanish_at_home_pct)],
       ]
         .map(
           ([Z, Q]) => `<div class="key">${Z}</div><div class="val">${Q}</div>`,
@@ -2990,17 +2990,17 @@ function ln(e, n, s) {
       je(I.demographics || {}),
       '<p class="section-description">This section highlights the primary and secondary languages spoken in the community and key language indicators based on American Community Survey (ACS) 5&#8209;year estimates.</p><p class="section-description"><em>Values for the surrounding 10-mile area and water district are population-weighted averages.</em></p>',
     ),
-    me = (S = {}) =>
+    me = (T = {}) =>
       `<div class="kv">${[
-        ["White", x(S.white_pct)],
-        ["Black or African American", x(S.black_pct)],
-        ["American Indian / Alaska Native", x(S.native_pct)],
-        ["Asian", x(S.asian_pct)],
-        ["Native Hawaiian / Pacific Islander", x(S.pacific_pct)],
-        ["Other race", x(S.other_race_pct)],
-        ["Two or more races", x(S.two_or_more_races_pct)],
-        ["Hispanic", x(S.hispanic_pct)],
-        ["Not Hispanic", x(S.not_hispanic_pct)],
+        ["White", x(T.white_pct)],
+        ["Black or African American", x(T.black_pct)],
+        ["American Indian / Alaska Native", x(T.native_pct)],
+        ["Asian", x(T.asian_pct)],
+        ["Native Hawaiian / Pacific Islander", x(T.pacific_pct)],
+        ["Other race", x(T.other_race_pct)],
+        ["Two or more races", x(T.two_or_more_races_pct)],
+        ["Hispanic", x(T.hispanic_pct)],
+        ["Not Hispanic", x(T.not_hispanic_pct)],
       ]
         .map(
           ([Z, Q]) => `<div class="key">${Z}</div><div class="val">${Q}</div>`,
@@ -3023,13 +3023,13 @@ function ln(e, n, s) {
       me(I.demographics || {}),
       '<p class="section-description">This section shows the racial and ethnic composition of the community, expressed as percentages of the total population using American Community Survey (ACS) data. These insights help identify the diversity of the area and support efforts to ensure programs, outreach, and engagement strategies reflect and serve all community groups.</p><p class="section-description"><em>Values for the surrounding 10-mile area and water district are population-weighted averages.</em></p>',
     ),
-    pe = (S = {}) =>
+    pe = (T = {}) =>
       `<div class="kv">${[
-        ["Owner occupied", x(S.owner_occupied_pct)],
-        ["Renter occupied", x(S.renter_occupied_pct)],
-        ["Median home value", Nt(S.median_home_value)],
-        ["High school or higher", x(S.high_school_or_higher_pct)],
-        ["Bachelor's degree or higher", x(S.bachelors_or_higher_pct)],
+        ["Owner occupied", x(T.owner_occupied_pct)],
+        ["Renter occupied", x(T.renter_occupied_pct)],
+        ["Median home value", Nt(T.median_home_value)],
+        ["High school or higher", x(T.high_school_or_higher_pct)],
+        ["Bachelor's degree or higher", x(T.bachelors_or_higher_pct)],
       ]
         .map(
           ([Z, Q]) => `<div class="key">${Z}</div><div class="val">${Q}</div>`,
@@ -3048,8 +3048,8 @@ function ln(e, n, s) {
       pe(I.demographics || {}),
       '<p class="section-description">This section combines information on housing and educational attainment in the community. It includes the percentage of owner&#8209;occupied and renter&#8209;occupied homes, median home value, and levels of education such as high school completion and bachelor’s degree or higher. These indicators provide insight into community stability, affordability, and educational opportunities, helping inform outreach strategies and program planning.</p><p class="section-description"><em>Values for the surrounding 10-mile area and water district are population-weighted averages.</em></p>',
     ),
-    De = (S, j, Z, Q) => {
-      const ct = Array.isArray(j) ? j.length > 0 : !!S,
+    De = (T, j, Z, Q) => {
+      const ct = Array.isArray(j) ? j.length > 0 : !!T,
         Ie = ct ? "var(--success)" : "var(--border-strong)",
         ve = [`Disadvantaged community: <strong>${ct ? "Yes" : "No"}</strong>`],
         ke = [];
@@ -3088,13 +3088,13 @@ function ln(e, n, s) {
     at = Ee(
       "Environmental Hardships",
       Ue.length
-        ? `<div class="stats">${Ue.map((S) => `<span class="pill">${D(S)}</span>`).join("")}</div>`
+        ? `<div class="stats">${Ue.map((T) => `<span class="pill">${D(T)}</span>`).join("")}</div>`
         : "",
       Ge.length
-        ? `<div class="stats">${Ge.map((S) => `<span class="pill">${D(S)}</span>`).join("")}</div>`
+        ? `<div class="stats">${Ge.map((T) => `<span class="pill">${D(T)}</span>`).join("")}</div>`
         : "",
       We.length
-        ? `<div class="stats">${We.map((S) => `<span class="pill">${D(S)}</span>`).join("")}</div>`
+        ? `<div class="stats">${We.map((T) => `<span class="pill">${D(T)}</span>`).join("")}</div>`
         : "",
       '<p class="section-description">This section lists environmental hardships reported for the selected location, highlighting challenges that may affect residents and program planning.</p>',
     ),
@@ -3102,7 +3102,7 @@ function ln(e, n, s) {
     <section class="section-block">
       <h3 class="section-header">Active Alerts (National Weather Service)</h3>
       <p class="section-description">This section displays any current weather alerts issued by the National Weather Service (NWS) for the selected location. Alerts may include warnings for extreme heat, flooding, wildfire smoke, or other hazardous conditions. Having this information alongside demographic and environmental data helps staff anticipate safety concerns for events, tailor outreach, and ensure programs are responsive to current community conditions.</p>
-      ${O.length ? `<div class="stats">${O.map((S) => `<span class="pill">${D(S)}</span>`).join("")}</div>` : '<p class="note">No active alerts found for this location.</p>'}
+      ${O.length ? `<div class="stats">${O.map((T) => `<span class="pill">${D(T)}</span>`).join("")}</div>` : '<p class="note">No active alerts found for this location.</p>'}
     </section>
   `,
     Pe = `

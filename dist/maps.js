@@ -1,24 +1,21 @@
-let a = null;
-const c = "";
-function m() {
-  return c;
-}
+let l = null;
+const r = "your_google_maps_api_key";
 function p() {
   const e = document.getElementById("autocomplete");
   !e ||
     typeof google > "u" ||
     !google.maps ||
-    ((a = new google.maps.places.Autocomplete(e, {
+    ((l = new google.maps.places.Autocomplete(e, {
       types: ["address"],
       componentRestrictions: { country: "us" },
       fields: ["address_components", "formatted_address"],
     })),
-    a.addListener("place_changed", () => {
-      const o = a.getPlace();
+    l.addListener("place_changed", () => {
+      const o = l.getPlace();
       let n = "",
+        c = "",
         i = "",
-        r = "",
-        l = "";
+        a = "";
       for (const t of o.address_components || []) {
         const s = t.types || [];
         s.includes("street_number")
@@ -26,16 +23,16 @@ function p() {
           : s.includes("route")
             ? (n += t.long_name)
             : s.includes("locality")
-              ? (i = t.long_name)
+              ? (c = t.long_name)
               : s.includes("administrative_area_level_1")
-                ? (r = t.short_name)
-                : s.includes("postal_code") && (l = t.long_name);
+                ? (i = t.short_name)
+                : s.includes("postal_code") && (a = t.long_name);
       }
-      if (!l && o.formatted_address) {
+      if (!a && o.formatted_address) {
         const t = o.formatted_address.match(/\b\d{5}(?:-\d{4})?\b/);
-        t && (l = t[0]);
+        t && (a = t[0]);
       }
-      const d = [n.trim(), i, r, l].filter(Boolean);
+      const d = [n.trim(), c, i, a].filter(Boolean);
       d.length && (e.value = d.join(", "));
     }),
     e.addEventListener("keydown", (o) => {
@@ -45,11 +42,10 @@ function p() {
         (n = document.getElementById("lookupBtn")) == null || n.click());
     }));
 }
-async function u() {
+async function m() {
   try {
-    if (!c) throw new Error("Google Maps API key not configured");
     const e = document.createElement("script");
-    ((e.src = `https://maps.googleapis.com/maps/api/js?key=${encodeURIComponent(c)}&libraries=places&callback=initAutocomplete`),
+    ((e.src = `https://maps.googleapis.com/maps/api/js?key=${encodeURIComponent(r)}&libraries=places&callback=initAutocomplete`),
       (e.async = !0),
       document.head.appendChild(e));
   } catch (e) {
@@ -57,4 +53,4 @@ async function u() {
   }
 }
 window.initAutocomplete = p;
-export { m as g, u as l };
+export { r as G, m as l };
