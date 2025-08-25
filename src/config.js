@@ -19,6 +19,10 @@ const DOMAIN_API_MAP = {
 };
 
 export function resolveApiBaseUrl(hostname = window.location.hostname) {
+  const metaBase = document
+    .querySelector('meta[name="api-base"]')
+    ?.getAttribute("content");
+  if (metaBase) return metaBase;
   for (const [domain, api] of Object.entries(DOMAIN_API_MAP)) {
     if (hostname.includes(domain)) return api;
   }
