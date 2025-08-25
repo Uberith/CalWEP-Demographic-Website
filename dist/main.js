@@ -1,185 +1,114 @@
-import { _ as pn } from "./pdf.js";
-import { s as Nn } from "./maps.js";
-const Ln = new URLSearchParams(window.location.search).has("debug");
-let Xe = null;
-function gt(...e) {
-  Ln &&
-    (console.log(...e),
-    Xe ||
-      ((Xe = document.createElement("pre")),
-      (Xe.id = "debugLog"),
-      document.body.appendChild(Xe)),
-    (Xe.textContent +=
-      e.map((n) => (typeof n == "string" ? n : JSON.stringify(n))).join(" ") +
-      `
-`));
-}
-async function se(e, n, s = {}) {
-  var r, c, o;
-  const i = performance.now();
-  try {
-    return await n();
-  } catch (a) {
-    throw (
-      (r = window.Sentry) == null ||
-        r.captureException(a, { extra: { name: e, ...s } }),
-      a
-    );
-  } finally {
-    const a = performance.now() - i;
-    (gt(e, { ...s, duration: a }),
-      (o = (c = window.Sentry) == null ? void 0 : c.addBreadcrumb) == null ||
-        o.call(c, {
-          category: "async",
-          message: e,
-          data: { ...s, duration: a },
-        }));
-  }
-}
-const ft = "https://nftapi.cyberwiz.io",
-  fn = "/demographics";
-function _t(e, n = {}) {
-  const s = ft.endsWith("/") ? ft : ft + "/",
-    i = new URL(e.replace(/^\//, ""), s);
-  for (const [r, c] of Object.entries(n))
-    c != null && String(c).length && i.searchParams.set(r, c);
-  return i.toString();
-}
-async function nt(e) {
-  return se(
-    "fetchJsonWithDiagnostics",
-    async () => {
-      let n;
-      try {
-        n = await fetch(e, {
-          method: "GET",
-          mode: "cors",
-          cache: "no-store",
-          headers: { Accept: "application/json" },
-        });
-      } catch (i) {
-        throw new Error(
-          `Network error calling API: ${(i == null ? void 0 : i.message) || i}`,
-        );
-      }
-      const s = await n.text().catch(() => "");
-      if (!n.ok)
-        throw new Error(
-          `API ${n.status} ${n.statusText} for ${e} :: ${s || "<no body>"}`,
-        );
-      try {
-        return JSON.parse(s);
-      } catch {
-        throw new Error(
-          `API 200 but response was not valid JSON for ${e} :: ${s.slice(0, 200)}…`,
-        );
-      }
-    },
-    { url: e },
-  );
-}
+import { _ as ln } from "./pdf.js";
+import {
+  A as bn,
+  l as Dt,
+  s as Rn,
+  f as tt,
+  b as mt,
+  m as ce,
+} from "./maps.js";
 /*! @license DOMPurify 3.2.6 | (c) Cure53 and other contributors | Released under the Apache license 2.0 and Mozilla Public License 2.0 | github.com/cure53/DOMPurify/blob/3.2.6/LICENSE */ const {
-  entries: dn,
-  setPrototypeOf: Vt,
-  isFrozen: Dn,
-  getPrototypeOf: On,
-  getOwnPropertyDescriptor: Pn,
+  entries: un,
+  setPrototypeOf: jt,
+  isFrozen: Cn,
+  getPrototypeOf: Nn,
+  getOwnPropertyDescriptor: Ln,
 } = Object;
-let { freeze: J, seal: ie, create: mn } = Object,
-  { apply: Dt, construct: Ot } = typeof Reflect < "u" && Reflect;
-J ||
-  (J = function (n) {
+let { freeze: K, seal: se, create: pn } = Object,
+  { apply: Ct, construct: Nt } = typeof Reflect < "u" && Reflect;
+K ||
+  (K = function (n) {
     return n;
   });
-ie ||
-  (ie = function (n) {
+se ||
+  (se = function (n) {
     return n;
   });
-Dt ||
-  (Dt = function (n, s, i) {
+Ct ||
+  (Ct = function (n, s, i) {
     return n.apply(s, i);
   });
-Ot ||
-  (Ot = function (n, s) {
+Nt ||
+  (Nt = function (n, s) {
     return new n(...s);
   });
-const lt = K(Array.prototype.forEach),
-  In = K(Array.prototype.lastIndexOf),
-  qt = K(Array.prototype.pop),
-  Je = K(Array.prototype.push),
-  kn = K(Array.prototype.splice),
-  dt = K(String.prototype.toLowerCase),
-  Et = K(String.prototype.toString),
-  Xt = K(String.prototype.match),
-  Ke = K(String.prototype.replace),
-  $n = K(String.prototype.indexOf),
-  Mn = K(String.prototype.trim),
-  le = K(Object.prototype.hasOwnProperty),
-  X = K(RegExp.prototype.test),
-  Ze = xn(TypeError);
-function K(e) {
+const ct = Z(Array.prototype.forEach),
+  Dn = Z(Array.prototype.lastIndexOf),
+  Yt = Z(Array.prototype.pop),
+  Xe = Z(Array.prototype.push),
+  On = Z(Array.prototype.splice),
+  pt = Z(String.prototype.toLowerCase),
+  At = Z(String.prototype.toString),
+  Vt = Z(String.prototype.match),
+  Ke = Z(String.prototype.replace),
+  kn = Z(String.prototype.indexOf),
+  In = Z(String.prototype.trim),
+  le = Z(Object.prototype.hasOwnProperty),
+  X = Z(RegExp.prototype.test),
+  Ze = Pn(TypeError);
+function Z(t) {
   return function (n) {
     n instanceof RegExp && (n.lastIndex = 0);
     for (
-      var s = arguments.length, i = new Array(s > 1 ? s - 1 : 0), r = 1;
-      r < s;
-      r++
+      var s = arguments.length, i = new Array(s > 1 ? s - 1 : 0), a = 1;
+      a < s;
+      a++
     )
-      i[r - 1] = arguments[r];
-    return Dt(e, n, i);
+      i[a - 1] = arguments[a];
+    return Ct(t, n, i);
   };
 }
-function xn(e) {
+function Pn(t) {
   return function () {
     for (var n = arguments.length, s = new Array(n), i = 0; i < n; i++)
       s[i] = arguments[i];
-    return Ot(e, s);
+    return Nt(t, s);
   };
 }
-function R(e, n) {
-  let s = arguments.length > 2 && arguments[2] !== void 0 ? arguments[2] : dt;
-  Vt && Vt(e, null);
+function R(t, n) {
+  let s = arguments.length > 2 && arguments[2] !== void 0 ? arguments[2] : pt;
+  jt && jt(t, null);
   let i = n.length;
   for (; i--; ) {
-    let r = n[i];
-    if (typeof r == "string") {
-      const c = s(r);
-      c !== r && (Dn(n) || (n[i] = c), (r = c));
+    let a = n[i];
+    if (typeof a == "string") {
+      const l = s(a);
+      l !== a && (Cn(n) || (n[i] = l), (a = l));
     }
-    e[r] = !0;
+    t[a] = !0;
   }
-  return e;
+  return t;
 }
-function Fn(e) {
-  for (let n = 0; n < e.length; n++) le(e, n) || (e[n] = null);
-  return e;
+function Mn(t) {
+  for (let n = 0; n < t.length; n++) le(t, n) || (t[n] = null);
+  return t;
 }
-function ge(e) {
-  const n = mn(null);
-  for (const [s, i] of dn(e))
-    le(e, s) &&
+function ge(t) {
+  const n = pn(null);
+  for (const [s, i] of un(t))
+    le(t, s) &&
       (Array.isArray(i)
-        ? (n[s] = Fn(i))
+        ? (n[s] = Mn(i))
         : i && typeof i == "object" && i.constructor === Object
           ? (n[s] = ge(i))
           : (n[s] = i));
   return n;
 }
-function Qe(e, n) {
-  for (; e !== null; ) {
-    const i = Pn(e, n);
+function Je(t, n) {
+  for (; t !== null; ) {
+    const i = Ln(t, n);
     if (i) {
-      if (i.get) return K(i.get);
-      if (typeof i.value == "function") return K(i.value);
+      if (i.get) return Z(i.get);
+      if (typeof i.value == "function") return Z(i.value);
     }
-    e = On(e);
+    t = Nn(t);
   }
   function s() {
     return null;
   }
   return s;
 }
-const Jt = J([
+const qt = K([
     "a",
     "abbr",
     "acronym",
@@ -298,7 +227,7 @@ const Jt = J([
     "video",
     "wbr",
   ]),
-  Tt = J([
+  vt = K([
     "svg",
     "a",
     "altglyph",
@@ -343,7 +272,7 @@ const Jt = J([
     "view",
     "vkern",
   ]),
-  St = J([
+  wt = K([
     "feBlend",
     "feColorMatrix",
     "feComponentTransfer",
@@ -370,7 +299,7 @@ const Jt = J([
     "feTile",
     "feTurbulence",
   ]),
-  Un = J([
+  $n = K([
     "animate",
     "color-profile",
     "cursor",
@@ -394,7 +323,7 @@ const Jt = J([
     "unknown",
     "use",
   ]),
-  bt = J([
+  Et = K([
     "math",
     "menclose",
     "merror",
@@ -426,7 +355,7 @@ const Jt = J([
     "munderover",
     "mprescripts",
   ]),
-  Hn = J([
+  xn = K([
     "maction",
     "maligngroup",
     "malignmark",
@@ -443,8 +372,8 @@ const Jt = J([
     "mprescripts",
     "none",
   ]),
-  Kt = J(["#text"]),
-  Zt = J([
+  Xt = K(["#text"]),
+  Kt = K([
     "accept",
     "action",
     "align",
@@ -559,7 +488,7 @@ const Jt = J([
     "xmlns",
     "slot",
   ]),
-  Rt = J([
+  Tt = K([
     "accent-height",
     "accumulate",
     "additive",
@@ -748,7 +677,7 @@ const Jt = J([
     "z",
     "zoomandpan",
   ]),
-  Qt = J([
+  Zt = K([
     "accent",
     "accentunder",
     "align",
@@ -803,51 +732,51 @@ const Jt = J([
     "width",
     "xmlns",
   ]),
-  ut = J(["xlink:href", "xml:id", "xlink:title", "xml:space", "xmlns:xlink"]),
-  Gn = ie(/\{\{[\w\W]*|[\w\W]*\}\}/gm),
-  Wn = ie(/<%[\w\W]*|[\w\W]*%>/gm),
-  Bn = ie(/\$\{[\w\W]*/gm),
-  zn = ie(/^data-[\-\w.\u00B7-\uFFFF]+$/),
-  jn = ie(/^aria-[\-\w]+$/),
-  hn = ie(
+  lt = K(["xlink:href", "xml:id", "xlink:title", "xml:space", "xmlns:xlink"]),
+  Fn = se(/\{\{[\w\W]*|[\w\W]*\}\}/gm),
+  Un = se(/<%[\w\W]*|[\w\W]*%>/gm),
+  Hn = se(/\$\{[\w\W]*/gm),
+  Gn = se(/^data-[\-\w.\u00B7-\uFFFF]+$/),
+  Wn = se(/^aria-[\-\w]+$/),
+  fn = se(
     /^(?:(?:(?:f|ht)tps?|mailto|tel|callto|sms|cid|xmpp|matrix):|[^a-z]|[a-z+.\-]+(?:[^a-z+.\-:]|$))/i,
   ),
-  Yn = ie(/^(?:\w+script|data):/i),
-  Vn = ie(/[\u0000-\u0020\u00A0\u1680\u180E\u2000-\u2029\u205F\u3000]/g),
-  _n = ie(/^html$/i),
-  qn = ie(/^[a-z][.\w]*(-[.\w]+)+$/i);
-var en = Object.freeze({
+  zn = se(/^(?:\w+script|data):/i),
+  Bn = se(/[\u0000-\u0020\u00A0\u1680\u180E\u2000-\u2029\u205F\u3000]/g),
+  dn = se(/^html$/i),
+  jn = se(/^[a-z][.\w]*(-[.\w]+)+$/i);
+var Jt = Object.freeze({
   __proto__: null,
-  ARIA_ATTR: jn,
-  ATTR_WHITESPACE: Vn,
-  CUSTOM_ELEMENT: qn,
-  DATA_ATTR: zn,
-  DOCTYPE_NAME: _n,
-  ERB_EXPR: Wn,
-  IS_ALLOWED_URI: hn,
-  IS_SCRIPT_OR_DATA: Yn,
-  MUSTACHE_EXPR: Gn,
-  TMPLIT_EXPR: Bn,
+  ARIA_ATTR: Wn,
+  ATTR_WHITESPACE: Bn,
+  CUSTOM_ELEMENT: jn,
+  DATA_ATTR: Gn,
+  DOCTYPE_NAME: dn,
+  ERB_EXPR: Un,
+  IS_ALLOWED_URI: fn,
+  IS_SCRIPT_OR_DATA: zn,
+  MUSTACHE_EXPR: Fn,
+  TMPLIT_EXPR: Hn,
 });
-const et = {
+const Qe = {
     element: 1,
     text: 3,
     progressingInstruction: 7,
     comment: 8,
     document: 9,
   },
-  Xn = function () {
+  Yn = function () {
     return typeof window > "u" ? null : window;
   },
-  Jn = function (n, s) {
+  Vn = function (n, s) {
     if (typeof n != "object" || typeof n.createPolicy != "function")
       return null;
     let i = null;
-    const r = "data-tt-policy-suffix";
-    s && s.hasAttribute(r) && (i = s.getAttribute(r));
-    const c = "dompurify" + (i ? "#" + i : "");
+    const a = "data-tt-policy-suffix";
+    s && s.hasAttribute(a) && (i = s.getAttribute(a));
+    const l = "dompurify" + (i ? "#" + i : "");
     try {
-      return n.createPolicy(c, {
+      return n.createPolicy(l, {
         createHTML(o) {
           return o;
         },
@@ -857,12 +786,12 @@ const et = {
       });
     } catch {
       return (
-        console.warn("TrustedTypes policy " + c + " could not be created."),
+        console.warn("TrustedTypes policy " + l + " could not be created."),
         null
       );
     }
   },
-  tn = function () {
+  Qt = function () {
     return {
       afterSanitizeAttributes: [],
       afterSanitizeElements: [],
@@ -875,35 +804,35 @@ const et = {
       uponSanitizeShadowNode: [],
     };
   };
-function gn() {
-  let e = arguments.length > 0 && arguments[0] !== void 0 ? arguments[0] : Xn();
-  const n = (T) => gn(T);
+function mn() {
+  let t = arguments.length > 0 && arguments[0] !== void 0 ? arguments[0] : Yn();
+  const n = (T) => mn(T);
   if (
     ((n.version = "3.2.6"),
     (n.removed = []),
-    !e || !e.document || e.document.nodeType !== et.document || !e.Element)
+    !t || !t.document || t.document.nodeType !== Qe.document || !t.Element)
   )
     return ((n.isSupported = !1), n);
-  let { document: s } = e;
+  let { document: s } = t;
   const i = s,
-    r = i.currentScript,
+    a = i.currentScript,
     {
-      DocumentFragment: c,
+      DocumentFragment: l,
       HTMLTemplateElement: o,
-      Node: a,
+      Node: r,
       Element: d,
       NodeFilter: f,
-      NamedNodeMap: l = e.NamedNodeMap || e.MozNamedAttrMap,
+      NamedNodeMap: c = t.NamedNodeMap || t.MozNamedAttrMap,
       HTMLFormElement: y,
-      DOMParser: v,
+      DOMParser: w,
       trustedTypes: _,
-    } = e,
+    } = t,
     m = d.prototype,
-    w = Qe(m, "cloneNode"),
-    h = Qe(m, "remove"),
-    p = Qe(m, "nextSibling"),
-    g = Qe(m, "childNodes"),
-    E = Qe(m, "parentNode");
+    v = Je(m, "cloneNode"),
+    h = Je(m, "remove"),
+    p = Je(m, "nextSibling"),
+    g = Je(m, "childNodes"),
+    E = Je(m, "parentNode");
   if (typeof o == "function") {
     const T = s.createElement("template");
     T.content && T.content.ownerDocument && (s = T.content.ownerDocument);
@@ -912,34 +841,34 @@ function gn() {
     C = "";
   const {
       implementation: F,
-      createNodeIterator: k,
-      createDocumentFragment: B,
+      createNodeIterator: P,
+      createDocumentFragment: z,
       getElementsByTagName: G,
     } = s,
     { importNode: q } = i;
-  let N = tn();
+  let N = Qt();
   n.isSupported =
-    typeof dn == "function" &&
+    typeof un == "function" &&
     typeof E == "function" &&
     F &&
     F.createHTMLDocument !== void 0;
   const {
     MUSTACHE_EXPR: L,
-    ERB_EXPR: z,
+    ERB_EXPR: B,
     TMPLIT_EXPR: ue,
     DATA_ATTR: te,
-    ARIA_ATTR: oe,
-    IS_SCRIPT_OR_DATA: re,
+    ARIA_ATTR: ie,
+    IS_SCRIPT_OR_DATA: oe,
     ATTR_WHITESPACE: ae,
-    CUSTOM_ELEMENT: ce,
-  } = en;
-  let { IS_ALLOWED_URI: Te } = en,
-    $ = null;
-  const st = R({}, [...Jt, ...Tt, ...St, ...bt, ...Kt]);
+    CUSTOM_ELEMENT: re,
+  } = Jt;
+  let { IS_ALLOWED_URI: Te } = Jt,
+    M = null;
+  const nt = R({}, [...qt, ...vt, ...wt, ...Et, ...Xt]);
   let U = null;
-  const Ue = R({}, [...Zt, ...Rt, ...Qt, ...ut]);
+  const Ue = R({}, [...Kt, ...Tt, ...Zt, ...lt]);
   let O = Object.seal(
-      mn(null, {
+      pn(null, {
         tagNameCheck: {
           writable: !0,
           configurable: !1,
@@ -962,26 +891,26 @@ function gn() {
     ),
     Se = null,
     He = null,
-    M = !0,
+    $ = !0,
     I = !0,
     Ge = !1,
     We = !0,
     ye = !1,
     Re = !0,
     de = !1,
-    Be = !1,
     ze = !1,
+    Be = !1,
     Ae = !1,
     Ce = !1,
     Ne = !1,
     Le = !0,
-    it = !1;
+    st = !1;
   const je = "user-content-";
   let Ye = !0,
     me = !1,
-    we = {},
+    ve = {},
     pe = null;
-  const ot = R({}, [
+  const it = R({}, [
     "annotation-xml",
     "audio",
     "colgroup",
@@ -1009,7 +938,7 @@ function gn() {
     "xmp",
   ]);
   let De = null;
-  const rt = R({}, ["audio", "video", "img", "source", "image", "track"]);
+  const ot = R({}, ["audio", "video", "img", "source", "image", "track"]);
   let Ve = null;
   const at = R({}, [
       "alt",
@@ -1028,195 +957,195 @@ function gn() {
       "xmlns",
     ]),
     Oe = "http://www.w3.org/1998/Math/MathML",
-    Pe = "http://www.w3.org/2000/svg",
+    ke = "http://www.w3.org/2000/svg",
     S = "http://www.w3.org/1999/xhtml";
   let j = S,
-    Z = !1,
+    J = !1,
     Q = null;
-  const ct = R({}, [Oe, Pe, S], Et);
+  const rt = R({}, [Oe, ke, S], At);
   let Ie = R({}, ["mi", "mo", "mn", "ms", "mtext"]),
-    ve = R({}, ["annotation-xml"]);
-  const ke = R({}, ["title", "style", "font", "a", "script"]);
+    we = R({}, ["annotation-xml"]);
+  const Pe = R({}, ["title", "style", "font", "a", "script"]);
   let be = null;
-  const Tn = ["application/xhtml+xml", "text/html"],
-    Sn = "text/html";
+  const vn = ["application/xhtml+xml", "text/html"],
+    wn = "text/html";
   let W = null,
-    $e = null;
-  const bn = s.createElement("form"),
-    $t = function (t) {
-      return t instanceof RegExp || t instanceof Function;
+    Me = null;
+  const En = s.createElement("form"),
+    It = function (e) {
+      return e instanceof RegExp || e instanceof Function;
     },
-    At = function () {
-      let t =
+    _t = function () {
+      let e =
         arguments.length > 0 && arguments[0] !== void 0 ? arguments[0] : {};
-      if (!($e && $e === t)) {
+      if (!(Me && Me === e)) {
         if (
-          ((!t || typeof t != "object") && (t = {}),
-          (t = ge(t)),
+          ((!e || typeof e != "object") && (e = {}),
+          (e = ge(e)),
           (be =
-            Tn.indexOf(t.PARSER_MEDIA_TYPE) === -1 ? Sn : t.PARSER_MEDIA_TYPE),
-          (W = be === "application/xhtml+xml" ? Et : dt),
-          ($ = le(t, "ALLOWED_TAGS") ? R({}, t.ALLOWED_TAGS, W) : st),
-          (U = le(t, "ALLOWED_ATTR") ? R({}, t.ALLOWED_ATTR, W) : Ue),
-          (Q = le(t, "ALLOWED_NAMESPACES")
-            ? R({}, t.ALLOWED_NAMESPACES, Et)
-            : ct),
-          (Ve = le(t, "ADD_URI_SAFE_ATTR")
-            ? R(ge(at), t.ADD_URI_SAFE_ATTR, W)
-            : at),
-          (De = le(t, "ADD_DATA_URI_TAGS")
-            ? R(ge(rt), t.ADD_DATA_URI_TAGS, W)
+            vn.indexOf(e.PARSER_MEDIA_TYPE) === -1 ? wn : e.PARSER_MEDIA_TYPE),
+          (W = be === "application/xhtml+xml" ? At : pt),
+          (M = le(e, "ALLOWED_TAGS") ? R({}, e.ALLOWED_TAGS, W) : nt),
+          (U = le(e, "ALLOWED_ATTR") ? R({}, e.ALLOWED_ATTR, W) : Ue),
+          (Q = le(e, "ALLOWED_NAMESPACES")
+            ? R({}, e.ALLOWED_NAMESPACES, At)
             : rt),
-          (pe = le(t, "FORBID_CONTENTS") ? R({}, t.FORBID_CONTENTS, W) : ot),
-          (Se = le(t, "FORBID_TAGS") ? R({}, t.FORBID_TAGS, W) : ge({})),
-          (He = le(t, "FORBID_ATTR") ? R({}, t.FORBID_ATTR, W) : ge({})),
-          (we = le(t, "USE_PROFILES") ? t.USE_PROFILES : !1),
-          (M = t.ALLOW_ARIA_ATTR !== !1),
-          (I = t.ALLOW_DATA_ATTR !== !1),
-          (Ge = t.ALLOW_UNKNOWN_PROTOCOLS || !1),
-          (We = t.ALLOW_SELF_CLOSE_IN_ATTR !== !1),
-          (ye = t.SAFE_FOR_TEMPLATES || !1),
-          (Re = t.SAFE_FOR_XML !== !1),
-          (de = t.WHOLE_DOCUMENT || !1),
-          (Ae = t.RETURN_DOM || !1),
-          (Ce = t.RETURN_DOM_FRAGMENT || !1),
-          (Ne = t.RETURN_TRUSTED_TYPE || !1),
-          (ze = t.FORCE_BODY || !1),
-          (Le = t.SANITIZE_DOM !== !1),
-          (it = t.SANITIZE_NAMED_PROPS || !1),
-          (Ye = t.KEEP_CONTENT !== !1),
-          (me = t.IN_PLACE || !1),
-          (Te = t.ALLOWED_URI_REGEXP || hn),
-          (j = t.NAMESPACE || S),
-          (Ie = t.MATHML_TEXT_INTEGRATION_POINTS || Ie),
-          (ve = t.HTML_INTEGRATION_POINTS || ve),
-          (O = t.CUSTOM_ELEMENT_HANDLING || {}),
-          t.CUSTOM_ELEMENT_HANDLING &&
-            $t(t.CUSTOM_ELEMENT_HANDLING.tagNameCheck) &&
-            (O.tagNameCheck = t.CUSTOM_ELEMENT_HANDLING.tagNameCheck),
-          t.CUSTOM_ELEMENT_HANDLING &&
-            $t(t.CUSTOM_ELEMENT_HANDLING.attributeNameCheck) &&
+          (Ve = le(e, "ADD_URI_SAFE_ATTR")
+            ? R(ge(at), e.ADD_URI_SAFE_ATTR, W)
+            : at),
+          (De = le(e, "ADD_DATA_URI_TAGS")
+            ? R(ge(ot), e.ADD_DATA_URI_TAGS, W)
+            : ot),
+          (pe = le(e, "FORBID_CONTENTS") ? R({}, e.FORBID_CONTENTS, W) : it),
+          (Se = le(e, "FORBID_TAGS") ? R({}, e.FORBID_TAGS, W) : ge({})),
+          (He = le(e, "FORBID_ATTR") ? R({}, e.FORBID_ATTR, W) : ge({})),
+          (ve = le(e, "USE_PROFILES") ? e.USE_PROFILES : !1),
+          ($ = e.ALLOW_ARIA_ATTR !== !1),
+          (I = e.ALLOW_DATA_ATTR !== !1),
+          (Ge = e.ALLOW_UNKNOWN_PROTOCOLS || !1),
+          (We = e.ALLOW_SELF_CLOSE_IN_ATTR !== !1),
+          (ye = e.SAFE_FOR_TEMPLATES || !1),
+          (Re = e.SAFE_FOR_XML !== !1),
+          (de = e.WHOLE_DOCUMENT || !1),
+          (Ae = e.RETURN_DOM || !1),
+          (Ce = e.RETURN_DOM_FRAGMENT || !1),
+          (Ne = e.RETURN_TRUSTED_TYPE || !1),
+          (Be = e.FORCE_BODY || !1),
+          (Le = e.SANITIZE_DOM !== !1),
+          (st = e.SANITIZE_NAMED_PROPS || !1),
+          (Ye = e.KEEP_CONTENT !== !1),
+          (me = e.IN_PLACE || !1),
+          (Te = e.ALLOWED_URI_REGEXP || fn),
+          (j = e.NAMESPACE || S),
+          (Ie = e.MATHML_TEXT_INTEGRATION_POINTS || Ie),
+          (we = e.HTML_INTEGRATION_POINTS || we),
+          (O = e.CUSTOM_ELEMENT_HANDLING || {}),
+          e.CUSTOM_ELEMENT_HANDLING &&
+            It(e.CUSTOM_ELEMENT_HANDLING.tagNameCheck) &&
+            (O.tagNameCheck = e.CUSTOM_ELEMENT_HANDLING.tagNameCheck),
+          e.CUSTOM_ELEMENT_HANDLING &&
+            It(e.CUSTOM_ELEMENT_HANDLING.attributeNameCheck) &&
             (O.attributeNameCheck =
-              t.CUSTOM_ELEMENT_HANDLING.attributeNameCheck),
-          t.CUSTOM_ELEMENT_HANDLING &&
-            typeof t.CUSTOM_ELEMENT_HANDLING.allowCustomizedBuiltInElements ==
+              e.CUSTOM_ELEMENT_HANDLING.attributeNameCheck),
+          e.CUSTOM_ELEMENT_HANDLING &&
+            typeof e.CUSTOM_ELEMENT_HANDLING.allowCustomizedBuiltInElements ==
               "boolean" &&
             (O.allowCustomizedBuiltInElements =
-              t.CUSTOM_ELEMENT_HANDLING.allowCustomizedBuiltInElements),
+              e.CUSTOM_ELEMENT_HANDLING.allowCustomizedBuiltInElements),
           ye && (I = !1),
           Ce && (Ae = !0),
-          we &&
-            (($ = R({}, Kt)),
+          ve &&
+            ((M = R({}, Xt)),
             (U = []),
-            we.html === !0 && (R($, Jt), R(U, Zt)),
-            we.svg === !0 && (R($, Tt), R(U, Rt), R(U, ut)),
-            we.svgFilters === !0 && (R($, St), R(U, Rt), R(U, ut)),
-            we.mathMl === !0 && (R($, bt), R(U, Qt), R(U, ut))),
-          t.ADD_TAGS && ($ === st && ($ = ge($)), R($, t.ADD_TAGS, W)),
-          t.ADD_ATTR && (U === Ue && (U = ge(U)), R(U, t.ADD_ATTR, W)),
-          t.ADD_URI_SAFE_ATTR && R(Ve, t.ADD_URI_SAFE_ATTR, W),
-          t.FORBID_CONTENTS &&
-            (pe === ot && (pe = ge(pe)), R(pe, t.FORBID_CONTENTS, W)),
-          Ye && ($["#text"] = !0),
-          de && R($, ["html", "head", "body"]),
-          $.table && (R($, ["tbody"]), delete Se.tbody),
-          t.TRUSTED_TYPES_POLICY)
+            ve.html === !0 && (R(M, qt), R(U, Kt)),
+            ve.svg === !0 && (R(M, vt), R(U, Tt), R(U, lt)),
+            ve.svgFilters === !0 && (R(M, wt), R(U, Tt), R(U, lt)),
+            ve.mathMl === !0 && (R(M, Et), R(U, Zt), R(U, lt))),
+          e.ADD_TAGS && (M === nt && (M = ge(M)), R(M, e.ADD_TAGS, W)),
+          e.ADD_ATTR && (U === Ue && (U = ge(U)), R(U, e.ADD_ATTR, W)),
+          e.ADD_URI_SAFE_ATTR && R(Ve, e.ADD_URI_SAFE_ATTR, W),
+          e.FORBID_CONTENTS &&
+            (pe === it && (pe = ge(pe)), R(pe, e.FORBID_CONTENTS, W)),
+          Ye && (M["#text"] = !0),
+          de && R(M, ["html", "head", "body"]),
+          M.table && (R(M, ["tbody"]), delete Se.tbody),
+          e.TRUSTED_TYPES_POLICY)
         ) {
-          if (typeof t.TRUSTED_TYPES_POLICY.createHTML != "function")
+          if (typeof e.TRUSTED_TYPES_POLICY.createHTML != "function")
             throw Ze(
               'TRUSTED_TYPES_POLICY configuration option must provide a "createHTML" hook.',
             );
-          if (typeof t.TRUSTED_TYPES_POLICY.createScriptURL != "function")
+          if (typeof e.TRUSTED_TYPES_POLICY.createScriptURL != "function")
             throw Ze(
               'TRUSTED_TYPES_POLICY configuration option must provide a "createScriptURL" hook.',
             );
-          ((b = t.TRUSTED_TYPES_POLICY), (C = b.createHTML("")));
+          ((b = e.TRUSTED_TYPES_POLICY), (C = b.createHTML("")));
         } else
-          (b === void 0 && (b = Jn(_, r)),
+          (b === void 0 && (b = Vn(_, a)),
             b !== null && typeof C == "string" && (C = b.createHTML("")));
-        (J && J(t), ($e = t));
+        (K && K(e), (Me = e));
       }
     },
-    Mt = R({}, [...Tt, ...St, ...Un]),
-    xt = R({}, [...bt, ...Hn]),
-    Rn = function (t) {
-      let u = E(t);
+    Pt = R({}, [...vt, ...wt, ...$n]),
+    Mt = R({}, [...Et, ...xn]),
+    Tn = function (e) {
+      let u = E(e);
       (!u || !u.tagName) && (u = { namespaceURI: j, tagName: "template" });
-      const A = dt(t.tagName),
-        P = dt(u.tagName);
-      return Q[t.namespaceURI]
-        ? t.namespaceURI === Pe
+      const A = pt(e.tagName),
+        k = pt(u.tagName);
+      return Q[e.namespaceURI]
+        ? e.namespaceURI === ke
           ? u.namespaceURI === S
             ? A === "svg"
             : u.namespaceURI === Oe
-              ? A === "svg" && (P === "annotation-xml" || Ie[P])
-              : !!Mt[A]
-          : t.namespaceURI === Oe
+              ? A === "svg" && (k === "annotation-xml" || Ie[k])
+              : !!Pt[A]
+          : e.namespaceURI === Oe
             ? u.namespaceURI === S
               ? A === "math"
-              : u.namespaceURI === Pe
-                ? A === "math" && ve[P]
-                : !!xt[A]
-            : t.namespaceURI === S
-              ? (u.namespaceURI === Pe && !ve[P]) ||
-                (u.namespaceURI === Oe && !Ie[P])
+              : u.namespaceURI === ke
+                ? A === "math" && we[k]
+                : !!Mt[A]
+            : e.namespaceURI === S
+              ? (u.namespaceURI === ke && !we[k]) ||
+                (u.namespaceURI === Oe && !Ie[k])
                 ? !1
-                : !xt[A] && (ke[A] || !Mt[A])
-              : !!(be === "application/xhtml+xml" && Q[t.namespaceURI])
+                : !Mt[A] && (Pe[A] || !Pt[A])
+              : !!(be === "application/xhtml+xml" && Q[e.namespaceURI])
         : !1;
     },
-    fe = function (t) {
-      Je(n.removed, { element: t });
+    fe = function (e) {
+      Xe(n.removed, { element: e });
       try {
-        E(t).removeChild(t);
+        E(e).removeChild(e);
       } catch {
-        h(t);
+        h(e);
       }
     },
-    Me = function (t, u) {
+    $e = function (e, u) {
       try {
-        Je(n.removed, { attribute: u.getAttributeNode(t), from: u });
+        Xe(n.removed, { attribute: u.getAttributeNode(e), from: u });
       } catch {
-        Je(n.removed, { attribute: null, from: u });
+        Xe(n.removed, { attribute: null, from: u });
       }
-      if ((u.removeAttribute(t), t === "is"))
+      if ((u.removeAttribute(e), e === "is"))
         if (Ae || Ce)
           try {
             fe(u);
           } catch {}
         else
           try {
-            u.setAttribute(t, "");
+            u.setAttribute(e, "");
           } catch {}
     },
-    Ft = function (t) {
+    $t = function (e) {
       let u = null,
         A = null;
-      if (ze) t = "<remove></remove>" + t;
+      if (Be) e = "<remove></remove>" + e;
       else {
-        const H = Xt(t, /^[\r\n\t ]+/);
+        const H = Vt(e, /^[\r\n\t ]+/);
         A = H && H[0];
       }
       be === "application/xhtml+xml" &&
         j === S &&
-        (t =
+        (e =
           '<html xmlns="http://www.w3.org/1999/xhtml"><head></head><body>' +
-          t +
+          e +
           "</body></html>");
-      const P = b ? b.createHTML(t) : t;
+      const k = b ? b.createHTML(e) : e;
       if (j === S)
         try {
-          u = new v().parseFromString(P, be);
+          u = new w().parseFromString(k, be);
         } catch {}
       if (!u || !u.documentElement) {
         u = F.createDocument(j, "template", null);
         try {
-          u.documentElement.innerHTML = Z ? C : P;
+          u.documentElement.innerHTML = J ? C : k;
         } catch {}
       }
       const Y = u.body || u.documentElement;
       return (
-        t && A && Y.insertBefore(s.createTextNode(A), Y.childNodes[0] || null),
+        e && A && Y.insertBefore(s.createTextNode(A), Y.childNodes[0] || null),
         j === S
           ? G.call(u, de ? "html" : "body")[0]
           : de
@@ -1224,10 +1153,10 @@ function gn() {
             : Y
       );
     },
-    Ut = function (t) {
-      return k.call(
-        t.ownerDocument || t,
-        t,
+    xt = function (e) {
+      return P.call(
+        e.ownerDocument || e,
+        e,
         f.SHOW_ELEMENT |
           f.SHOW_COMMENT |
           f.SHOW_TEXT |
@@ -1236,91 +1165,91 @@ function gn() {
         null,
       );
     },
-    wt = function (t) {
+    gt = function (e) {
       return (
-        t instanceof y &&
-        (typeof t.nodeName != "string" ||
-          typeof t.textContent != "string" ||
-          typeof t.removeChild != "function" ||
-          !(t.attributes instanceof l) ||
-          typeof t.removeAttribute != "function" ||
-          typeof t.setAttribute != "function" ||
-          typeof t.namespaceURI != "string" ||
-          typeof t.insertBefore != "function" ||
-          typeof t.hasChildNodes != "function")
+        e instanceof y &&
+        (typeof e.nodeName != "string" ||
+          typeof e.textContent != "string" ||
+          typeof e.removeChild != "function" ||
+          !(e.attributes instanceof c) ||
+          typeof e.removeAttribute != "function" ||
+          typeof e.setAttribute != "function" ||
+          typeof e.namespaceURI != "string" ||
+          typeof e.insertBefore != "function" ||
+          typeof e.hasChildNodes != "function")
       );
     },
-    Ht = function (t) {
-      return typeof a == "function" && t instanceof a;
+    Ft = function (e) {
+      return typeof r == "function" && e instanceof r;
     };
-  function he(T, t, u) {
-    lt(T, (A) => {
-      A.call(n, t, u, $e);
+  function he(T, e, u) {
+    ct(T, (A) => {
+      A.call(n, e, u, Me);
     });
   }
-  const Gt = function (t) {
+  const Ut = function (e) {
       let u = null;
-      if ((he(N.beforeSanitizeElements, t, null), wt(t))) return (fe(t), !0);
-      const A = W(t.nodeName);
+      if ((he(N.beforeSanitizeElements, e, null), gt(e))) return (fe(e), !0);
+      const A = W(e.nodeName);
       if (
-        (he(N.uponSanitizeElement, t, { tagName: A, allowedTags: $ }),
+        (he(N.uponSanitizeElement, e, { tagName: A, allowedTags: M }),
         (Re &&
-          t.hasChildNodes() &&
-          !Ht(t.firstElementChild) &&
-          X(/<[/\w!]/g, t.innerHTML) &&
-          X(/<[/\w!]/g, t.textContent)) ||
-          t.nodeType === et.progressingInstruction ||
-          (Re && t.nodeType === et.comment && X(/<[/\w]/g, t.data)))
+          e.hasChildNodes() &&
+          !Ft(e.firstElementChild) &&
+          X(/<[/\w!]/g, e.innerHTML) &&
+          X(/<[/\w!]/g, e.textContent)) ||
+          e.nodeType === Qe.progressingInstruction ||
+          (Re && e.nodeType === Qe.comment && X(/<[/\w]/g, e.data)))
       )
-        return (fe(t), !0);
-      if (!$[A] || Se[A]) {
+        return (fe(e), !0);
+      if (!M[A] || Se[A]) {
         if (
           !Se[A] &&
-          Bt(A) &&
+          Gt(A) &&
           ((O.tagNameCheck instanceof RegExp && X(O.tagNameCheck, A)) ||
             (O.tagNameCheck instanceof Function && O.tagNameCheck(A)))
         )
           return !1;
         if (Ye && !pe[A]) {
-          const P = E(t) || t.parentNode,
-            Y = g(t) || t.childNodes;
-          if (Y && P) {
+          const k = E(e) || e.parentNode,
+            Y = g(e) || e.childNodes;
+          if (Y && k) {
             const H = Y.length;
             for (let ee = H - 1; ee >= 0; --ee) {
-              const _e = w(Y[ee], !0);
-              ((_e.__removalCount = (t.__removalCount || 0) + 1),
-                P.insertBefore(_e, p(t)));
+              const _e = v(Y[ee], !0);
+              ((_e.__removalCount = (e.__removalCount || 0) + 1),
+                k.insertBefore(_e, p(e)));
             }
           }
         }
-        return (fe(t), !0);
+        return (fe(e), !0);
       }
-      return (t instanceof d && !Rn(t)) ||
+      return (e instanceof d && !Tn(e)) ||
         ((A === "noscript" || A === "noembed" || A === "noframes") &&
-          X(/<\/no(script|embed|frames)/i, t.innerHTML))
-        ? (fe(t), !0)
+          X(/<\/no(script|embed|frames)/i, e.innerHTML))
+        ? (fe(e), !0)
         : (ye &&
-            t.nodeType === et.text &&
-            ((u = t.textContent),
-            lt([L, z, ue], (P) => {
-              u = Ke(u, P, " ");
+            e.nodeType === Qe.text &&
+            ((u = e.textContent),
+            ct([L, B, ue], (k) => {
+              u = Ke(u, k, " ");
             }),
-            t.textContent !== u &&
-              (Je(n.removed, { element: t.cloneNode() }), (t.textContent = u))),
-          he(N.afterSanitizeElements, t, null),
+            e.textContent !== u &&
+              (Xe(n.removed, { element: e.cloneNode() }), (e.textContent = u))),
+          he(N.afterSanitizeElements, e, null),
           !1);
     },
-    Wt = function (t, u, A) {
-      if (Le && (u === "id" || u === "name") && (A in s || A in bn)) return !1;
+    Ht = function (e, u, A) {
+      if (Le && (u === "id" || u === "name") && (A in s || A in En)) return !1;
       if (!(I && !He[u] && X(te, u))) {
-        if (!(M && X(oe, u))) {
+        if (!($ && X(ie, u))) {
           if (!U[u] || He[u]) {
             if (
               !(
-                (Bt(t) &&
-                  ((O.tagNameCheck instanceof RegExp && X(O.tagNameCheck, t)) ||
+                (Gt(e) &&
+                  ((O.tagNameCheck instanceof RegExp && X(O.tagNameCheck, e)) ||
                     (O.tagNameCheck instanceof Function &&
-                      O.tagNameCheck(t))) &&
+                      O.tagNameCheck(e))) &&
                   ((O.attributeNameCheck instanceof RegExp &&
                     X(O.attributeNameCheck, u)) ||
                     (O.attributeNameCheck instanceof Function &&
@@ -1337,12 +1266,12 @@ function gn() {
               if (
                 !(
                   (u === "src" || u === "xlink:href" || u === "href") &&
-                  t !== "script" &&
-                  $n(A, "data:") === 0 &&
-                  De[t]
+                  e !== "script" &&
+                  kn(A, "data:") === 0 &&
+                  De[e]
                 )
               ) {
-                if (!(Ge && !X(re, Ke(A, ae, "")))) {
+                if (!(Ge && !X(oe, Ke(A, ae, "")))) {
                   if (A) return !1;
                 }
               }
@@ -1352,13 +1281,13 @@ function gn() {
       }
       return !0;
     },
-    Bt = function (t) {
-      return t !== "annotation-xml" && Xt(t, ce);
+    Gt = function (e) {
+      return e !== "annotation-xml" && Vt(e, re);
     },
-    zt = function (t) {
-      he(N.beforeSanitizeAttributes, t, null);
-      const { attributes: u } = t;
-      if (!u || wt(t)) return;
+    Wt = function (e) {
+      he(N.beforeSanitizeAttributes, e, null);
+      const { attributes: u } = e;
+      if (!u || gt(e)) return;
       const A = {
         attrName: "",
         attrValue: "",
@@ -1366,42 +1295,42 @@ function gn() {
         allowedAttributes: U,
         forceKeepAttr: void 0,
       };
-      let P = u.length;
-      for (; P--; ) {
-        const Y = u[P],
+      let k = u.length;
+      for (; k--; ) {
+        const Y = u[k],
           { name: H, namespaceURI: ee, value: _e } = Y,
           qe = W(H),
-          vt = _e;
-        let V = H === "value" ? vt : Mn(vt);
+          yt = _e;
+        let V = H === "value" ? yt : In(yt);
         if (
           ((A.attrName = qe),
           (A.attrValue = V),
           (A.keepAttr = !0),
           (A.forceKeepAttr = void 0),
-          he(N.uponSanitizeAttribute, t, A),
+          he(N.uponSanitizeAttribute, e, A),
           (V = A.attrValue),
-          it && (qe === "id" || qe === "name") && (Me(H, t), (V = je + V)),
+          st && (qe === "id" || qe === "name") && ($e(H, e), (V = je + V)),
           Re && X(/((--!?|])>)|<\/(style|title)/i, V))
         ) {
-          Me(H, t);
+          $e(H, e);
           continue;
         }
         if (A.forceKeepAttr) continue;
         if (!A.keepAttr) {
-          Me(H, t);
+          $e(H, e);
           continue;
         }
         if (!We && X(/\/>/i, V)) {
-          Me(H, t);
+          $e(H, e);
           continue;
         }
         ye &&
-          lt([L, z, ue], (Yt) => {
-            V = Ke(V, Yt, " ");
+          ct([L, B, ue], (Bt) => {
+            V = Ke(V, Bt, " ");
           });
-        const jt = W(t.nodeName);
-        if (!Wt(jt, qe, V)) {
-          Me(H, t);
+        const zt = W(e.nodeName);
+        if (!Ht(zt, qe, V)) {
+          $e(H, e);
           continue;
         }
         if (
@@ -1410,7 +1339,7 @@ function gn() {
           typeof _.getAttributeType == "function" &&
           !ee
         )
-          switch (_.getAttributeType(jt, qe)) {
+          switch (_.getAttributeType(zt, qe)) {
             case "TrustedHTML": {
               V = b.createHTML(V);
               break;
@@ -1420,68 +1349,68 @@ function gn() {
               break;
             }
           }
-        if (V !== vt)
+        if (V !== yt)
           try {
-            (ee ? t.setAttributeNS(ee, H, V) : t.setAttribute(H, V),
-              wt(t) ? fe(t) : qt(n.removed));
+            (ee ? e.setAttributeNS(ee, H, V) : e.setAttribute(H, V),
+              gt(e) ? fe(e) : Yt(n.removed));
           } catch {
-            Me(H, t);
+            $e(H, e);
           }
       }
-      he(N.afterSanitizeAttributes, t, null);
+      he(N.afterSanitizeAttributes, e, null);
     },
-    Cn = function T(t) {
+    Sn = function T(e) {
       let u = null;
-      const A = Ut(t);
-      for (he(N.beforeSanitizeShadowDOM, t, null); (u = A.nextNode()); )
+      const A = xt(e);
+      for (he(N.beforeSanitizeShadowDOM, e, null); (u = A.nextNode()); )
         (he(N.uponSanitizeShadowNode, u, null),
-          Gt(u),
-          zt(u),
-          u.content instanceof c && T(u.content));
-      he(N.afterSanitizeShadowDOM, t, null);
+          Ut(u),
+          Wt(u),
+          u.content instanceof l && T(u.content));
+      he(N.afterSanitizeShadowDOM, e, null);
     };
   return (
     (n.sanitize = function (T) {
-      let t =
+      let e =
           arguments.length > 1 && arguments[1] !== void 0 ? arguments[1] : {},
         u = null,
         A = null,
-        P = null,
+        k = null,
         Y = null;
-      if (((Z = !T), Z && (T = "<!-->"), typeof T != "string" && !Ht(T)))
+      if (((J = !T), J && (T = "<!-->"), typeof T != "string" && !Ft(T)))
         if (typeof T.toString == "function") {
           if (((T = T.toString()), typeof T != "string"))
             throw Ze("dirty is not a string, aborting");
         } else throw Ze("toString is not a function");
       if (!n.isSupported) return T;
       if (
-        (Be || At(t), (n.removed = []), typeof T == "string" && (me = !1), me)
+        (ze || _t(e), (n.removed = []), typeof T == "string" && (me = !1), me)
       ) {
         if (T.nodeName) {
           const _e = W(T.nodeName);
-          if (!$[_e] || Se[_e])
+          if (!M[_e] || Se[_e])
             throw Ze("root node is forbidden and cannot be sanitized in-place");
         }
-      } else if (T instanceof a)
-        ((u = Ft("<!---->")),
+      } else if (T instanceof r)
+        ((u = $t("<!---->")),
           (A = u.ownerDocument.importNode(T, !0)),
-          (A.nodeType === et.element && A.nodeName === "BODY") ||
+          (A.nodeType === Qe.element && A.nodeName === "BODY") ||
           A.nodeName === "HTML"
             ? (u = A)
             : u.appendChild(A));
       else {
         if (!Ae && !ye && !de && T.indexOf("<") === -1)
           return b && Ne ? b.createHTML(T) : T;
-        if (((u = Ft(T)), !u)) return Ae ? null : Ne ? C : "";
+        if (((u = $t(T)), !u)) return Ae ? null : Ne ? C : "";
       }
-      u && ze && fe(u.firstChild);
-      const H = Ut(me ? T : u);
-      for (; (P = H.nextNode()); )
-        (Gt(P), zt(P), P.content instanceof c && Cn(P.content));
+      u && Be && fe(u.firstChild);
+      const H = xt(me ? T : u);
+      for (; (k = H.nextNode()); )
+        (Ut(k), Wt(k), k.content instanceof l && Sn(k.content));
       if (me) return T;
       if (Ae) {
         if (Ce)
-          for (Y = B.call(u.ownerDocument); u.firstChild; )
+          for (Y = z.call(u.ownerDocument); u.firstChild; )
             Y.appendChild(u.firstChild);
         else Y = u;
         return (
@@ -1492,11 +1421,11 @@ function gn() {
       let ee = de ? u.outerHTML : u.innerHTML;
       return (
         de &&
-          $["!doctype"] &&
+          M["!doctype"] &&
           u.ownerDocument &&
           u.ownerDocument.doctype &&
           u.ownerDocument.doctype.name &&
-          X(_n, u.ownerDocument.doctype.name) &&
+          X(dn, u.ownerDocument.doctype.name) &&
           (ee =
             "<!DOCTYPE " +
             u.ownerDocument.doctype.name +
@@ -1504,7 +1433,7 @@ function gn() {
 ` +
             ee),
         ye &&
-          lt([L, z, ue], (_e) => {
+          ct([L, B, ue], (_e) => {
             ee = Ke(ee, _e, " ");
           }),
         b && Ne ? b.createHTML(ee) : ee
@@ -1513,123 +1442,123 @@ function gn() {
     (n.setConfig = function () {
       let T =
         arguments.length > 0 && arguments[0] !== void 0 ? arguments[0] : {};
-      (At(T), (Be = !0));
+      (_t(T), (ze = !0));
     }),
     (n.clearConfig = function () {
-      (($e = null), (Be = !1));
+      ((Me = null), (ze = !1));
     }),
-    (n.isValidAttribute = function (T, t, u) {
-      $e || At({});
+    (n.isValidAttribute = function (T, e, u) {
+      Me || _t({});
       const A = W(T),
-        P = W(t);
-      return Wt(A, P, u);
+        k = W(e);
+      return Ht(A, k, u);
     }),
-    (n.addHook = function (T, t) {
-      typeof t == "function" && Je(N[T], t);
+    (n.addHook = function (T, e) {
+      typeof e == "function" && Xe(N[T], e);
     }),
-    (n.removeHook = function (T, t) {
-      if (t !== void 0) {
-        const u = In(N[T], t);
-        return u === -1 ? void 0 : kn(N[T], u, 1)[0];
+    (n.removeHook = function (T, e) {
+      if (e !== void 0) {
+        const u = Dn(N[T], e);
+        return u === -1 ? void 0 : On(N[T], u, 1)[0];
       }
-      return qt(N[T]);
+      return Yt(N[T]);
     }),
     (n.removeHooks = function (T) {
       N[T] = [];
     }),
     (n.removeAllHooks = function () {
-      N = tn();
+      N = Qt();
     }),
     n
   );
 }
-var yn = gn();
-const vs = Object.freeze(
-  Object.defineProperty({ __proto__: null, default: yn }, Symbol.toStringTag, {
+var hn = mn();
+const ys = Object.freeze(
+  Object.defineProperty({ __proto__: null, default: hn }, Symbol.toStringTag, {
     value: "Module",
   }),
 );
-function D(e = "") {
-  return e == null ? "" : yn(window).sanitize(String(e));
+function D(t = "") {
+  return t == null ? "" : hn(window).sanitize(String(t));
 }
-function It() {
+function Ot() {
   return new Date().toLocaleString();
 }
-function An(e = 0) {
-  const n = Math.round(e / 1e3),
+function _n(t = 0) {
+  const n = Math.round(t / 1e3),
     s = Math.floor(n / 60),
     i = n % 60;
   return `${s} ${s === 1 ? "Minute" : "Minutes"} and ${i} ${i === 1 ? "Second" : "Seconds"}`;
 }
-function Kn(e) {
+function qn(t) {
   document.getElementById("result").innerHTML = D(`
     <div class="card">
       <div class="card__header">
         <h2 class="card__title">Looking up demographics…</h2>
-        <span class="updated">Started ${It()}</span>
+        <span class="updated">Started ${Ot()}</span>
       </div>
-      ${e ? `<p class="note">Address: <strong>${D(e)}</strong></p>` : ""}
+      ${t ? `<p class="note">Address: <strong>${D(t)}</strong></p>` : ""}
       <div class="callout">Fetching county, languages, English proficiency, population, income, DAC, and alerts…</div>
       <p class="note">Elapsed: <span id="searchTimer">0m 00s</span></p>
     </div>
   `);
 }
-function nn(e, n, s) {
+function en(t, n, s) {
   document.getElementById("result").innerHTML = D(`
     <div class="card" role="alert">
       <div class="card__header">
         <h2 class="card__title">Unable to retrieve data</h2>
-        <span class="updated">${It()}</span>
+        <span class="updated">${Ot()}</span>
       </div>
       ${n ? `<p class="note">Address: <strong>${D(n)}</strong></p>` : ""}
       <div class="callout" style="border-left-color:#b45309;">
-        ${D(e || "Please try again with a different address.")}
+        ${D(t || "Please try again with a different address.")}
       </div>
-      <p class="note">Search took ${An(s)}.</p>
-      <p class="note">API base: <code>${D(ft)}</code>. If your API has a prefix, adjust <code>API_PATH</code>.</p>
+      <p class="note">Search took ${_n(s)}.</p>
+      <p class="note">API base: <code>${D(bn || "/api")}</code>.</p>
     </div>
   `);
 }
-var un;
-const sn =
-  ((un = document.querySelector('meta[name="sentry-dsn"]')) == null
+var cn;
+const tn =
+  ((cn = document.querySelector('meta[name="sentry-dsn"]')) == null
     ? void 0
-    : un.content) || "";
-sn &&
-  pn(() => import("./index.js"), [])
-    .then((e) => {
-      ((window.Sentry = e), e.init({ dsn: sn }), gt("Sentry initialized"));
+    : cn.content) || "";
+tn &&
+  ln(() => import("./index.js"), [])
+    .then((t) => {
+      ((window.Sentry = t), t.init({ dsn: tn }), Dt("Sentry initialized"));
     })
-    .catch((e) => console.error("Sentry failed to load", e));
+    .catch((t) => console.error("Sentry failed to load", t));
 "serviceWorker" in navigator &&
   window.addEventListener("load", () => {
     navigator.serviceWorker
       .register("/sw.js")
-      .catch((e) => console.error("SW registration failed", e));
+      .catch((t) => console.error("SW registration failed", t));
   });
-window.addEventListener("error", (e) => {
+window.addEventListener("error", (t) => {
   var n;
-  (gt("window.onerror", e.message),
+  (Dt("window.onerror", t.message),
     (n = window.Sentry) == null ||
-      n.captureException(e.error || new Error(e.message || "Unknown error")));
+      n.captureException(t.error || new Error(t.message || "Unknown error")));
 });
-window.addEventListener("unhandledrejection", (e) => {
+window.addEventListener("unhandledrejection", (t) => {
   var n;
-  (gt("unhandledrejection", e.reason),
-    (n = window.Sentry) == null || n.captureException(e.reason));
+  (Dt("unhandledrejection", t.reason),
+    (n = window.Sentry) == null || n.captureException(t.reason));
 });
 let xe = null;
-const Ct = new Map();
-function Zn() {
+const St = new Map();
+function Xn() {
   window.print();
 }
-window.printReport = Zn;
-function Qn() {
+window.printReport = Xn;
+function Kn() {
   if (!xe) return;
-  const e = new Blob([JSON.stringify(xe, null, 2)], {
+  const t = new Blob([JSON.stringify(xe, null, 2)], {
       type: "application/json",
     }),
-    n = URL.createObjectURL(e),
+    n = URL.createObjectURL(t),
     s = document.createElement("a"),
     i = (xe.address || "report").replace(/[^a-z0-9]+/gi, "_").toLowerCase();
   ((s.href = n),
@@ -1639,66 +1568,66 @@ function Qn() {
     document.body.removeChild(s),
     URL.revokeObjectURL(n));
 }
-window.downloadRawData = Qn;
+window.downloadRawData = Kn;
 window.downloadPdf = async function () {
-  const { downloadPdf: e } = await pn(async () => {
+  const { downloadPdf: t } = await ln(async () => {
     const { downloadPdf: n } = await import("./pdf.js").then((s) => s.p);
     return { downloadPdf: n };
   }, []);
-  e(xe);
+  t(xe);
 };
-function es() {
-  const e = window.location.href;
+function Zn() {
+  const t = window.location.href;
   navigator.clipboard && window.isSecureContext
     ? navigator.clipboard
-        .writeText(e)
+        .writeText(t)
         .then(() => alert("Link copied to clipboard"))
         .catch(() => {
-          prompt("Copy this link:", e);
+          prompt("Copy this link:", t);
         })
-    : prompt("Copy this link:", e);
+    : prompt("Copy this link:", t);
 }
-window.shareReport = es;
-function ne(e) {
-  return e == null || Number(e) === -888888888;
+window.shareReport = Zn;
+function ne(t) {
+  return t == null || Number(t) === -888888888;
 }
-function ts(e) {
-  return !ne(e) && Number.isFinite(Number(e))
-    ? Number(e).toLocaleString()
+function Jn(t) {
+  return !ne(t) && Number.isFinite(Number(t))
+    ? Number(t).toLocaleString()
     : "—";
 }
-function Nt(e) {
-  return ne(e) || !Number.isFinite(Number(e))
+function bt(t) {
+  return ne(t) || !Number.isFinite(Number(t))
     ? "—"
-    : `$${Math.round(Number(e)).toLocaleString()}`;
+    : `$${Math.round(Number(t)).toLocaleString()}`;
 }
-function ns(e) {
-  return !ne(e) && Number.isFinite(Number(e))
-    ? Number(e).toLocaleString(void 0, { maximumFractionDigits: 1 })
+function Qn(t) {
+  return !ne(t) && Number.isFinite(Number(t))
+    ? Number(t).toLocaleString(void 0, { maximumFractionDigits: 1 })
     : "—";
 }
-function x(e) {
-  return !ne(e) && Number.isFinite(Number(e))
-    ? `${Number(e).toFixed(1)}%`
+function x(t) {
+  return !ne(t) && Number.isFinite(Number(t))
+    ? `${Number(t).toFixed(1)}%`
     : "—";
 }
-function ss(e = "") {
-  return e.replace(/_/g, " ").replace(/\b\w/g, (n) => n.toUpperCase());
+function es(t = "") {
+  return t.replace(/_/g, " ").replace(/\b\w/g, (n) => n.toUpperCase());
 }
-function mt(e = {}, ...n) {
+function ft(t = {}, ...n) {
   const s = (i) => i && typeof i == "object" && !Array.isArray(i);
   for (const i of n)
     if (s(i))
-      for (const [r, c] of Object.entries(i))
-        s(c) ? (e[r] = mt(s(e[r]) ? e[r] : {}, c)) : (e[r] = c);
-  return e;
+      for (const [a, l] of Object.entries(i))
+        s(l) ? (t[a] = ft(s(t[a]) ? t[a] : {}, l)) : (t[a] = l);
+  return t;
 }
-function yt(e = [], n = 50) {
+function ht(t = [], n = 50) {
   const s = [];
-  for (let i = 0; i < e.length; i += n) s.push(e.slice(i, i + n));
+  for (let i = 0; i < t.length; i += n) s.push(t.slice(i, i + n));
   return s;
 }
-const is = {
+const ts = {
     pm25: "PM2.5",
     diesel: "Diesel PM",
     toxic_releases: "Toxic releases",
@@ -1713,7 +1642,7 @@ const is = {
     linguistic_isolation: "Linguistic isolation",
     housing_burden: "Housing burden",
   },
-  pt = {
+  ut = {
     exposures: [
       "ozone",
       "pm25",
@@ -1744,63 +1673,63 @@ const is = {
       "housing_burden",
     ],
   };
-let ht = null,
+let dt = null,
   Fe = null;
-function os() {
+function ns() {
   Fe = Date.now();
-  const e = (n) => {
+  const t = (n) => {
     const s = document.getElementById("searchTimer");
     s && (s.textContent = n);
     const i = document.getElementById("spinnerTime");
     i && (i.textContent = n);
   };
-  (e("0m 00s"),
-    (ht = setInterval(() => {
+  (t("0m 00s"),
+    (dt = setInterval(() => {
       if (!Fe) return;
       const n = Date.now() - Fe,
         s = Math.floor((n / 1e3) % 60),
         i = Math.floor(n / 6e4);
-      e(`${i}m ${s.toString().padStart(2, "0")}s`);
+      t(`${i}m ${s.toString().padStart(2, "0")}s`);
     }, 1e3)));
 }
-function on() {
-  ht && clearInterval(ht);
-  const e = Fe ? Date.now() - Fe : 0;
-  return ((ht = null), (Fe = null), e);
+function nn() {
+  dt && clearInterval(dt);
+  const t = Fe ? Date.now() - Fe : 0;
+  return ((dt = null), (Fe = null), t);
 }
-async function rs(e = {}) {
+async function ss(t = {}) {
   let {
     city: n,
     census_tract: s,
     lat: i,
-    lon: r,
-    state_fips: c,
+    lon: a,
+    state_fips: l,
     county_fips: o,
-    tract_code: a,
-  } = e;
+    tract_code: r,
+  } = t;
   const d = [];
   return (
     !n &&
       i != null &&
-      r != null &&
+      a != null &&
       d.push(
         fetch(
-          `https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=${i}&longitude=${r}&localityLanguage=en`,
+          `https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=${i}&longitude=${a}&localityLanguage=en`,
         )
           .then((f) => f.json())
           .then((f) => {
-            var y, v;
+            var y, w;
             n =
               (Array.isArray(
                 (y = f == null ? void 0 : f.localityInfo) == null
                   ? void 0
                   : y.administrative,
               )
-                ? (v = f.localityInfo.administrative.find(
+                ? (w = f.localityInfo.administrative.find(
                     (_) => _.order === 8 || _.adminLevel === 8,
                   )) == null
                   ? void 0
-                  : v.name
+                  : w.name
                 : null) ||
               f.city ||
               f.locality ||
@@ -1808,94 +1737,94 @@ async function rs(e = {}) {
           })
           .catch(() => {}),
       ),
-    (!s || !c || !o || !a) &&
+    (!s || !l || !o || !r) &&
       i != null &&
-      r != null &&
+      a != null &&
       d.push(
         fetch(
-          `https://geo.fcc.gov/api/census/block/find?latitude=${i}&longitude=${r}&format=json`,
+          `https://geo.fcc.gov/api/census/block/find?latitude=${i}&longitude=${a}&format=json`,
         )
           .then((f) => f.json())
           .then((f) => {
             var y;
-            const l =
+            const c =
               (y = f == null ? void 0 : f.Block) == null ? void 0 : y.FIPS;
-            l &&
-              l.length >= 11 &&
-              ((c = l.slice(0, 2)),
-              (o = l.slice(2, 5)),
-              (a = l.slice(5, 11)),
-              (s = `${a.slice(0, 4)}.${a.slice(4)}`));
+            c &&
+              c.length >= 11 &&
+              ((l = c.slice(0, 2)),
+              (o = c.slice(2, 5)),
+              (r = c.slice(5, 11)),
+              (s = `${r.slice(0, 4)}.${r.slice(4)}`));
           })
           .catch(() => {}),
       ),
     d.length && (await Promise.all(d)),
     {
-      ...e,
+      ...t,
       city: n,
       census_tract: s,
-      state_fips: c,
+      state_fips: l,
       county_fips: o,
-      tract_code: a,
+      tract_code: r,
     }
   );
 }
-let tt = null;
-async function wn() {
-  if (tt) return tt;
+let et = null;
+async function gn() {
+  if (et) return et;
   try {
-    const e = await nt(
+    const t = await tt(
         "https://api.census.gov/data/2022/acs/acs5/groups/C16001.json",
       ),
-      n = (e == null ? void 0 : e.variables) || {},
+      n = (t == null ? void 0 : t.variables) || {},
       s = [],
       i = {};
-    for (const [r, c] of Object.entries(n)) {
-      if (!r.endsWith("E")) continue;
-      const o = c.label || "",
-        a = /^Estimate!!Total:!!([^:]+):$/.exec(o);
-      a && (s.push(r), (i[r] = a[1]));
+    for (const [a, l] of Object.entries(n)) {
+      if (!a.endsWith("E")) continue;
+      const o = l.label || "",
+        r = /^Estimate!!Total:!!([^:]+):$/.exec(o);
+      r && (s.push(a), (i[a] = r[1]));
     }
-    tt = { codes: s, names: i };
+    et = { codes: s, names: i };
   } catch {
-    tt = { codes: [], names: {} };
+    et = { codes: [], names: {} };
   }
-  return tt;
+  return et;
 }
-async function Pt(e = []) {
-  var v, _;
-  const { codes: n, names: s } = await wn();
+async function Lt(t = []) {
+  var w, _;
+  const { codes: n, names: s } = await gn();
   if (!n.length) return {};
   const i = {};
-  for (const m of e) {
-    const w = String(m)
+  for (const m of t) {
+    const v = String(m)
       .replace(/[^0-9]/g, "")
       .padStart(11, "0");
-    if (w.length !== 11) continue;
-    const h = w.slice(0, 2),
-      p = w.slice(2, 5),
-      g = w.slice(5),
+    if (v.length !== 11) continue;
+    const h = v.slice(0, 2),
+      p = v.slice(2, 5),
+      g = v.slice(5),
       E = `${h}${p}`;
     (i[E] || (i[E] = { state: h, county: p, tracts: [] }), i[E].tracts.push(g));
   }
-  let r = 0,
-    c = 0,
+  let a = 0,
+    l = 0,
     o = 0;
-  const a = {},
+  const r = {},
     d = Object.values(i).map(async (m) => {
-      const w = yt(m.tracts, 50),
+      const v = ht(m.tracts, 50),
         h = await Promise.all(
-          w.map(async (g) => {
+          v.map(async (g) => {
             const E = g.join(","),
               b = 40,
               C = [];
             for (let L = 0; L < n.length; L += b) {
-              const z = n.slice(L, L + b),
-                te = `https://api.census.gov/data/2022/acs/acs5?get=${(L === 0 ? ["C16001_001E", "C16001_002E", ...z] : z).join(",")}&for=tract:${E}&in=state:${m.state}%20county:${m.county}`;
+              const B = n.slice(L, L + b),
+                te = `https://api.census.gov/data/2022/acs/acs5?get=${(L === 0 ? ["C16001_001E", "C16001_002E", ...B] : B).join(",")}&for=tract:${E}&in=state:${m.state}%20county:${m.county}`;
               C.push(
                 fetch(te)
-                  .then((oe) => oe.json())
-                  .then((oe) => ({ type: "lang", rows: oe, chunk: z }))
+                  .then((ie) => ie.json())
+                  .then((ie) => ({ type: "lang", rows: ie, chunk: B }))
                   .catch(() => null),
               );
             }
@@ -1906,39 +1835,39 @@ async function Pt(e = []) {
                 .then((L) => ({ type: "english", rows: L }))
                 .catch(() => null),
             );
-            const k = await Promise.all(C);
-            let B = 0,
+            const P = await Promise.all(C);
+            let z = 0,
               G = 0,
               q = 0;
             const N = {};
-            for (const L of k) {
+            for (const L of P) {
               if (!L || !Array.isArray(L.rows) || L.rows.length <= 1) continue;
-              const { rows: z } = L;
+              const { rows: B } = L;
               if (L.type === "lang") {
-                const ue = z[0];
-                for (let te = 1; te < z.length; te++) {
-                  const oe = z[te],
-                    re = {};
-                  (ue.forEach((ae, ce) => (re[ae] = Number(oe[ce]))),
-                    (B += re.C16001_001E || 0),
-                    (G += re.C16001_002E || 0));
+                const ue = B[0];
+                for (let te = 1; te < B.length; te++) {
+                  const ie = B[te],
+                    oe = {};
+                  (ue.forEach((ae, re) => (oe[ae] = Number(ie[re]))),
+                    (z += oe.C16001_001E || 0),
+                    (G += oe.C16001_002E || 0));
                   for (const ae of L.chunk) {
-                    const ce = s[ae],
-                      Te = re[ae] || 0;
-                    ce && (N[ce] = (N[ce] || 0) + Te);
+                    const re = s[ae],
+                      Te = oe[ae] || 0;
+                    re && (N[re] = (N[re] || 0) + Te);
                   }
                 }
               } else if (L.type === "english") {
-                const ue = z[0];
-                for (let te = 1; te < z.length; te++) {
-                  const oe = z[te],
-                    re = {};
-                  (ue.forEach((ae, ce) => (re[ae] = Number(oe[ce]))),
-                    (q += re.DP02_0115E || 0));
+                const ue = B[0];
+                for (let te = 1; te < B.length; te++) {
+                  const ie = B[te],
+                    oe = {};
+                  (ue.forEach((ae, re) => (oe[ae] = Number(ie[re]))),
+                    (q += oe.DP02_0115E || 0));
                 }
               }
             }
-            return { total: B, englishOnly: G, englishLess: q, langCounts: N };
+            return { total: z, englishOnly: G, englishLess: q, langCounts: N };
           }),
         ),
         p = { total: 0, englishOnly: 0, englishLess: 0, langCounts: {} };
@@ -1953,100 +1882,100 @@ async function Pt(e = []) {
     }),
     f = await Promise.all(d);
   for (const m of f) {
-    ((r += m.total), (c += m.englishOnly), (o += m.englishLess));
-    for (const [w, h] of Object.entries(m.langCounts)) a[w] = (a[w] || 0) + h;
+    ((a += m.total), (l += m.englishOnly), (o += m.englishLess));
+    for (const [v, h] of Object.entries(m.langCounts)) r[v] = (r[v] || 0) + h;
   }
-  a.English = c;
-  const l = a.Spanish || 0,
-    y = Object.entries(a).sort((m, w) => w[1] - m[1]);
+  r.English = l;
+  const c = r.Spanish || 0,
+    y = Object.entries(r).sort((m, v) => v[1] - m[1]);
   return {
-    primary_language: (v = y[0]) == null ? void 0 : v[0],
+    primary_language: (w = y[0]) == null ? void 0 : w[0],
     secondary_language: (_ = y[1]) == null ? void 0 : _[0],
-    language_other_than_english_pct: r ? ((r - c) / r) * 100 : null,
-    english_less_than_very_well_pct: r ? (o / r) * 100 : null,
-    spanish_at_home_pct: r ? (l / r) * 100 : null,
+    language_other_than_english_pct: a ? ((a - l) / a) * 100 : null,
+    english_less_than_very_well_pct: a ? (o / a) * 100 : null,
+    spanish_at_home_pct: a ? (c / a) * 100 : null,
   };
 }
-async function as({ state_fips: e, county_fips: n, tract_code: s } = {}) {
-  if (!e || !n || !s) return {};
-  const i = `${e}${n}${s}`;
-  return Pt([i]);
+async function is({ state_fips: t, county_fips: n, tract_code: s } = {}) {
+  if (!t || !n || !s) return {};
+  const i = `${t}${n}${s}`;
+  return Lt([i]);
 }
-async function rn(e = []) {
+async function sn(t = []) {
   const n = {};
-  for (const d of e) {
+  for (const d of t) {
     const f = String(d)
       .replace(/[^0-9]/g, "")
       .padStart(11, "0");
     if (f.length !== 11) continue;
-    const l = f.slice(0, 2),
+    const c = f.slice(0, 2),
       y = f.slice(2, 5),
-      v = f.slice(5),
-      _ = `${l}${y}`;
-    (n[_] || (n[_] = { state: l, county: y, tracts: [] }), n[_].tracts.push(v));
+      w = f.slice(5),
+      _ = `${c}${y}`;
+    (n[_] || (n[_] = { state: c, county: y, tracts: [] }), n[_].tracts.push(w));
   }
   let s = 0,
     i = 0,
-    r = 0,
-    c = 0,
+    a = 0,
+    l = 0,
     o = 0;
   for (const d of Object.values(n)) {
-    const f = yt(d.tracts, 50);
-    for (const l of f) {
+    const f = ht(d.tracts, 50);
+    for (const c of f) {
       const y =
         "https://api.census.gov/data/2022/acs/acs5/profile?get=DP05_0001E,DP05_0018E,DP03_0062E,DP03_0088E,DP03_0128PE&for=tract:" +
-        l.join(",") +
+        c.join(",") +
         `&in=state:${d.state}%20county:${d.county}`;
       try {
-        const v = await fetch(y).then((_) => _.json());
-        if (!Array.isArray(v) || v.length < 2) continue;
-        for (let _ = 1; _ < v.length; _++) {
-          const [m, w, h, p, g] = v[_].map(Number);
+        const w = await fetch(y).then((_) => _.json());
+        if (!Array.isArray(w) || w.length < 2) continue;
+        for (let _ = 1; _ < w.length; _++) {
+          const [m, v, h, p, g] = w[_].map(Number);
           Number.isFinite(m) &&
             m > 0 &&
             ((s += m),
-            Number.isFinite(w) && (i += w * m),
-            Number.isFinite(h) && (r += h * m),
-            Number.isFinite(p) && (c += p * m),
+            Number.isFinite(v) && (i += v * m),
+            Number.isFinite(h) && (a += h * m),
+            Number.isFinite(p) && (l += p * m),
             Number.isFinite(g) && g >= 0 && (o += (g / 100) * m));
         }
       } catch {}
     }
   }
-  const a = {};
+  const r = {};
   return (
     s > 0 &&
-      ((a.population = s),
-      i > 0 && (a.median_age = i / s),
-      r > 0 && (a.median_household_income = r / s),
-      c > 0 && (a.per_capita_income = c / s),
-      o > 0 && (a.poverty_rate = (o / s) * 100)),
-    a
+      ((r.population = s),
+      i > 0 && (r.median_age = i / s),
+      a > 0 && (r.median_household_income = a / s),
+      l > 0 && (r.per_capita_income = l / s),
+      o > 0 && (r.poverty_rate = (o / s) * 100)),
+    r
   );
 }
-async function an(e = []) {
+async function on(t = []) {
   const n = {};
-  for (const y of e) {
-    const v = String(y)
+  for (const y of t) {
+    const w = String(y)
       .replace(/[^0-9]/g, "")
       .padStart(11, "0");
-    if (v.length !== 11) continue;
-    const _ = v.slice(0, 2),
-      m = v.slice(2, 5),
-      w = v.slice(5),
+    if (w.length !== 11) continue;
+    const _ = w.slice(0, 2),
+      m = w.slice(2, 5),
+      v = w.slice(5),
       h = `${_}${m}`;
-    (n[h] || (n[h] = { state: _, county: m, tracts: [] }), n[h].tracts.push(w));
+    (n[h] || (n[h] = { state: _, county: m, tracts: [] }), n[h].tracts.push(v));
   }
   let s = 0,
     i = 0,
-    r = 0,
-    c = 0,
-    o = 0,
     a = 0,
+    l = 0,
+    o = 0,
+    r = 0,
     d = 0;
   for (const y of Object.values(n)) {
-    const v = yt(y.tracts, 50);
-    for (const _ of v) {
+    const w = ht(y.tracts, 50);
+    for (const _ of w) {
       const m =
         "https://api.census.gov/data/2022/acs/acs5/profile?get=" +
         [
@@ -2062,148 +1991,148 @@ async function an(e = []) {
         _.join(",") +
         `&in=state:${y.state}%20county:${y.county}`;
       try {
-        const w = await fetch(m).then((h) => h.json());
-        if (!Array.isArray(w) || w.length < 2) continue;
-        for (let h = 1; h < w.length; h++) {
-          const [p, g, E, b, C, F, k] = w[h].slice(0, 7).map(Number);
+        const v = await fetch(m).then((h) => h.json());
+        if (!Array.isArray(v) || v.length < 2) continue;
+        for (let h = 1; h < v.length; h++) {
+          const [p, g, E, b, C, F, P] = v[h].slice(0, 7).map(Number);
           (Number.isFinite(p) && p > 0 && (s += p),
             Number.isFinite(g) &&
               g > 0 &&
-              ((i += g), Number.isFinite(b) && b > 0 && (c += b * g)),
-            Number.isFinite(E) && E > 0 && (r += E),
+              ((i += g), Number.isFinite(b) && b > 0 && (l += b * g)),
+            Number.isFinite(E) && E > 0 && (a += E),
             Number.isFinite(C) &&
               C > 0 &&
               ((o += C),
-              Number.isFinite(F) && F > 0 && (a += F),
-              Number.isFinite(k) && k > 0 && (d += k)));
+              Number.isFinite(F) && F > 0 && (r += F),
+              Number.isFinite(P) && P > 0 && (d += P)));
         }
       } catch {}
     }
   }
   const f = {},
-    l = i + r;
+    c = i + a;
   return (
-    l > 0 &&
-      ((f.owner_occupied_pct = (i / l) * 100),
-      (f.renter_occupied_pct = (r / l) * 100)),
-    i > 0 && c > 0 && (f.median_home_value = c / i),
+    c > 0 &&
+      ((f.owner_occupied_pct = (i / c) * 100),
+      (f.renter_occupied_pct = (a / c) * 100)),
+    i > 0 && l > 0 && (f.median_home_value = l / i),
     o > 0 &&
-      ((f.high_school_or_higher_pct = (a / o) * 100),
+      ((f.high_school_or_higher_pct = (r / o) * 100),
       (f.bachelors_or_higher_pct = (d / o) * 100)),
     f
   );
 }
-async function kt(e = []) {
+async function kt(t = []) {
   const n = {};
-  for (const i of e) {
-    const r = String(i)
+  for (const i of t) {
+    const a = String(i)
       .replace(/[^0-9]/g, "")
       .padStart(11, "0");
-    if (r.length !== 11) continue;
-    const c = r.slice(0, 2),
-      o = r.slice(2, 5),
-      a = r.slice(5),
-      d = `${c}${o}`;
-    (n[d] || (n[d] = { state: c, county: o, tracts: [] }), n[d].tracts.push(a));
+    if (a.length !== 11) continue;
+    const l = a.slice(0, 2),
+      o = a.slice(2, 5),
+      r = a.slice(5),
+      d = `${l}${o}`;
+    (n[d] || (n[d] = { state: l, county: o, tracts: [] }), n[d].tracts.push(r));
   }
   const s = {};
   for (const i of Object.values(n)) {
-    const r = yt(i.tracts, 50);
-    for (const c of r) {
+    const a = ht(i.tracts, 50);
+    for (const l of a) {
       const o =
         "https://api.census.gov/data/2022/acs/acs5/profile?get=DP03_0009PE,DP05_0001E&for=tract:" +
-        c.join(",") +
+        l.join(",") +
         `&in=state:${i.state}%20county:${i.county}`;
       try {
-        const a = await fetch(o).then((d) => d.json());
-        if (!Array.isArray(a) || a.length < 2) continue;
-        for (let d = 1; d < a.length; d++) {
-          const [f, l, y, v, _] = a[d],
-            m = `${y}${v}${_}`;
-          s[m] = { unemployment_rate: Number(f), population: Number(l) };
+        const r = await fetch(o).then((d) => d.json());
+        if (!Array.isArray(r) || r.length < 2) continue;
+        for (let d = 1; d < r.length; d++) {
+          const [f, c, y, w, _] = r[d],
+            m = `${y}${w}${_}`;
+          s[m] = { unemployment_rate: Number(f), population: Number(c) };
         }
       } catch {}
     }
   }
   return s;
 }
-async function vn(e = []) {
+async function yn(t = []) {
   const n =
       "https://gis.water.ca.gov/arcgis/rest/services/Society/i16_Census_Tract_DisadvantagedCommunities_2020/MapServer/0/query",
     s = new Set(),
     i = 50;
-  for (let r = 0; r < e.length; r += i) {
-    const c = e.slice(r, r + i);
-    if (!c.length) continue;
-    const o = `GEOID20 IN (${c.map((d) => `'${d}'`).join(",")})`,
-      a =
+  for (let a = 0; a < t.length; a += i) {
+    const l = t.slice(a, a + i);
+    if (!l.length) continue;
+    const o = `GEOID20 IN (${l.map((d) => `'${d}'`).join(",")})`,
+      r =
         n +
         `?where=${encodeURIComponent(o)}&outFields=GEOID20,DAC20&returnGeometry=false&f=json`;
     try {
-      const d = await fetch(a).then((f) => f.json());
+      const d = await fetch(r).then((f) => f.json());
       for (const f of d.features || []) {
-        const l = f.attributes || {},
-          y = String(l.GEOID20);
-        String(l.DAC20 || "").toUpperCase() === "Y" && s.add(y);
+        const c = f.attributes || {},
+          y = String(c.GEOID20);
+        String(c.DAC20 || "").toUpperCase() === "Y" && s.add(y);
       }
     } catch {}
   }
   return Array.from(s);
 }
-async function cn(e = []) {
+async function an(t = []) {
   const n = new Set();
   return (
     await Promise.all(
-      e.map(async (s) => {
+      t.map(async (s) => {
         try {
-          const i = _t(fn, { fips: s, census_tract: s, geoid: s }),
-            r = await nt(i);
-          Array.isArray(r.environmental_hardships) &&
-            r.environmental_hardships.forEach((c) => n.add(c));
+          const i = mt("/lookup", { fips: s, census_tract: s, geoid: s }),
+            a = await tt(i);
+          Array.isArray(a.environmental_hardships) &&
+            a.environmental_hardships.forEach((l) => n.add(l));
         } catch {}
       }),
     ),
     Array.from(n).sort()
   );
 }
-async function cs(e = {}) {
-  var a, d;
-  const { surrounding_10_mile: n, water_district: s } = e || {},
-    i = { ...e },
-    r = n || {};
-  if (Array.isArray(r.census_tracts_fips) && r.census_tracts_fips.length) {
-    const f = await rn(r.census_tracts_fips),
-      l = r.demographics || {};
-    i.surrounding_10_mile = { ...r, demographics: { ...l, ...f } };
+async function os(t = {}) {
+  var r, d;
+  const { surrounding_10_mile: n, water_district: s } = t || {},
+    i = { ...t },
+    a = n || {};
+  if (Array.isArray(a.census_tracts_fips) && a.census_tracts_fips.length) {
+    const f = await sn(a.census_tracts_fips),
+      c = a.demographics || {};
+    i.surrounding_10_mile = { ...a, demographics: { ...c, ...f } };
   }
-  const c = s || {},
-    o = Array.isArray(c.census_tracts_fips)
-      ? c.census_tracts_fips.map(String)
+  const l = s || {},
+    o = Array.isArray(l.census_tracts_fips)
+      ? l.census_tracts_fips.map(String)
       : [];
   if (o.length) {
-    const f = await rn(o),
-      l = c.demographics || {},
+    const f = await sn(o),
+      c = l.demographics || {},
       y =
-        (d = (a = i.surrounding_10_mile) == null ? void 0 : a.demographics) ==
+        (d = (r = i.surrounding_10_mile) == null ? void 0 : r.demographics) ==
         null
           ? void 0
           : d.median_household_income,
-      v = { ...l, ...f };
+      w = { ...c, ...f };
     (y != null &&
-      (!Number.isFinite(v.median_household_income) ||
-        v.median_household_income < 0) &&
-      (v.median_household_income = y),
-      (i.water_district = { ...c, demographics: v }));
+      (!Number.isFinite(w.median_household_income) ||
+        w.median_household_income < 0) &&
+      (w.median_household_income = y),
+      (i.water_district = { ...l, demographics: w }));
   }
   return i;
 }
-async function ls(e = {}) {
-  var a, d;
-  const { surrounding_10_mile: n, water_district: s } = e || {},
-    i = { ...e },
-    r = n || {};
-  if (Array.isArray(r.census_tracts_fips) && r.census_tracts_fips.length) {
-    const f = r.demographics || {};
+async function as(t = {}) {
+  var r, d;
+  const { surrounding_10_mile: n, water_district: s } = t || {},
+    i = { ...t },
+    a = n || {};
+  if (Array.isArray(a.census_tracts_fips) && a.census_tracts_fips.length) {
+    const f = a.demographics || {};
     if (
       [
         f.owner_occupied_pct,
@@ -2213,16 +2142,16 @@ async function ls(e = {}) {
         f.bachelors_or_higher_pct,
       ].some((y) => ne(y) || (typeof y == "number" && y < 0))
     ) {
-      const y = await an(r.census_tracts_fips);
-      i.surrounding_10_mile = { ...r, demographics: { ...f, ...y } };
+      const y = await on(a.census_tracts_fips);
+      i.surrounding_10_mile = { ...a, demographics: { ...f, ...y } };
     }
   }
-  const c = s || {},
-    o = Array.isArray(c.census_tracts_fips)
-      ? c.census_tracts_fips.map(String)
+  const l = s || {},
+    o = Array.isArray(l.census_tracts_fips)
+      ? l.census_tracts_fips.map(String)
       : [];
   if (o.length) {
-    const f = c.demographics || {};
+    const f = l.demographics || {};
     if (
       [
         f.owner_occupied_pct,
@@ -2232,54 +2161,54 @@ async function ls(e = {}) {
         f.bachelors_or_higher_pct,
       ].some((y) => ne(y) || (typeof y == "number" && y < 0))
     ) {
-      const y = await an(o);
-      let v = { ...f, ...y };
+      const y = await on(o);
+      let w = { ...f, ...y };
       const _ =
-        (d = (a = i.surrounding_10_mile) == null ? void 0 : a.demographics) ==
+        (d = (r = i.surrounding_10_mile) == null ? void 0 : r.demographics) ==
         null
           ? void 0
           : d.median_home_value;
       (_ != null &&
-        (!Number.isFinite(v.median_home_value) || v.median_home_value < 0) &&
-        (v.median_home_value = _),
-        (i.water_district = { ...c, demographics: v }));
+        (!Number.isFinite(w.median_home_value) || w.median_home_value < 0) &&
+        (w.median_home_value = _),
+        (i.water_district = { ...l, demographics: w }));
     }
   }
   return i;
 }
-async function us(e = {}) {
+async function rs(t = {}) {
   const {
       state_fips: n,
       county_fips: s,
       tract_code: i,
-      unemployment_rate: r,
-      surrounding_10_mile: c,
+      unemployment_rate: a,
+      surrounding_10_mile: l,
       water_district: o,
-    } = e || {},
-    a = c || {},
+    } = t || {},
+    r = l || {},
     d = o || {},
     f = [],
-    l = n && s && i ? `${n}${s}${i}` : null;
-  ne(r) && l && f.push(l);
-  const y = Array.isArray(a.census_tracts_fips) ? a.census_tracts_fips : [];
-  a.demographics &&
-    ne(a.demographics.unemployment_rate) &&
+    c = n && s && i ? `${n}${s}${i}` : null;
+  ne(a) && c && f.push(c);
+  const y = Array.isArray(r.census_tracts_fips) ? r.census_tracts_fips : [];
+  r.demographics &&
+    ne(r.demographics.unemployment_rate) &&
     y.length &&
     f.push(...y);
-  const v = Array.isArray(d.census_tracts_fips)
+  const w = Array.isArray(d.census_tracts_fips)
     ? d.census_tracts_fips.map(String)
     : [];
   d.demographics &&
     ne(d.demographics.unemployment_rate) &&
-    v.length &&
-    f.push(...v);
+    w.length &&
+    f.push(...w);
   const _ = Array.from(new Set(f));
-  if (!_.length) return e;
+  if (!_.length) return t;
   const m = await kt(_),
-    w = { ...e };
+    v = { ...t };
   if (
-    (ne(r) && l && m[l] && (w.unemployment_rate = m[l].unemployment_rate),
-    a.demographics && ne(a.demographics.unemployment_rate) && y.length)
+    (ne(a) && c && m[c] && (v.unemployment_rate = m[c].unemployment_rate),
+    r.demographics && ne(r.demographics.unemployment_rate) && y.length)
   ) {
     let h = 0,
       p = 0;
@@ -2291,15 +2220,15 @@ async function us(e = {}) {
         ((h += E.population), (p += E.unemployment_rate * E.population));
     }
     h > 0 &&
-      (w.surrounding_10_mile = {
-        ...a,
-        demographics: { ...a.demographics, unemployment_rate: p / h },
+      (v.surrounding_10_mile = {
+        ...r,
+        demographics: { ...r.demographics, unemployment_rate: p / h },
       });
   }
-  if (d.demographics && ne(d.demographics.unemployment_rate) && v.length) {
+  if (d.demographics && ne(d.demographics.unemployment_rate) && w.length) {
     let h = 0,
       p = 0;
-    for (const g of v) {
+    for (const g of w) {
       const E = m[g];
       E &&
         Number.isFinite(E.unemployment_rate) &&
@@ -2307,80 +2236,80 @@ async function us(e = {}) {
         ((h += E.population), (p += E.unemployment_rate * E.population));
     }
     h > 0 &&
-      (w.water_district = {
+      (v.water_district = {
         ...d,
         demographics: { ...d.demographics, unemployment_rate: p / h },
       });
   }
-  return w;
+  return v;
 }
-async function ps(e = {}) {
-  const { surrounding_10_mile: n, water_district: s } = e || {},
-    i = { ...e },
-    r = n || {};
-  if (Array.isArray(r.census_tracts_fips) && r.census_tracts_fips.length) {
-    const a = await Pt(r.census_tracts_fips),
-      d = r.demographics || {};
-    i.surrounding_10_mile = { ...r, demographics: { ...d, ...a } };
+async function cs(t = {}) {
+  const { surrounding_10_mile: n, water_district: s } = t || {},
+    i = { ...t },
+    a = n || {};
+  if (Array.isArray(a.census_tracts_fips) && a.census_tracts_fips.length) {
+    const r = await Lt(a.census_tracts_fips),
+      d = a.demographics || {};
+    i.surrounding_10_mile = { ...a, demographics: { ...d, ...r } };
   }
-  const c = s || {},
-    o = Array.isArray(c.census_tracts_fips)
-      ? c.census_tracts_fips.map(String)
+  const l = s || {},
+    o = Array.isArray(l.census_tracts_fips)
+      ? l.census_tracts_fips.map(String)
       : [];
   if (o.length) {
-    const a = await Pt(o),
-      d = c.demographics || {};
-    i.water_district = { ...c, demographics: { ...d, ...a } };
+    const r = await Lt(o),
+      d = l.demographics || {};
+    i.water_district = { ...l, demographics: { ...d, ...r } };
   }
   return i;
 }
-async function fs(e = {}) {
-  const { surrounding_10_mile: n, water_district: s } = e || {},
-    i = { ...e },
-    r = n || {},
-    c =
-      Array.isArray(r.census_tracts_fips) && r.census_tracts_fips.length
-        ? r.census_tracts_fips
-        : Array.isArray(r.census_tracts)
-          ? r.census_tracts
+async function ls(t = {}) {
+  const { surrounding_10_mile: n, water_district: s } = t || {},
+    i = { ...t },
+    a = n || {},
+    l =
+      Array.isArray(a.census_tracts_fips) && a.census_tracts_fips.length
+        ? a.census_tracts_fips
+        : Array.isArray(a.census_tracts)
+          ? a.census_tracts
           : [];
   if (
-    (!Array.isArray(r.environmental_hardships) ||
-      !r.environmental_hardships.length) &&
-    c.length
+    (!Array.isArray(a.environmental_hardships) ||
+      !a.environmental_hardships.length) &&
+    l.length
   ) {
-    const d = await cn(c);
-    i.surrounding_10_mile = { ...r, environmental_hardships: d };
+    const d = await an(l);
+    i.surrounding_10_mile = { ...a, environmental_hardships: d };
   }
   const o = s || {},
-    a = Array.isArray(o.census_tracts_fips)
+    r = Array.isArray(o.census_tracts_fips)
       ? o.census_tracts_fips.map(String)
       : [];
   if (
     (!Array.isArray(o.environmental_hardships) ||
       !o.environmental_hardships.length) &&
-    a.length
+    r.length
   ) {
-    const d = await cn(a);
+    const d = await an(r);
     i.water_district = { ...o, environmental_hardships: d };
   }
   return i;
 }
-async function ds(e = {}) {
-  const { lat: n, lon: s, census_tract: i, surrounding_10_mile: r } = e || {};
-  if (n == null || s == null) return e;
-  const c = 1609.34 * 10,
-    o = { ...(r || {}) },
-    a = [];
+async function us(t = {}) {
+  const { lat: n, lon: s, census_tract: i, surrounding_10_mile: a } = t || {};
+  if (n == null || s == null) return t;
+  const l = 1609.34 * 10,
+    o = { ...(a || {}) },
+    r = [];
   if (!Array.isArray(o.cities) || !o.cities.length) {
-    const _ = `[out:json];(node[place=city](around:${c},${n},${s});node[place=town](around:${c},${n},${s}););out;`,
+    const _ = `[out:json];(node[place=city](around:${l},${n},${s});node[place=town](around:${l},${n},${s}););out;`,
       m =
         "https://overpass-api.de/api/interpreter?data=" + encodeURIComponent(_);
-    a.push(
+    r.push(
       fetch(m)
-        .then((w) => w.json())
-        .then((w) => {
-          const h = (w.elements || [])
+        .then((v) => v.json())
+        .then((v) => {
+          const h = (v.elements || [])
             .map((p) => {
               var g;
               return (g = p.tags) == null ? void 0 : g.name;
@@ -2395,14 +2324,14 @@ async function ds(e = {}) {
     f = Array.isArray(o.census_tracts_fips)
       ? o.census_tracts_fips.map(String)
       : [],
-    l = { ...(o.census_tract_map || {}) },
-    y = `https://tigerweb.geo.census.gov/arcgis/rest/services/TIGERweb/Tracts_Blocks/MapServer/10/query?where=1=1&geometry=${s},${n}&geometryType=esriGeometryPoint&inSR=4326&spatialRel=esriSpatialRelIntersects&distance=${c}&units=esriSRUnit_Meter&outFields=NAME,GEOID&f=json`;
-  (a.push(
+    c = { ...(o.census_tract_map || {}) },
+    y = `https://tigerweb.geo.census.gov/arcgis/rest/services/TIGERweb/Tracts_Blocks/MapServer/10/query?where=1=1&geometry=${s},${n}&geometryType=esriGeometryPoint&inSR=4326&spatialRel=esriSpatialRelIntersects&distance=${l}&units=esriSRUnit_Meter&outFields=NAME,GEOID&f=json`;
+  (r.push(
     fetch(y)
       .then((_) => _.json())
       .then((_) => {
         const m = _.features || [],
-          w = [],
+          v = [],
           h = [],
           p = {};
         for (const g of m) {
@@ -2410,92 +2339,92 @@ async function ds(e = {}) {
           let b = null;
           if (
             (E.NAME &&
-              ((b = E.NAME.replace(/^Census Tract\s+/i, "")), w.push(b)),
+              ((b = E.NAME.replace(/^Census Tract\s+/i, "")), v.push(b)),
             E.GEOID)
           ) {
             const C = String(E.GEOID);
             (h.push(C), b && (p[C] = b));
           }
         }
-        ((o.census_tracts = Array.from(new Set([...d, ...w]))),
+        ((o.census_tracts = Array.from(new Set([...d, ...v]))),
           (o.census_tracts_fips = Array.from(new Set([...f, ...h]))),
-          (o.census_tract_map = { ...l, ...p }));
+          (o.census_tract_map = { ...c, ...p }));
       })
       .catch(() => {}),
   ),
-    a.length && (await Promise.all(a)),
+    r.length && (await Promise.all(r)),
     Array.isArray(o.cities) || (o.cities = []));
-  const v = new Set(Array.isArray(o.census_tracts) ? o.census_tracts : []);
+  const w = new Set(Array.isArray(o.census_tracts) ? o.census_tracts : []);
   if (
-    (i && v.add(String(i)),
-    (o.census_tracts = Array.from(v)),
+    (i && w.add(String(i)),
+    (o.census_tracts = Array.from(w)),
     Array.isArray(o.census_tracts_fips))
   ) {
     const _ = new Set(o.census_tracts_fips),
-      { state_fips: m, county_fips: w, tract_code: h } = e || {};
-    (m && w && h && _.add(`${m}${w}${h}`),
+      { state_fips: m, county_fips: v, tract_code: h } = t || {};
+    (m && v && h && _.add(`${m}${v}${h}`),
       (o.census_tracts_fips = Array.from(_)));
   }
   if (Array.isArray(o.census_tracts_fips) && o.census_tracts_fips.length)
     try {
-      const _ = await vn(o.census_tracts_fips),
+      const _ = await yn(o.census_tracts_fips),
         m = [];
-      for (const w of _) {
-        const h = (o.census_tract_map && o.census_tract_map[w]) || w;
+      for (const v of _) {
+        const h = (o.census_tract_map && o.census_tract_map[v]) || v;
         m.push(h);
       }
       if (((o.dac_tracts = m), (o.dac_tracts_fips = _), m.length)) {
-        const w = new Set([...(o.census_tracts || []), ...m]);
-        o.census_tracts = Array.from(w);
+        const v = new Set([...(o.census_tracts || []), ...m]);
+        o.census_tracts = Array.from(v);
       }
     } catch {}
   if (Array.isArray(o.census_tracts_fips) && o.census_tracts_fips.length)
     try {
       const _ = await kt(o.census_tracts_fips);
       let m = 0,
-        w = 0;
+        v = 0;
       const h = new Set(o.dac_tracts_fips || []);
       for (const p of o.census_tracts_fips) {
         const g = _[p];
         g &&
           Number.isFinite(g.population) &&
-          ((m += g.population), h.has(String(p)) && (w += g.population));
+          ((m += g.population), h.has(String(p)) && (v += g.population));
       }
-      (m > 0 && (o.dac_population_pct = (w / m) * 100),
+      (m > 0 && (o.dac_population_pct = (v / m) * 100),
         o.census_tracts_fips.length > 0 &&
           (o.dac_tracts_pct = (h.size / o.census_tracts_fips.length) * 100));
     } catch {}
-  return { ...e, surrounding_10_mile: o };
+  return { ...t, surrounding_10_mile: o };
 }
-async function ms(e = {}, n = "") {
-  var m, w;
+async function ps(t = {}, n = "") {
+  var m, v;
   const {
     lat: s,
     lon: i,
-    city: r,
-    census_tract: c,
+    city: a,
+    census_tract: l,
     state_fips: o,
-    county_fips: a,
+    county_fips: r,
     tract_code: d,
     water_district: f,
-  } = e || {};
-  if (s == null || i == null) return e;
-  const l = { ...f },
+  } = t || {};
+  if (s == null || i == null) return t;
+  const c = { ...f },
     y = [];
   if (n) {
-    const h = _t("/lookup", { address: n });
+    const h = mt("/lookup", { address: n });
     y.push(
-      nt(h)
+      tt(h)
         .then((p) => {
           var E, b, C, F;
-          l.name =
+          c.name =
             ((E = p == null ? void 0 : p.agency) == null
               ? void 0
               : E.agency_name) ||
             ((b = p == null ? void 0 : p.agency) == null ? void 0 : b.name) ||
             (p == null ? void 0 : p.agency_name) ||
             (p == null ? void 0 : p.name) ||
-            l.name;
+            c.name;
           const g =
             ((C = p == null ? void 0 : p.agency) == null
               ? void 0
@@ -2506,31 +2435,31 @@ async function ms(e = {}, n = "") {
               ? void 0
               : F.census_tracts);
           if (typeof g == "string") {
-            const k = g.split(/\s*,\s*/).filter(Boolean);
-            l.census_tracts = k;
-            const B = k.filter((G) => /^\d{11}$/.test(G));
-            B.length && (l.census_tracts_fips = B);
+            const P = g.split(/\s*,\s*/).filter(Boolean);
+            c.census_tracts = P;
+            const z = P.filter((G) => /^\d{11}$/.test(G));
+            z.length && (c.census_tracts_fips = z);
           } else if (Array.isArray(g)) {
-            const k = [...new Set(g.map(String))];
-            l.census_tracts = k;
-            const B = k.filter((G) => /^\d{11}$/.test(G));
-            B.length &&
-              (l.census_tracts_fips = [
-                ...new Set([...(l.census_tracts_fips || []), ...B]),
+            const P = [...new Set(g.map(String))];
+            c.census_tracts = P;
+            const z = P.filter((G) => /^\d{11}$/.test(G));
+            z.length &&
+              (c.census_tracts_fips = [
+                ...new Set([...(c.census_tracts_fips || []), ...z]),
               ]);
           }
         })
         .catch(() => {}),
     );
   }
-  if (!l.name) {
+  if (!c.name) {
     const h = `https://services.arcgis.com/8DFNJhY7CUN8E0bX/ArcGIS/rest/services/Public_Water_System_Boundaries/FeatureServer/0/query?geometry=${i}%2C${s}&geometryType=esriGeometryPoint&inSR=4326&spatialRel=esriSpatialRelIntersects&outFields=PWS_NAME&returnGeometry=false&f=json`;
     y.push(
       fetch(h)
         .then((p) => p.json())
         .then((p) => {
           var g, E, b;
-          l.name =
+          c.name =
             ((b =
               (E =
                 (g = p == null ? void 0 : p.features) == null
@@ -2539,30 +2468,30 @@ async function ms(e = {}, n = "") {
                 ? void 0
                 : E.attributes) == null
               ? void 0
-              : b.PWS_NAME) || l.name;
+              : b.PWS_NAME) || c.name;
         })
         .catch(() => {}),
     );
   }
   if (
-    ((!Array.isArray(l.cities) || !l.cities.length) && r && (l.cities = [r]),
+    ((!Array.isArray(c.cities) || !c.cities.length) && a && (c.cities = [a]),
     y.length && (await Promise.all(y)),
-    l.name && (!Array.isArray(l.census_tracts) || !l.census_tracts.length))
+    c.name && (!Array.isArray(c.census_tracts) || !c.census_tracts.length))
   )
     try {
-      const h = _t("/census-tracts", { agency_name: l.name }),
-        p = await nt(h),
+      const h = mt("/census-tracts", { agency_name: c.name }),
+        p = await tt(h),
         g = p == null ? void 0 : p.census_tracts;
-      Array.isArray(g) && (l.census_tracts = [...new Set(g.map(String))]);
+      Array.isArray(g) && (c.census_tracts = [...new Set(g.map(String))]);
     } catch {}
   try {
     const h = `https://services.arcgis.com/8DFNJhY7CUN8E0bX/ArcGIS/rest/services/Public_Water_System_Boundaries/FeatureServer/0/query?geometry=${i}%2C${s}&geometryType=esriGeometryPoint&inSR=4326&spatialRel=esriSpatialRelIntersects&outFields=PWS_NAME&returnGeometry=true&outSR=4326&f=json`,
       p = await fetch(h).then((E) => E.json()),
       g =
-        (w = (m = p == null ? void 0 : p.features) == null ? void 0 : m[0]) ==
+        (v = (m = p == null ? void 0 : p.features) == null ? void 0 : m[0]) ==
         null
           ? void 0
-          : w.geometry;
+          : v.geometry;
     if (g) {
       const E =
           "https://tigerweb.geo.census.gov/arcgis/rest/services/TIGERweb/Tracts_Blocks/MapServer/10/query",
@@ -2588,8 +2517,8 @@ async function ms(e = {}, n = "") {
         C = await fetch(G).then((q) => q.json());
       }
       const F = [],
-        k = [],
-        B = {};
+        P = [],
+        z = {};
       for (const G of C.features || []) {
         const q = G.attributes || {};
         let N = null;
@@ -2598,77 +2527,77 @@ async function ms(e = {}, n = "") {
           q.GEOID)
         ) {
           const L = String(q.GEOID);
-          (k.push(L), N && (B[L] = N));
+          (P.push(L), N && (z[L] = N));
         }
       }
-      if (F.length || k.length) {
-        const G = Array.isArray(l.census_tracts)
-            ? l.census_tracts.map(String)
+      if (F.length || P.length) {
+        const G = Array.isArray(c.census_tracts)
+            ? c.census_tracts.map(String)
             : [],
-          q = Array.isArray(l.census_tracts_fips)
-            ? l.census_tracts_fips.map(String)
+          q = Array.isArray(c.census_tracts_fips)
+            ? c.census_tracts_fips.map(String)
             : [],
-          N = l.census_tract_map || {};
-        (F.length && (l.census_tracts = [...new Set([...G, ...F])]),
-          k.length && (l.census_tracts_fips = [...new Set([...q, ...k])]),
-          Object.keys(B).length && (l.census_tract_map = { ...N, ...B }));
+          N = c.census_tract_map || {};
+        (F.length && (c.census_tracts = [...new Set([...G, ...F])]),
+          P.length && (c.census_tracts_fips = [...new Set([...q, ...P])]),
+          Object.keys(z).length && (c.census_tract_map = { ...N, ...z }));
       }
     }
   } catch {}
-  let v = [];
-  (Array.isArray(l.census_tracts)
-    ? (v = l.census_tracts.map(String))
-    : typeof l.census_tracts == "string" &&
-      (v = l.census_tracts.split(/\s*,\s*/).filter(Boolean)),
-    c && v.unshift(String(c)),
-    (l.census_tracts = [...new Set(v)]));
-  let _ = Array.isArray(l.census_tracts_fips)
-    ? l.census_tracts_fips.map(String)
+  let w = [];
+  (Array.isArray(c.census_tracts)
+    ? (w = c.census_tracts.map(String))
+    : typeof c.census_tracts == "string" &&
+      (w = c.census_tracts.split(/\s*,\s*/).filter(Boolean)),
+    l && w.unshift(String(l)),
+    (c.census_tracts = [...new Set(w)]));
+  let _ = Array.isArray(c.census_tracts_fips)
+    ? c.census_tracts_fips.map(String)
     : [];
-  for (const h of l.census_tracts)
+  for (const h of c.census_tracts)
     if (/^\d{11}$/.test(h)) _.push(h);
-    else if (o && a) {
+    else if (o && r) {
       const p = String(h).replace(/[^0-9]/g, "");
       if (p) {
         const g = p.padStart(6, "0").slice(-6);
-        _.push(`${o}${a}${g}`);
+        _.push(`${o}${r}${g}`);
       }
     }
   if (
-    (o && a && d && _.unshift(`${o}${a}${d}`),
-    (l.census_tracts_fips = [...new Set(_)]),
-    Array.isArray(l.census_tracts_fips) && l.census_tracts_fips.length)
+    (o && r && d && _.unshift(`${o}${r}${d}`),
+    (c.census_tracts_fips = [...new Set(_)]),
+    Array.isArray(c.census_tracts_fips) && c.census_tracts_fips.length)
   )
     try {
-      const h = await vn(l.census_tracts_fips),
+      const h = await yn(c.census_tracts_fips),
         p = [];
       for (const g of h) {
-        const E = (l.census_tract_map && l.census_tract_map[g]) || g;
+        const E = (c.census_tract_map && c.census_tract_map[g]) || g;
         p.push(E);
       }
-      if (((l.dac_tracts = p), (l.dac_tracts_fips = h), p.length)) {
-        const g = new Set([...(l.census_tracts || []), ...p]);
-        l.census_tracts = Array.from(g);
+      if (((c.dac_tracts = p), (c.dac_tracts_fips = h), p.length)) {
+        const g = new Set([...(c.census_tracts || []), ...p]);
+        c.census_tracts = Array.from(g);
       }
     } catch {}
-  if (Array.isArray(l.census_tracts_fips) && l.census_tracts_fips.length)
+  if (Array.isArray(c.census_tracts_fips) && c.census_tracts_fips.length)
     try {
-      const h = await kt(l.census_tracts_fips);
+      const h = await kt(c.census_tracts_fips);
       let p = 0,
         g = 0;
-      const E = new Set(l.dac_tracts_fips || []);
-      for (const b of l.census_tracts_fips) {
+      const E = new Set(c.dac_tracts_fips || []);
+      for (const b of c.census_tracts_fips) {
         const C = h[b];
         C &&
           Number.isFinite(C.population) &&
           ((p += C.population), E.has(String(b)) && (g += C.population));
       }
-      (p > 0 && (l.dac_population_pct = (g / p) * 100),
-        l.census_tracts_fips.length > 0 &&
-          (l.dac_tracts_pct = (E.size / l.census_tracts_fips.length) * 100));
+      (p > 0 && (c.dac_population_pct = (g / p) * 100),
+        c.census_tracts_fips.length > 0 &&
+          (c.dac_tracts_pct = (E.size / c.census_tracts_fips.length) * 100));
     } catch {}
   return (
-    (l.environment = {
+    (c.environment = {
       percentile: 48.5,
       overall_percentiles: {
         pollution_burden: 37.2,
@@ -2704,61 +2633,61 @@ async function ms(e = {}, n = "") {
         housing_burden: 38.8,
       },
     }),
-    { ...e, water_district: l }
+    { ...t, water_district: c }
   );
 }
-async function hs(e = {}) {
-  var r, c;
-  const { lat: n, lon: s, english_less_than_very_well_pct: i } = e || {};
-  if (!ne(i) || n == null || s == null) return e;
+async function fs(t = {}) {
+  var a, l;
+  const { lat: n, lon: s, english_less_than_very_well_pct: i } = t || {};
+  if (!ne(i) || n == null || s == null) return t;
   try {
     const o = await fetch(
         `https://geo.fcc.gov/api/census/block/find?latitude=${n}&longitude=${s}&format=json`,
       ).then((d) => d.json()),
-      a = (r = o == null ? void 0 : o.Block) == null ? void 0 : r.FIPS;
-    if (a && a.length >= 11) {
-      const d = a.slice(0, 2),
-        f = a.slice(2, 5),
-        y = `https://api.census.gov/data/2022/acs/acs5/profile?get=DP02_0111PE&for=tract:${a.slice(5, 11)}&in=state:${d}+county:${f}`,
-        v = await fetch(y).then((w) => w.json()),
-        _ = (c = v == null ? void 0 : v[1]) == null ? void 0 : c[0],
+      r = (a = o == null ? void 0 : o.Block) == null ? void 0 : a.FIPS;
+    if (r && r.length >= 11) {
+      const d = r.slice(0, 2),
+        f = r.slice(2, 5),
+        y = `https://api.census.gov/data/2022/acs/acs5/profile?get=DP02_0111PE&for=tract:${r.slice(5, 11)}&in=state:${d}+county:${f}`,
+        w = await fetch(y).then((v) => v.json()),
+        _ = (l = w == null ? void 0 : w[1]) == null ? void 0 : l[0],
         m = Number(_);
       if (Number.isFinite(m) && m >= 0)
-        return { ...e, english_less_than_very_well_pct: m };
+        return { ...t, english_less_than_very_well_pct: m };
     }
   } catch {}
-  return e;
+  return t;
 }
-async function _s(e = {}) {
-  const { lat: n, lon: s } = e || {};
-  if (n == null || s == null) return { ...e, alerts: [] };
+async function ds(t = {}) {
+  const { lat: n, lon: s } = t || {};
+  if (n == null || s == null) return { ...t, alerts: [] };
   try {
     const i = `https://api.weather.gov/alerts/active?point=${n},${s}`,
-      r = await fetch(i, {
+      a = await fetch(i, {
         headers: {
           Accept: "application/geo+json",
           "User-Agent": "CalWEP-Demographic-Website (info@calwep.org)",
         },
       });
-    if (!r.ok) throw new Error("NWS response not ok");
-    const c = await r.json(),
-      o = Array.isArray(c == null ? void 0 : c.features)
-        ? c.features
-            .map((a) => {
+    if (!a.ok) throw new Error("NWS response not ok");
+    const l = await a.json(),
+      o = Array.isArray(l == null ? void 0 : l.features)
+        ? l.features
+            .map((r) => {
               var d;
-              return (d = a == null ? void 0 : a.properties) == null
+              return (d = r == null ? void 0 : r.properties) == null
                 ? void 0
                 : d.headline;
             })
             .filter(Boolean)
         : [];
-    return { ...e, alerts: o };
+    return { ...t, alerts: o };
   } catch {
-    return { ...e, alerts: [] };
+    return { ...t, alerts: [] };
   }
 }
-function gs(e) {
-  const n = Number(e);
+function ms(t) {
+  const n = Number(t);
   if (!Number.isFinite(n)) return { bg: "#fff", fg: "#000" };
   const s = [
     { max: 10, color: "#006837", fg: "#fff" },
@@ -2775,43 +2704,43 @@ function gs(e) {
   for (const i of s) if (n <= i.max) return { bg: i.color, fg: i.fg || "#000" };
   return { bg: "#6E0000", fg: "#fff" };
 }
-function Ee(e, n, s, i, r = "") {
-  const c = (o) => (o && String(o).trim() ? o : '<p class="note">No data</p>');
+function Ee(t, n, s, i, a = "") {
+  const l = (o) => (o && String(o).trim() ? o : '<p class="note">No data</p>');
   return `
     <section class="section-block">
-      <h3 class="section-header">${e}</h3>
-      ${r}
+      <h3 class="section-header">${t}</h3>
+      ${a}
       <div class="comparison-grid">
-        <div class="col local">${c(n)}</div>
-        <div class="col surrounding">${c(s)}</div>
-        <div class="col district">${c(i)}</div>
+        <div class="col local">${l(n)}</div>
+        <div class="col surrounding">${l(s)}</div>
+        <div class="col district">${l(i)}</div>
       </div>
     </section>
   `;
 }
-function Lt(e) {
-  var o, a;
-  if (!e || typeof e != "object") return '<p class="note">No data</p>';
+function Rt(t) {
+  var o, r;
+  if (!t || typeof t != "object") return '<p class="note">No data</p>';
   const n = (d) => {
-      const { bg: f, fg: l } = gs(d),
+      const { bg: f, fg: c } = ms(d),
         y = Number.isFinite(Number(d)) ? Number(d).toFixed(1) : "—";
-      return `<span class="ces-badge" style="background:${f};color:${l};">${y}</span>`;
+      return `<span class="ces-badge" style="background:${f};color:${c};">${y}</span>`;
     },
-    s = e.percentile,
-    i = (o = e.overall_percentiles) == null ? void 0 : o.pollution_burden,
-    r =
-      (a = e.overall_percentiles) == null
+    s = t.percentile,
+    i = (o = t.overall_percentiles) == null ? void 0 : o.pollution_burden,
+    a =
+      (r = t.overall_percentiles) == null
         ? void 0
-        : a.population_characteristics,
-    c = (d, f, l = []) => {
+        : r.population_characteristics,
+    l = (d, f, c = []) => {
       if (!f || typeof f != "object") return "";
-      const v = Object.entries(f)
+      const w = Object.entries(f)
         .sort(([_], [m]) => {
-          const w = l.indexOf(_),
-            h = l.indexOf(m);
-          return w !== -1 && h !== -1
-            ? w - h
-            : w !== -1
+          const v = c.indexOf(_),
+            h = c.indexOf(m);
+          return v !== -1 && h !== -1
+            ? v - h
+            : v !== -1
               ? -1
               : h !== -1
                 ? 1
@@ -2819,38 +2748,38 @@ function Lt(e) {
         })
         .map(
           ([_, m]) =>
-            `<div class="key">${D(is[_] || ss(_))}</div><div class="val">${n(m)}</div>`,
+            `<div class="key">${D(ts[_] || es(_))}</div><div class="val">${n(m)}</div>`,
         )
         .join("");
-      return `<h4 class="sub-section-header">${d}</h4><div class="kv">${v}</div>`;
+      return `<h4 class="sub-section-header">${d}</h4><div class="kv">${w}</div>`;
     };
   return `
     <div class="kv">
       <div class="key">Overall percentile</div><div class="val">${n(s)}</div>
       <div class="key">Pollution burden</div><div class="val">${n(i)}</div>
-      <div class="key">Population characteristics</div><div class="val">${n(r)}</div>
+      <div class="key">Population characteristics</div><div class="val">${n(a)}</div>
     </div>
-    ${c("Exposures", e.exposures, pt.exposures)}
-    ${c("Environmental effects", e.environmental_effects, pt.environmental_effects)}
-    ${c("Sensitive populations", e.sensitive_populations, pt.sensitive_populations)}
-    ${c("Socioeconomic factors", e.socioeconomic_factors, pt.socioeconomic_factors)}
+    ${l("Exposures", t.exposures, ut.exposures)}
+    ${l("Environmental effects", t.environmental_effects, ut.environmental_effects)}
+    ${l("Sensitive populations", t.sensitive_populations, ut.sensitive_populations)}
+    ${l("Socioeconomic factors", t.socioeconomic_factors, ut.socioeconomic_factors)}
   `;
 }
-function ln(e, n, s) {
+function rn(t, n, s) {
   const {
       city: i,
-      zip: r,
-      county: c,
+      zip: a,
+      county: l,
       census_tract: o,
-      lat: a,
+      lat: r,
       lon: d,
       english_less_than_very_well_pct: f,
-      language_other_than_english_pct: l,
+      language_other_than_english_pct: c,
       spanish_at_home_pct: y,
-      primary_language: v,
+      primary_language: w,
       secondary_language: _,
       median_household_income: m,
-      per_capita_income: w,
+      per_capita_income: v,
       median_age: h,
       poverty_rate: p,
       unemployment_rate: g,
@@ -2858,56 +2787,56 @@ function ln(e, n, s) {
       dac_status: b,
       environmental_hardships: C,
       white_pct: F,
-      black_pct: k,
-      native_pct: B,
+      black_pct: P,
+      native_pct: z,
       asian_pct: G,
       pacific_pct: q,
       other_race_pct: N,
       two_or_more_races_pct: L,
-      hispanic_pct: z,
+      hispanic_pct: B,
       not_hispanic_pct: ue,
       owner_occupied_pct: te,
-      renter_occupied_pct: oe,
-      median_home_value: re,
+      renter_occupied_pct: ie,
+      median_home_value: oe,
       high_school_or_higher_pct: ae,
-      bachelors_or_higher_pct: ce,
+      bachelors_or_higher_pct: re,
       alerts: Te,
-      enviroscreen: $,
-      surrounding_10_mile: st,
+      enviroscreen: M,
+      surrounding_10_mile: nt,
       water_district: U,
     } = n || {},
     Ue = Array.isArray(C) ? Array.from(new Set(C)) : [],
     O = Array.isArray(Te) ? Te : [],
     Se =
-      a != null && d != null
-        ? `${Number(a).toFixed(6)}, ${Number(d).toFixed(6)}`
+      r != null && d != null
+        ? `${Number(r).toFixed(6)}, ${Number(d).toFixed(6)}`
         : "—",
     He =
-      a != null && d != null
-        ? `<img class="map-image" src="/api/staticmap?lat=${a}&lon=${d}" alt="Map of location" />`
+      r != null && d != null
+        ? `<img class="map-image" src="/api/staticmap?lat=${r}&lon=${d}" alt="Map of location" />`
         : "",
-    M = st || {},
+    $ = nt || {},
     I = U || {},
-    Ge = Array.isArray(M.environmental_hardships)
-      ? Array.from(new Set(M.environmental_hardships))
+    Ge = Array.isArray($.environmental_hardships)
+      ? Array.from(new Set($.environmental_hardships))
       : [],
     We = Array.isArray(I.environmental_hardships)
       ? Array.from(new Set(I.environmental_hardships))
       : [],
-    ye = Array.isArray(M.census_tracts)
-      ? M.census_tracts.join(", ")
-      : D(M.census_tracts) || "—",
-    Re = Array.isArray(M.cities) ? M.cities.join(", ") : D(M.cities) || "—",
+    ye = Array.isArray($.census_tracts)
+      ? $.census_tracts.join(", ")
+      : D($.census_tracts) || "—",
+    Re = Array.isArray($.cities) ? $.cities.join(", ") : D($.cities) || "—",
     de = Array.isArray(I.census_tracts)
       ? I.census_tracts.join(", ")
       : D(I.census_tracts) || "—",
-    Be = Array.isArray(I.cities) ? I.cities.join(", ") : D(I.cities) || "—",
-    ze = `
+    ze = Array.isArray(I.cities) ? I.cities.join(", ") : D(I.cities) || "—",
+    Be = `
     <div class="kv">
       <div class="key">City</div><div class="val">${D(i) || "—"}</div>
       <div class="key">Census tract</div><div class="val">${D(o) || "—"}</div>
-      <div class="key">ZIP code</div><div class="val">${D(r) || "—"}</div>
-      <div class="key">County</div><div class="val">${D(c) || "—"}</div>
+      <div class="key">ZIP code</div><div class="val">${D(a) || "—"}</div>
+      <div class="key">County</div><div class="val">${D(l) || "—"}</div>
       <div class="key">Coordinates</div><div class="val">${Se}</div>
     </div>
     ${He}
@@ -2921,41 +2850,41 @@ function ln(e, n, s) {
     Ce = `
     <div class="kv">
       <div class="key">District</div><div class="val">${D(I.name) || "—"}</div>
-      <div class="key">Cities</div><div class="val">${Be}</div>
+      <div class="key">Cities</div><div class="val">${ze}</div>
       <div class="key">Census tracts</div><div class="val">${de}</div>
     </div>
   `,
     Ne = Ee(
       "Location Summary",
-      ze,
+      Be,
       Ae,
       Ce,
       '<p class="section-description">This section lists basic geographic information for the census tract, surrounding 10&#8209;mile area, and water district, such as city, ZIP code, county, and coordinates.</p>',
     ),
     Le = (S = {}) =>
       `<div class="kv">${[
-        ["Total population", ts(S.population)],
-        ["Median age", ns(S.median_age)],
-        ["Median household income", Nt(S.median_household_income)],
-        ["Per capita income", Nt(S.per_capita_income)],
+        ["Total population", Jn(S.population)],
+        ["Median age", Qn(S.median_age)],
+        ["Median household income", bt(S.median_household_income)],
+        ["Per capita income", bt(S.per_capita_income)],
         ["Poverty rate", x(S.poverty_rate)],
         ["Unemployment rate", x(S.unemployment_rate)],
       ]
         .map(
-          ([Z, Q]) => `<div class="key">${Z}</div><div class="val">${Q}</div>`,
+          ([J, Q]) => `<div class="key">${J}</div><div class="val">${Q}</div>`,
         )
         .join("")}</div>`,
-    it = Ee(
+    st = Ee(
       "Population &amp; Income (ACS)",
       Le({
         population: E,
         median_age: h,
         median_household_income: m,
-        per_capita_income: w,
+        per_capita_income: v,
         poverty_rate: p,
         unemployment_rate: g,
       }),
-      Le(M.demographics || {}),
+      Le($.demographics || {}),
       Le(I.demographics || {}),
       '<p class="section-description">This section provides a snapshot of the people living in the selected area, drawn from the American Community Survey (ACS). It includes the total population, median age, household income, poverty rate, and unemployment rate. These indicators offer a quick view of community size, economic stability, and social conditions.</p><p class="section-description"><em>Values for the surrounding 10-mile area and water district are population-weighted averages.</em></p>',
     ),
@@ -2974,19 +2903,19 @@ function ln(e, n, s) {
         ["People who speak Spanish at home", x(S.spanish_at_home_pct)],
       ]
         .map(
-          ([Z, Q]) => `<div class="key">${Z}</div><div class="val">${Q}</div>`,
+          ([J, Q]) => `<div class="key">${J}</div><div class="val">${Q}</div>`,
         )
         .join("")}</div>`,
     Ye = Ee(
       "Language (ACS)",
       je({
-        primary_language: v,
+        primary_language: w,
         secondary_language: _,
-        language_other_than_english_pct: l,
+        language_other_than_english_pct: c,
         english_less_than_very_well_pct: f,
         spanish_at_home_pct: y,
       }),
-      je(M.demographics || {}),
+      je($.demographics || {}),
       je(I.demographics || {}),
       '<p class="section-description">This section highlights the primary and secondary languages spoken in the community and key language indicators based on American Community Survey (ACS) 5&#8209;year estimates.</p><p class="section-description"><em>Values for the surrounding 10-mile area and water district are population-weighted averages.</em></p>',
     ),
@@ -3003,23 +2932,23 @@ function ln(e, n, s) {
         ["Not Hispanic", x(S.not_hispanic_pct)],
       ]
         .map(
-          ([Z, Q]) => `<div class="key">${Z}</div><div class="val">${Q}</div>`,
+          ([J, Q]) => `<div class="key">${J}</div><div class="val">${Q}</div>`,
         )
         .join("")}</div>`,
-    we = Ee(
+    ve = Ee(
       "Race &amp; Ethnicity (ACS)",
       me({
         white_pct: F,
-        black_pct: k,
-        native_pct: B,
+        black_pct: P,
+        native_pct: z,
         asian_pct: G,
         pacific_pct: q,
         other_race_pct: N,
         two_or_more_races_pct: L,
-        hispanic_pct: z,
+        hispanic_pct: B,
         not_hispanic_pct: ue,
       }),
-      me(M.demographics || {}),
+      me($.demographics || {}),
       me(I.demographics || {}),
       '<p class="section-description">This section shows the racial and ethnic composition of the community, expressed as percentages of the total population using American Community Survey (ACS) data. These insights help identify the diversity of the area and support efforts to ensure programs, outreach, and engagement strategies reflect and serve all community groups.</p><p class="section-description"><em>Values for the surrounding 10-mile area and water district are population-weighted averages.</em></p>',
     ),
@@ -3027,51 +2956,51 @@ function ln(e, n, s) {
       `<div class="kv">${[
         ["Owner occupied", x(S.owner_occupied_pct)],
         ["Renter occupied", x(S.renter_occupied_pct)],
-        ["Median home value", Nt(S.median_home_value)],
+        ["Median home value", bt(S.median_home_value)],
         ["High school or higher", x(S.high_school_or_higher_pct)],
         ["Bachelor's degree or higher", x(S.bachelors_or_higher_pct)],
       ]
         .map(
-          ([Z, Q]) => `<div class="key">${Z}</div><div class="val">${Q}</div>`,
+          ([J, Q]) => `<div class="key">${J}</div><div class="val">${Q}</div>`,
         )
         .join("")}</div>`,
-    ot = Ee(
+    it = Ee(
       "Housing &amp; Education (ACS)",
       pe({
         owner_occupied_pct: te,
-        renter_occupied_pct: oe,
-        median_home_value: re,
+        renter_occupied_pct: ie,
+        median_home_value: oe,
         high_school_or_higher_pct: ae,
-        bachelors_or_higher_pct: ce,
+        bachelors_or_higher_pct: re,
       }),
-      pe(M.demographics || {}),
+      pe($.demographics || {}),
       pe(I.demographics || {}),
       '<p class="section-description">This section combines information on housing and educational attainment in the community. It includes the percentage of owner&#8209;occupied and renter&#8209;occupied homes, median home value, and levels of education such as high school completion and bachelor’s degree or higher. These indicators provide insight into community stability, affordability, and educational opportunities, helping inform outreach strategies and program planning.</p><p class="section-description"><em>Values for the surrounding 10-mile area and water district are population-weighted averages.</em></p>',
     ),
-    De = (S, j, Z, Q) => {
-      const ct = Array.isArray(j) ? j.length > 0 : !!S,
-        Ie = ct ? "var(--success)" : "var(--border-strong)",
-        ve = [`Disadvantaged community: <strong>${ct ? "Yes" : "No"}</strong>`],
-        ke = [];
+    De = (S, j, J, Q) => {
+      const rt = Array.isArray(j) ? j.length > 0 : !!S,
+        Ie = rt ? "var(--success)" : "var(--border-strong)",
+        we = [`Disadvantaged community: <strong>${rt ? "Yes" : "No"}</strong>`],
+        Pe = [];
       return (
-        Number.isFinite(Z) &&
-          ke.push(`<li><strong>${x(Z)}</strong> of population</li>`),
+        Number.isFinite(J) &&
+          Pe.push(`<li><strong>${x(J)}</strong> of population</li>`),
         Number.isFinite(Q) &&
-          ke.push(`<li><strong>${x(Q)}</strong> of tracts</li>`),
-        ke.length && ve.push(`<ul class="dac-stats">${ke.join("")}</ul>`),
+          Pe.push(`<li><strong>${x(Q)}</strong> of tracts</li>`),
+        Pe.length && we.push(`<ul class="dac-stats">${Pe.join("")}</ul>`),
         Array.isArray(j) &&
           j.length &&
-          ve.push(
+          we.push(
             `<div class="dac-tracts">Tracts ${j.map((be) => D(be)).join(", ")}</div>`,
           ),
-        `<div class="callout" style="border-left-color:${Ie}">${ve.join("")}</div>`
+        `<div class="callout" style="border-left-color:${Ie}">${we.join("")}</div>`
       );
     },
-    rt = Ee(
+    ot = Ee(
       "Disadvantaged Community (DAC) Status",
       De(b),
-      Array.isArray(M.dac_tracts)
-        ? De(null, M.dac_tracts, M.dac_population_pct, M.dac_tracts_pct)
+      Array.isArray($.dac_tracts)
+        ? De(null, $.dac_tracts, $.dac_population_pct, $.dac_tracts_pct)
         : "",
       Array.isArray(I.dac_tracts)
         ? De(null, I.dac_tracts, I.dac_population_pct, I.dac_tracts_pct)
@@ -3080,9 +3009,9 @@ function ln(e, n, s) {
     ),
     Ve = Ee(
       "Environmental Indicators (CalEPA Enviroscreen)",
-      Lt($),
-      Lt(M.environment),
-      Lt(I.environment),
+      Rt(M),
+      Rt($.environment),
+      Rt(I.environment),
       '<p class="section-description">This section shows environmental and community health indicators from California’s Enviroscreen tool. Results are presented as percentiles, with higher numbers (and darker colors) indicating greater environmental burdens compared to other areas in the state. These measures include factors such as air quality, traffic pollution, and access to safe drinking water.</p><p class="section-description">Staff can use this information to understand potential environmental challenges facing a neighborhood, strengthen grant applications that require equity or environmental justice considerations, and design outreach that addresses local concerns. For example, if an event is planned in an area with a high Enviroscreen percentile, staff may want to highlight programs or benefits related to clean water, pollution reduction, or community health.</p><p class="section-description"><strong>How to Read This</strong><br>Green = Low burden (fewer environmental and health challenges)<br>Yellow/Orange = Moderate burden<br>Red = High burden (greater environmental and health challenges)<br>Percentile score shows how the community compares to others across California.</p>',
     ),
     at = Ee(
@@ -3105,7 +3034,7 @@ function ln(e, n, s) {
       ${O.length ? `<div class="stats">${O.map((S) => `<span class="pill">${D(S)}</span>`).join("")}</div>` : '<p class="note">No active alerts found for this location.</p>'}
     </section>
   `,
-    Pe = `
+    ke = `
     <div class="comparison-grid column-headers">
       <div class="col">Census tract</div>
       <div class="col">10 mile radius</div>
@@ -3116,7 +3045,7 @@ function ln(e, n, s) {
     <article class="card">
       <div class="card__header">
         <div class="card__head-left">
-          <h2 class="card__title">Results for: ${D(e)}</h2>
+          <h2 class="card__title">Results for: ${D(t)}</h2>
           <div class="card__actions">
             <button type="button" onclick="printReport()">Print</button>
             <button type="button" onclick="downloadPdf()">Download PDF</button>
@@ -3124,19 +3053,19 @@ function ln(e, n, s) {
             <button type="button" onclick="shareReport()">Share Link</button>
           </div>
         </div>
-        <span class="updated">Updated ${It()}</span>
+        <span class="updated">Updated ${Ot()}</span>
       </div>
-      ${Pe}
+      ${ke}
       ${Ne}
-      ${it}
+      ${st}
       ${Ye}
-      ${we}
+      ${ve}
+      ${it}
       ${ot}
-      ${rt}
       ${Ve}
       ${at}
       ${Oe}
-      <p class="note">Search took ${An(s)}.</p>
+      <p class="note">Search took ${_n(s)}.</p>
       <p class="note">Values for the surrounding 10-mile area and water district are population-weighted averages.</p>
       <span class="updated--footer">
         Sources: FCC Block for county &amp; tract; US Census ACS 5‑year (languages, population, median income); CalEnviroScreen 4.0; NWS alerts.
@@ -3144,78 +3073,79 @@ function ln(e, n, s) {
     </article>
     `);
 }
-async function En() {
-  const e = document.getElementById("autocomplete"),
+async function An() {
+  const t = document.getElementById("autocomplete"),
     n = document.getElementById("result"),
-    s = ((e == null ? void 0 : e.value) || "").trim();
+    s = ((t == null ? void 0 : t.value) || "").trim();
   if (s.length < 4) {
-    nn("Please enter a more complete address (at least 4 characters).", s, 0);
+    en("Please enter a more complete address (at least 4 characters).", s, 0);
     return;
   }
   const i = s.toLowerCase();
-  if (Ct.has(i)) {
-    const o = Ct.get(i);
+  if (St.has(i)) {
+    const o = St.get(i);
     xe = { address: s, data: o };
-    const a = new URL(window.location);
-    (a.searchParams.set("address", s),
-      window.history.replaceState(null, "", a.toString()),
-      ln(s, o, 0));
+    const r = new URL(window.location);
+    (r.searchParams.set("address", s),
+      window.history.replaceState(null, "", r.toString()),
+      rn(s, o, 0));
     return;
   }
-  (n.setAttribute("aria-busy", "true"), Kn(s));
-  const r = document.getElementById("spinnerOverlay");
-  (r && (r.style.display = "flex"), os());
-  let c = 0;
+  (n.setAttribute("aria-busy", "true"), qn(s));
+  const a = document.getElementById("spinnerOverlay");
+  (a && (a.style.display = "flex"), ns());
+  let l = 0;
   try {
-    const o = _t(fn, { address: s });
-    let a = await nt(o);
-    if (!a || typeof a != "object") throw new Error("Malformed response.");
-    a = await se("enrichLocation", () => rs(a));
-    const [d, f, l, y, v] = await Promise.all([
-      se("fetchLanguageAcs", () => as(a)),
-      se("enrichSurrounding", () => ds(a)),
-      se("enrichWaterDistrict", () => ms(a, s)),
-      se("enrichEnglishProficiency", () => hs(a)),
-      se("enrichNwsAlerts", () => _s(a)),
+    const o = mt("/lookup", { address: s });
+    console.log("Lookup request:", o);
+    let r = await tt(o);
+    if (!r || typeof r != "object") throw new Error("Malformed response.");
+    r = await ce("enrichLocation", () => ss(r));
+    const [d, f, c, y, w] = await Promise.all([
+      ce("fetchLanguageAcs", () => is(r)),
+      ce("enrichSurrounding", () => us(r)),
+      ce("enrichWaterDistrict", () => ps(r, s)),
+      ce("enrichEnglishProficiency", () => fs(r)),
+      ce("enrichNwsAlerts", () => ds(r)),
     ]);
-    mt(a, d, f, l, y, v);
-    const _ = await se("enrichRegionBasics", () => cs(a)),
-      m = await se("enrichRegionHousingEducation", () => ls(a));
-    mt(a, _, m);
-    const [w, h, p] = await Promise.all([
-      se("enrichRegionLanguages", () => ps(a)),
-      se("enrichRegionHardships", () => fs(a)),
-      se("enrichUnemployment", () => us(a)),
+    ft(r, d, f, c, y, w);
+    const _ = await ce("enrichRegionBasics", () => os(r)),
+      m = await ce("enrichRegionHousingEducation", () => as(r));
+    ft(r, _, m);
+    const [v, h, p] = await Promise.all([
+      ce("enrichRegionLanguages", () => cs(r)),
+      ce("enrichRegionHardships", () => ls(r)),
+      ce("enrichUnemployment", () => rs(r)),
     ]);
-    (mt(a, w, h, p), (xe = { address: s, data: a }), Ct.set(i, a));
+    (ft(r, v, h, p), (xe = { address: s, data: r }), St.set(i, r));
     const g = new URL(window.location);
     (g.searchParams.set("address", s),
       window.history.replaceState(null, "", g.toString()),
-      (c = on()),
-      ln(s, a, c));
+      (l = nn()),
+      rn(s, r, l));
   } catch (o) {
-    (c || (c = on()), nn(String(o), s, c));
+    (l || (l = nn()), en(String(o), s, l));
   } finally {
     const o = document.getElementById("spinnerOverlay");
     (o && (o.style.display = "none"), n.removeAttribute("aria-busy"));
   }
 }
-function ys() {
-  const e = document.getElementById("lookupBtn");
-  if (!e) return;
-  const n = e.cloneNode(!0);
-  (e.replaceWith(n),
+function hs() {
+  const t = document.getElementById("lookupBtn");
+  if (!t) return;
+  const n = t.cloneNode(!0);
+  (t.replaceWith(n),
     n.addEventListener("click", (s) => {
-      (s.preventDefault(), En().catch(console.error));
+      (s.preventDefault(), An().catch(console.error));
     }));
 }
-wn().catch(() => {});
+gn().catch(() => {});
 window.onload = () => {
-  (Nn(), ys());
+  (Rn(), hs());
   const n = new URLSearchParams(window.location.search).get("address");
   if (n) {
     const s = document.getElementById("autocomplete");
-    s && ((s.value = n), En().catch(console.error));
+    s && ((s.value = n), An().catch(console.error));
   }
 };
-export { vs as p };
+export { ys as p };
