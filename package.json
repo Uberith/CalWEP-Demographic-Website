@@ -4,9 +4,14 @@
   "description": "CalWEP Demographic Website",
   "main": "server.js",
   "scripts": {
-    "start": "node server.js"
+    "start": "node server.js",
+    "dev": "vite",
+    "build": "vite build"
   },
   "dependencies": {
     "@sentry/node": "^7.120.1"
+  },
+  "devDependencies": {
+    "vite": "^5.0.0"
   }
 }

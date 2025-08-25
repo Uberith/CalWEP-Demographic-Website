@@ -4,20 +4,17 @@
    - Robust fetch diagnostics, Google Places autocomplete, Enter-to-search, aria-busy
 */
 
-const DEBUG = new URLSearchParams(window.location.search).has("debug");
-let debugEl = null;
-function logDebug(...args) {
-  if (!DEBUG) return;
-  console.log(...args);
-  if (!debugEl) {
-    debugEl = document.createElement("pre");
-    debugEl.id = "debugLog";
-    document.body.appendChild(debugEl);
-  }
-  debugEl.textContent +=
-    args.map((a) => (typeof a === "string" ? a : JSON.stringify(a))).join(" ") +
-    "\n";
-}
+import {
+  API_BASE,
+  API_PATH,
+  buildApiUrl,
+  fetchJsonWithDiagnostics,
+  logDebug,
+  monitorAsync,
+} from "./api.js";
+import { renderLoading, renderError } from "./ui/error.js";
+import { fetchMapsKey, loadGoogleMaps, getGoogleMapsKey } from "./maps.js";
+import { escapeHTML, nowStamp, formatDuration } from "./utils.js";
 
 const SENTRY_DSN =
   document.querySelector('meta[name="sentry-dsn"]')?.content || "";
@@ -35,53 +32,17 @@ window.addEventListener("unhandledrejection", (event) => {
   logDebug("unhandledrejection", event.reason);
   window.Sentry?.captureException(event.reason);
 });
-async function monitorAsync(name, fn, meta = {}) {
-  const start = performance.now();
-  try {
-    const result = await fn();
-    return result;
-  } catch (err) {
-    window.Sentry?.captureException(err, { extra: { name, ...meta } });
-    throw err;
-  } finally {
-    const duration = performance.now() - start;
-    logDebug(name, { ...meta, duration });
-    window.Sentry?.addBreadcrumb?.({
-      category: "async",
-      message: name,
-      data: { ...meta, duration },
-    });
-  }
-}
-
-let autocomplete = null;
 
 let lastReport = null;
 // Cache previously retrieved results to avoid redundant network requests
 const lookupCache = new Map();
 
-let googleMapsKey = "";
-let mapsKeyPromise = null;
-function fetchMapsKey() {
-  if (!mapsKeyPromise) {
-    mapsKeyPromise = monitorAsync(
-      "fetchMapsKey",
-      async () => {
-        const r = await fetch("/api/maps-key");
-        if (!r.ok) throw new Error("Failed to load Maps key");
-        const data = await r.json();
-        googleMapsKey = data.key || "";
-        return googleMapsKey;
-      },
-      { url: "/api/maps-key" },
-    );
-  }
-  return mapsKeyPromise;
-}
 
 function printReport() {
   window.print();
 }
+
+window.printReport = printReport;
 
 function downloadRawData() {
   if (!lastReport) return;
@@ -101,22 +62,12 @@ function downloadRawData() {
   URL.revokeObjectURL(url);
 }
 
-function downloadPdf() {
-  if (!lastReport) return;
-  const safe = (lastReport.address || "report")
-    .replace(/[^a-z0-9]+/gi, "_")
-    .toLowerCase();
-  const element = document.querySelector("#result .card");
-  if (!element) return;
-  const opt = {
-    margin: 0.5,
-    filename: `calwep_report_${safe}.pdf`,
-    image: { type: "jpeg", quality: 0.98 },
-    html2canvas: { scale: 2 },
-    jsPDF: { unit: "in", format: "letter", orientation: "portrait" },
-  };
-  html2pdf().set(opt).from(element).save();
-}
+window.downloadRawData = downloadRawData;
+
+window.downloadPdf = async function () {
+  const { downloadPdf } = await import("./pdf.js");
+  downloadPdf(lastReport);
+};
 
 function shareReport() {
   const link = window.location.href;
@@ -132,20 +83,10 @@ function shareReport() {
   }
 }
 
-// ---------- Config ----------
-const API_BASE = "https://nftapi.cyberwiz.io";
-const API_PATH = "/demographics"; // see section 2 for why '/api' is safest
+window.shareReport = shareReport;
 
+// ---------- Config ----------
 // ---------- Utilities ----------
-function escapeHTML(str = "") {
-  if (str === null || str === undefined) return "";
-  return String(str)
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;")
-    .replace(/'/g, "&#39;");
-}
 function isMissing(n) {
   return n == null || Number(n) === -888888888;
 }
@@ -242,21 +183,9 @@ const CES_GROUP_ORDER = {
     "housing_burden",
   ],
 };
-function nowStamp() {
-  return new Date().toLocaleString();
-}
-
 // Simple search timer
 let searchTimerInterval = null;
 let searchTimerStart = null;
-function formatDuration(ms = 0) {
-  const totalSeconds = Math.round(ms / 1000);
-  const minutes = Math.floor(totalSeconds / 60);
-  const seconds = totalSeconds % 60;
-  const mLabel = minutes === 1 ? "Minute" : "Minutes";
-  const sLabel = seconds === 1 ? "Second" : "Seconds";
-  return `${minutes} ${mLabel} and ${seconds} ${sLabel}`;
-}
 function startSearchTimer() {
   searchTimerStart = Date.now();
   const setText = (text) => {
@@ -281,47 +210,6 @@ function stopSearchTimer() {
   searchTimerStart = null;
   return elapsed;
 }
-function buildApiUrl(path, params = {}) {
-  const base = API_BASE.endsWith("/") ? API_BASE : API_BASE + "/";
-  const url = new URL(path.replace(/^\//, ""), base);
-  for (const [k, v] of Object.entries(params)) {
-    if (v !== undefined && v !== null && String(v).length)
-      url.searchParams.set(k, v);
-  }
-  return url.toString();
-}
-async function fetchJsonWithDiagnostics(url) {
-  return monitorAsync(
-    "fetchJsonWithDiagnostics",
-    async () => {
-      let res;
-      try {
-        res = await fetch(url, {
-          method: "GET",
-          mode: "cors",
-          cache: "no-store",
-          headers: { Accept: "application/json" },
-        });
-      } catch (e) {
-        throw new Error(`Network error calling API: ${e?.message || e}`);
-      }
-      const txt = await res.text().catch(() => "");
-      if (!res.ok)
-        throw new Error(
-          `API ${res.status} ${res.statusText} for ${url} :: ${txt || "<no body>"}`,
-        );
-      try {
-        return JSON.parse(txt);
-      } catch {
-        throw new Error(
-          `API 200 but response was not valid JSON for ${url} :: ${txt.slice(0, 200)}…`,
-        );
-      }
-    },
-    { url },
-  );
-}
-
 // Attempt to fill in missing city or census tract using public geocoders
 async function enrichLocation(data = {}) {
   let { city, census_tract, lat, lon, state_fips, county_fips, tract_code } =
@@ -1486,78 +1374,9 @@ function renderEnviroscreenSection(title, data, includeDescription = false) {
 }
 
 // ---------- Places Autocomplete ----------
-function initAutocomplete() {
-  const input = document.getElementById("autocomplete");
-  if (!input || typeof google === "undefined" || !google.maps) return;
-
-  autocomplete = new google.maps.places.Autocomplete(input, {
-    types: ["address"],
-    componentRestrictions: { country: "us" },
-    fields: ["address_components", "formatted_address"],
-  });
-
-  autocomplete.addListener("place_changed", () => {
-    const p = autocomplete.getPlace();
-    let street = "",
-      city = "",
-      state = "",
-      zip = "";
-    for (const comp of p.address_components || []) {
-      const t = comp.types || [];
-      if (t.includes("street_number")) street = comp.long_name + " ";
-      else if (t.includes("route")) street += comp.long_name;
-      else if (t.includes("locality")) city = comp.long_name;
-      else if (t.includes("administrative_area_level_1"))
-        state = comp.short_name;
-      else if (t.includes("postal_code")) zip = comp.long_name;
-    }
-    if (!zip && p.formatted_address) {
-      const m = p.formatted_address.match(/\b\d{5}(?:-\d{4})?\b/);
-      if (m) zip = m[0];
-    }
-    const parts = [street.trim(), city, state, zip].filter(Boolean);
-    if (parts.length) input.value = parts.join(", ");
-  });
-
-  // Enter triggers lookup
-  input.addEventListener("keydown", (e) => {
-    if (e.key === "Enter") {
-      e.preventDefault();
-      document.getElementById("lookupBtn")?.click();
-    }
-  });
-}
+// initAutocomplete moved to maps.js
 
 // ---------- Rendering ----------
-function renderLoading(address) {
-  document.getElementById("result").innerHTML = `
-    <div class="card">
-      <div class="card__header">
-        <h2 class="card__title">Looking up demographics…</h2>
-        <span class="updated">Started ${nowStamp()}</span>
-      </div>
-      ${address ? `<p class="note">Address: <strong>${escapeHTML(address)}</strong></p>` : ""}
-      <div class="callout">Fetching county, languages, English proficiency, population, income, DAC, and alerts…</div>
-      <p class="note">Elapsed: <span id="searchTimer">0m 00s</span></p>
-    </div>
-  `;
-}
-function renderError(message, address, elapsedMs) {
-  document.getElementById("result").innerHTML = `
-    <div class="card" role="alert">
-      <div class="card__header">
-        <h2 class="card__title">Unable to retrieve data</h2>
-        <span class="updated">${nowStamp()}</span>
-      </div>
-      ${address ? `<p class="note">Address: <strong>${escapeHTML(address)}</strong></p>` : ""}
-      <div class="callout" style="border-left-color:#b45309;">
-        ${escapeHTML(message || "Please try again with a different address.")}
-      </div>
-      <p class="note">Search took ${formatDuration(elapsedMs)}.</p>
-      <p class="note">API base: <code>${escapeHTML(API_BASE)}</code>. If your API has a prefix, adjust <code>API_PATH</code>.</p>
-    </div>
-  `;
-}
 
 function buildComparisonRow(
   title,
@@ -1681,7 +1500,7 @@ function renderResultOld(address, data, elapsedMs) {
       : "—";
   const mapImgHtml =
     lat != null && lon != null
-      ? `<img class="map-image" src="https://maps.googleapis.com/maps/api/staticmap?center=${lat},${lon}&zoom=13&size=600x300&markers=color:red|${lat},${lon}&key=${googleMapsKey}" alt="Map of location" />`
+      ? `<img class="map-image" src="https://maps.googleapis.com/maps/api/staticmap?center=${lat},${lon}&zoom=13&size=600x300&markers=color:red|${lat},${lon}&key=${getGoogleMapsKey()}" alt="Map of location" />`
       : "";
 
 const hardshipSection = `
@@ -2011,7 +1830,7 @@ function renderResult(address, data, elapsedMs) {
       : "—";
   const mapImgHtml =
     lat != null && lon != null
-      ? `<img class="map-image" src="https://maps.googleapis.com/maps/api/staticmap?center=${lat},${lon}&zoom=13&size=600x300&markers=color:red|${lat},${lon}&key=${googleMapsKey}" alt="Map of location" />`
+      ? `<img class="map-image" src="https://maps.googleapis.com/maps/api/staticmap?center=${lat},${lon}&zoom=13&size=600x300&markers=color:red|${lat},${lon}&key=${getGoogleMapsKey()}" alt="Map of location" />`
       : "";
 
   const s = surrounding_10_mile || {};
@@ -2403,18 +2222,6 @@ function bindLookupTrigger() {
     e.preventDefault();
     lookup().catch(console.error);
   });
-}
-
-async function loadGoogleMaps() {
-  try {
-    const key = await fetchMapsKey();
-    const script = document.createElement("script");
-    script.src = `https://maps.googleapis.com/maps/api/js?key=${encodeURIComponent(key)}&libraries=places&callback=initAutocomplete`;
-    script.async = true;
-    document.head.appendChild(script);
-  } catch (err) {
-    console.error("Failed to load Google Maps", err);
-  }
 }
 
 // Warm language metadata so the first lookup is faster
