@@ -866,7 +866,7 @@ function mn() {
     M = null;
   const nt = R({}, [...qt, ...vt, ...wt, ...Et, ...Xt]);
   let U = null;
-  const Ue = R({}, [...Kt, ...Tt, ...Zt, ...lt]);
+  const He = R({}, [...Kt, ...Tt, ...Zt, ...lt]);
   let O = Object.seal(
       pn(null, {
         tagNameCheck: {
@@ -890,20 +890,20 @@ function mn() {
       }),
     ),
     Se = null,
-    He = null,
+    Re = null,
     $ = !0,
     I = !0,
     Ge = !1,
     We = !0,
     ye = !1,
-    Re = !0,
+    Ce = !0,
     de = !1,
     ze = !1,
     Be = !1,
     Ae = !1,
-    Ce = !1,
     Ne = !1,
-    Le = !0,
+    Le = !1,
+    De = !0,
     st = !1;
   const je = "user-content-";
   let Ye = !0,
@@ -937,7 +937,7 @@ function mn() {
     "video",
     "xmp",
   ]);
-  let De = null;
+  let Oe = null;
   const ot = R({}, ["audio", "video", "img", "source", "image", "track"]);
   let Ve = null;
   const at = R({}, [
@@ -956,21 +956,21 @@ function mn() {
       "style",
       "xmlns",
     ]),
-    Oe = "http://www.w3.org/1998/Math/MathML",
-    ke = "http://www.w3.org/2000/svg",
+    ke = "http://www.w3.org/1998/Math/MathML",
+    Ie = "http://www.w3.org/2000/svg",
     S = "http://www.w3.org/1999/xhtml";
   let j = S,
     J = !1,
     Q = null;
-  const rt = R({}, [Oe, ke, S], At);
-  let Ie = R({}, ["mi", "mo", "mn", "ms", "mtext"]),
+  const rt = R({}, [ke, Ie, S], At);
+  let Pe = R({}, ["mi", "mo", "mn", "ms", "mtext"]),
     we = R({}, ["annotation-xml"]);
-  const Pe = R({}, ["title", "style", "font", "a", "script"]);
+  const Me = R({}, ["title", "style", "font", "a", "script"]);
   let be = null;
   const vn = ["application/xhtml+xml", "text/html"],
     wn = "text/html";
   let W = null,
-    Me = null;
+    $e = null;
   const En = s.createElement("form"),
     It = function (e) {
       return e instanceof RegExp || e instanceof Function;
@@ -978,7 +978,7 @@ function mn() {
     _t = function () {
       let e =
         arguments.length > 0 && arguments[0] !== void 0 ? arguments[0] : {};
-      if (!(Me && Me === e)) {
+      if (!($e && $e === e)) {
         if (
           ((!e || typeof e != "object") && (e = {}),
           (e = ge(e)),
@@ -986,38 +986,38 @@ function mn() {
             vn.indexOf(e.PARSER_MEDIA_TYPE) === -1 ? wn : e.PARSER_MEDIA_TYPE),
           (W = be === "application/xhtml+xml" ? At : pt),
           (M = le(e, "ALLOWED_TAGS") ? R({}, e.ALLOWED_TAGS, W) : nt),
-          (U = le(e, "ALLOWED_ATTR") ? R({}, e.ALLOWED_ATTR, W) : Ue),
+          (U = le(e, "ALLOWED_ATTR") ? R({}, e.ALLOWED_ATTR, W) : He),
           (Q = le(e, "ALLOWED_NAMESPACES")
             ? R({}, e.ALLOWED_NAMESPACES, At)
             : rt),
           (Ve = le(e, "ADD_URI_SAFE_ATTR")
             ? R(ge(at), e.ADD_URI_SAFE_ATTR, W)
             : at),
-          (De = le(e, "ADD_DATA_URI_TAGS")
+          (Oe = le(e, "ADD_DATA_URI_TAGS")
             ? R(ge(ot), e.ADD_DATA_URI_TAGS, W)
             : ot),
           (pe = le(e, "FORBID_CONTENTS") ? R({}, e.FORBID_CONTENTS, W) : it),
           (Se = le(e, "FORBID_TAGS") ? R({}, e.FORBID_TAGS, W) : ge({})),
-          (He = le(e, "FORBID_ATTR") ? R({}, e.FORBID_ATTR, W) : ge({})),
+          (Re = le(e, "FORBID_ATTR") ? R({}, e.FORBID_ATTR, W) : ge({})),
           (ve = le(e, "USE_PROFILES") ? e.USE_PROFILES : !1),
           ($ = e.ALLOW_ARIA_ATTR !== !1),
           (I = e.ALLOW_DATA_ATTR !== !1),
           (Ge = e.ALLOW_UNKNOWN_PROTOCOLS || !1),
           (We = e.ALLOW_SELF_CLOSE_IN_ATTR !== !1),
           (ye = e.SAFE_FOR_TEMPLATES || !1),
-          (Re = e.SAFE_FOR_XML !== !1),
+          (Ce = e.SAFE_FOR_XML !== !1),
           (de = e.WHOLE_DOCUMENT || !1),
           (Ae = e.RETURN_DOM || !1),
-          (Ce = e.RETURN_DOM_FRAGMENT || !1),
-          (Ne = e.RETURN_TRUSTED_TYPE || !1),
+          (Ne = e.RETURN_DOM_FRAGMENT || !1),
+          (Le = e.RETURN_TRUSTED_TYPE || !1),
           (Be = e.FORCE_BODY || !1),
-          (Le = e.SANITIZE_DOM !== !1),
+          (De = e.SANITIZE_DOM !== !1),
           (st = e.SANITIZE_NAMED_PROPS || !1),
           (Ye = e.KEEP_CONTENT !== !1),
           (me = e.IN_PLACE || !1),
           (Te = e.ALLOWED_URI_REGEXP || fn),
           (j = e.NAMESPACE || S),
-          (Ie = e.MATHML_TEXT_INTEGRATION_POINTS || Ie),
+          (Pe = e.MATHML_TEXT_INTEGRATION_POINTS || Pe),
           (we = e.HTML_INTEGRATION_POINTS || we),
           (O = e.CUSTOM_ELEMENT_HANDLING || {}),
           e.CUSTOM_ELEMENT_HANDLING &&
@@ -1033,7 +1033,7 @@ function mn() {
             (O.allowCustomizedBuiltInElements =
               e.CUSTOM_ELEMENT_HANDLING.allowCustomizedBuiltInElements),
           ye && (I = !1),
-          Ce && (Ae = !0),
+          Ne && (Ae = !0),
           ve &&
             ((M = R({}, Xt)),
             (U = []),
@@ -1042,7 +1042,7 @@ function mn() {
             ve.svgFilters === !0 && (R(M, wt), R(U, Tt), R(U, lt)),
             ve.mathMl === !0 && (R(M, Et), R(U, Zt), R(U, lt))),
           e.ADD_TAGS && (M === nt && (M = ge(M)), R(M, e.ADD_TAGS, W)),
-          e.ADD_ATTR && (U === Ue && (U = ge(U)), R(U, e.ADD_ATTR, W)),
+          e.ADD_ATTR && (U === He && (U = ge(U)), R(U, e.ADD_ATTR, W)),
           e.ADD_URI_SAFE_ATTR && R(Ve, e.ADD_URI_SAFE_ATTR, W),
           e.FORBID_CONTENTS &&
             (pe === it && (pe = ge(pe)), R(pe, e.FORBID_CONTENTS, W)),
@@ -1063,7 +1063,7 @@ function mn() {
         } else
           (b === void 0 && (b = Vn(_, a)),
             b !== null && typeof C == "string" && (C = b.createHTML("")));
-        (K && K(e), (Me = e));
+        (K && K(e), ($e = e));
       }
     },
     Pt = R({}, [...vt, ...wt, ...$n]),
@@ -1074,23 +1074,23 @@ function mn() {
       const A = pt(e.tagName),
         k = pt(u.tagName);
       return Q[e.namespaceURI]
-        ? e.namespaceURI === ke
+        ? e.namespaceURI === Ie
           ? u.namespaceURI === S
             ? A === "svg"
-            : u.namespaceURI === Oe
-              ? A === "svg" && (k === "annotation-xml" || Ie[k])
+            : u.namespaceURI === ke
+              ? A === "svg" && (k === "annotation-xml" || Pe[k])
               : !!Pt[A]
-          : e.namespaceURI === Oe
+          : e.namespaceURI === ke
             ? u.namespaceURI === S
               ? A === "math"
-              : u.namespaceURI === ke
+              : u.namespaceURI === Ie
                 ? A === "math" && we[k]
                 : !!Mt[A]
             : e.namespaceURI === S
-              ? (u.namespaceURI === ke && !we[k]) ||
-                (u.namespaceURI === Oe && !Ie[k])
+              ? (u.namespaceURI === Ie && !we[k]) ||
+                (u.namespaceURI === ke && !Pe[k])
                 ? !1
-                : !Mt[A] && (Pe[A] || !Pt[A])
+                : !Mt[A] && (Me[A] || !Pt[A])
               : !!(be === "application/xhtml+xml" && Q[e.namespaceURI])
         : !1;
     },
@@ -1102,14 +1102,14 @@ function mn() {
         h(e);
       }
     },
-    $e = function (e, u) {
+    xe = function (e, u) {
       try {
         Xe(n.removed, { attribute: u.getAttributeNode(e), from: u });
       } catch {
         Xe(n.removed, { attribute: null, from: u });
       }
       if ((u.removeAttribute(e), e === "is"))
-        if (Ae || Ce)
+        if (Ae || Ne)
           try {
             fe(u);
           } catch {}
@@ -1184,7 +1184,7 @@ function mn() {
     };
   function he(T, e, u) {
     ct(T, (A) => {
-      A.call(n, e, u, Me);
+      A.call(n, e, u, $e);
     });
   }
   const Ut = function (e) {
@@ -1193,13 +1193,13 @@ function mn() {
       const A = W(e.nodeName);
       if (
         (he(N.uponSanitizeElement, e, { tagName: A, allowedTags: M }),
-        (Re &&
+        (Ce &&
           e.hasChildNodes() &&
           !Ft(e.firstElementChild) &&
           X(/<[/\w!]/g, e.innerHTML) &&
           X(/<[/\w!]/g, e.textContent)) ||
           e.nodeType === Qe.progressingInstruction ||
-          (Re && e.nodeType === Qe.comment && X(/<[/\w]/g, e.data)))
+          (Ce && e.nodeType === Qe.comment && X(/<[/\w]/g, e.data)))
       )
         return (fe(e), !0);
       if (!M[A] || Se[A]) {
@@ -1240,10 +1240,10 @@ function mn() {
           !1);
     },
     Ht = function (e, u, A) {
-      if (Le && (u === "id" || u === "name") && (A in s || A in En)) return !1;
-      if (!(I && !He[u] && X(te, u))) {
+      if (De && (u === "id" || u === "name") && (A in s || A in En)) return !1;
+      if (!(I && !Re[u] && X(te, u))) {
         if (!($ && X(ie, u))) {
-          if (!U[u] || He[u]) {
+          if (!U[u] || Re[u]) {
             if (
               !(
                 (Gt(e) &&
@@ -1268,7 +1268,7 @@ function mn() {
                   (u === "src" || u === "xlink:href" || u === "href") &&
                   e !== "script" &&
                   kn(A, "data:") === 0 &&
-                  De[e]
+                  Oe[e]
                 )
               ) {
                 if (!(Ge && !X(oe, Ke(A, ae, "")))) {
@@ -1309,19 +1309,19 @@ function mn() {
           (A.forceKeepAttr = void 0),
           he(N.uponSanitizeAttribute, e, A),
           (V = A.attrValue),
-          st && (qe === "id" || qe === "name") && ($e(H, e), (V = je + V)),
-          Re && X(/((--!?|])>)|<\/(style|title)/i, V))
+          st && (qe === "id" || qe === "name") && (xe(H, e), (V = je + V)),
+          Ce && X(/((--!?|])>)|<\/(style|title)/i, V))
         ) {
-          $e(H, e);
+          xe(H, e);
           continue;
         }
         if (A.forceKeepAttr) continue;
         if (!A.keepAttr) {
-          $e(H, e);
+          xe(H, e);
           continue;
         }
         if (!We && X(/\/>/i, V)) {
-          $e(H, e);
+          xe(H, e);
           continue;
         }
         ye &&
@@ -1330,7 +1330,7 @@ function mn() {
           });
         const zt = W(e.nodeName);
         if (!Ht(zt, qe, V)) {
-          $e(H, e);
+          xe(H, e);
           continue;
         }
         if (
@@ -1354,7 +1354,7 @@ function mn() {
             (ee ? e.setAttributeNS(ee, H, V) : e.setAttribute(H, V),
               gt(e) ? fe(e) : Yt(n.removed));
           } catch {
-            $e(H, e);
+            xe(H, e);
           }
       }
       he(N.afterSanitizeAttributes, e, null);
@@ -1400,8 +1400,8 @@ function mn() {
             : u.appendChild(A));
       else {
         if (!Ae && !ye && !de && T.indexOf("<") === -1)
-          return b && Ne ? b.createHTML(T) : T;
-        if (((u = $t(T)), !u)) return Ae ? null : Ne ? C : "";
+          return b && Le ? b.createHTML(T) : T;
+        if (((u = $t(T)), !u)) return Ae ? null : Le ? C : "";
       }
       u && Be && fe(u.firstChild);
       const H = xt(me ? T : u);
@@ -1409,7 +1409,7 @@ function mn() {
         (Ut(k), Wt(k), k.content instanceof l && Sn(k.content));
       if (me) return T;
       if (Ae) {
-        if (Ce)
+        if (Ne)
           for (Y = z.call(u.ownerDocument); u.firstChild; )
             Y.appendChild(u.firstChild);
         else Y = u;
@@ -1436,7 +1436,7 @@ function mn() {
           ct([L, B, ue], (_e) => {
             ee = Ke(ee, _e, " ");
           }),
-        b && Ne ? b.createHTML(ee) : ee
+        b && Le ? b.createHTML(ee) : ee
       );
     }),
     (n.setConfig = function () {
@@ -1445,10 +1445,10 @@ function mn() {
       (_t(T), (ze = !0));
     }),
     (n.clearConfig = function () {
-      ((Me = null), (ze = !1));
+      (($e = null), (ze = !1));
     }),
     (n.isValidAttribute = function (T, e, u) {
-      Me || _t({});
+      $e || _t({});
       const A = W(T),
         k = W(e);
       return Ht(A, k, u);
@@ -1547,20 +1547,20 @@ window.addEventListener("unhandledrejection", (t) => {
   (Dt("unhandledrejection", t.reason),
     (n = window.Sentry) == null || n.captureException(t.reason));
 });
-let xe = null;
+let Fe = null;
 const St = new Map();
 function Xn() {
   window.print();
 }
 window.printReport = Xn;
 function Kn() {
-  if (!xe) return;
-  const t = new Blob([JSON.stringify(xe, null, 2)], {
+  if (!Fe) return;
+  const t = new Blob([JSON.stringify(Fe, null, 2)], {
       type: "application/json",
     }),
     n = URL.createObjectURL(t),
     s = document.createElement("a"),
-    i = (xe.address || "report").replace(/[^a-z0-9]+/gi, "_").toLowerCase();
+    i = (Fe.address || "report").replace(/[^a-z0-9]+/gi, "_").toLowerCase();
   ((s.href = n),
     (s.download = `calwep_report_${i}.json`),
     document.body.appendChild(s),
@@ -1574,7 +1574,7 @@ window.downloadPdf = async function () {
     const { downloadPdf: n } = await import("./pdf.js").then((s) => s.p);
     return { downloadPdf: n };
   }, []);
-  t(xe);
+  t(Fe);
 };
 function Zn() {
   const t = window.location.href;
@@ -1674,9 +1674,9 @@ const ts = {
     ],
   };
 let dt = null,
-  Fe = null;
+  Ue = null;
 function ns() {
-  Fe = Date.now();
+  Ue = Date.now();
   const t = (n) => {
     const s = document.getElementById("searchTimer");
     s && (s.textContent = n);
@@ -1685,8 +1685,8 @@ function ns() {
   };
   (t("0m 00s"),
     (dt = setInterval(() => {
-      if (!Fe) return;
-      const n = Date.now() - Fe,
+      if (!Ue) return;
+      const n = Date.now() - Ue,
         s = Math.floor((n / 1e3) % 60),
         i = Math.floor(n / 6e4);
       t(`${i}m ${s.toString().padStart(2, "0")}s`);
@@ -1694,8 +1694,8 @@ function ns() {
 }
 function nn() {
   dt && clearInterval(dt);
-  const t = Fe ? Date.now() - Fe : 0;
-  return ((dt = null), (Fe = null), t);
+  const t = Ue ? Date.now() - Ue : 0;
+  return ((dt = null), (Ue = null), t);
 }
 async function ss(t = {}) {
   let {
@@ -2805,17 +2805,20 @@ function rn(t, n, s) {
       surrounding_10_mile: nt,
       water_district: U,
     } = n || {},
-    Ue = Array.isArray(C) ? Array.from(new Set(C)) : [],
+    He = Array.isArray(C) ? Array.from(new Set(C)) : [],
     O = Array.isArray(Te) ? Te : [],
     Se =
       r != null && d != null
         ? `${Number(r).toFixed(6)}, ${Number(d).toFixed(6)}`
-        : "—",
-    He =
-      r != null && d != null
-        ? `<img class="map-image" src="/api/staticmap?lat=${r}&lon=${d}" alt="Map of location" />`
-        : "",
-    $ = nt || {},
+        : "—";
+  let Re = "";
+  if (r != null && d != null) {
+    const S = new URL("/api/staticmap", window.location.origin);
+    (S.searchParams.set("lat", r),
+      S.searchParams.set("lon", d),
+      (Re = `<img class="map-image" src="${S}" alt="Map of location" />`));
+  }
+  const $ = nt || {},
     I = U || {},
     Ge = Array.isArray($.environmental_hardships)
       ? Array.from(new Set($.environmental_hardships))
@@ -2826,7 +2829,7 @@ function rn(t, n, s) {
     ye = Array.isArray($.census_tracts)
       ? $.census_tracts.join(", ")
       : D($.census_tracts) || "—",
-    Re = Array.isArray($.cities) ? $.cities.join(", ") : D($.cities) || "—",
+    Ce = Array.isArray($.cities) ? $.cities.join(", ") : D($.cities) || "—",
     de = Array.isArray(I.census_tracts)
       ? I.census_tracts.join(", ")
       : D(I.census_tracts) || "—",
@@ -2839,29 +2842,29 @@ function rn(t, n, s) {
       <div class="key">County</div><div class="val">${D(l) || "—"}</div>
       <div class="key">Coordinates</div><div class="val">${Se}</div>
     </div>
-    ${He}
+    ${Re}
   `,
     Ae = `
     <div class="kv">
-      <div class="key">Cities</div><div class="val">${Re}</div>
+      <div class="key">Cities</div><div class="val">${Ce}</div>
       <div class="key">Census tracts</div><div class="val">${ye}</div>
     </div>
   `,
-    Ce = `
+    Ne = `
     <div class="kv">
       <div class="key">District</div><div class="val">${D(I.name) || "—"}</div>
       <div class="key">Cities</div><div class="val">${ze}</div>
       <div class="key">Census tracts</div><div class="val">${de}</div>
     </div>
   `,
-    Ne = Ee(
+    Le = Ee(
       "Location Summary",
       Be,
       Ae,
-      Ce,
+      Ne,
       '<p class="section-description">This section lists basic geographic information for the census tract, surrounding 10&#8209;mile area, and water district, such as city, ZIP code, county, and coordinates.</p>',
     ),
-    Le = (S = {}) =>
+    De = (S = {}) =>
       `<div class="kv">${[
         ["Total population", Jn(S.population)],
         ["Median age", Qn(S.median_age)],
@@ -2876,7 +2879,7 @@ function rn(t, n, s) {
         .join("")}</div>`,
     st = Ee(
       "Population &amp; Income (ACS)",
-      Le({
+      De({
         population: E,
         median_age: h,
         median_household_income: m,
@@ -2884,8 +2887,8 @@ function rn(t, n, s) {
         poverty_rate: p,
         unemployment_rate: g,
       }),
-      Le($.demographics || {}),
-      Le(I.demographics || {}),
+      De($.demographics || {}),
+      De(I.demographics || {}),
       '<p class="section-description">This section provides a snapshot of the people living in the selected area, drawn from the American Community Survey (ACS). It includes the total population, median age, household income, poverty rate, and unemployment rate. These indicators offer a quick view of community size, economic stability, and social conditions.</p><p class="section-description"><em>Values for the surrounding 10-mile area and water district are population-weighted averages.</em></p>',
     ),
     je = (S = {}) =>
@@ -2977,33 +2980,33 @@ function rn(t, n, s) {
       pe(I.demographics || {}),
       '<p class="section-description">This section combines information on housing and educational attainment in the community. It includes the percentage of owner&#8209;occupied and renter&#8209;occupied homes, median home value, and levels of education such as high school completion and bachelor’s degree or higher. These indicators provide insight into community stability, affordability, and educational opportunities, helping inform outreach strategies and program planning.</p><p class="section-description"><em>Values for the surrounding 10-mile area and water district are population-weighted averages.</em></p>',
     ),
-    De = (S, j, J, Q) => {
+    Oe = (S, j, J, Q) => {
       const rt = Array.isArray(j) ? j.length > 0 : !!S,
-        Ie = rt ? "var(--success)" : "var(--border-strong)",
+        Pe = rt ? "var(--success)" : "var(--border-strong)",
         we = [`Disadvantaged community: <strong>${rt ? "Yes" : "No"}</strong>`],
-        Pe = [];
+        Me = [];
       return (
         Number.isFinite(J) &&
-          Pe.push(`<li><strong>${x(J)}</strong> of population</li>`),
+          Me.push(`<li><strong>${x(J)}</strong> of population</li>`),
         Number.isFinite(Q) &&
-          Pe.push(`<li><strong>${x(Q)}</strong> of tracts</li>`),
-        Pe.length && we.push(`<ul class="dac-stats">${Pe.join("")}</ul>`),
+          Me.push(`<li><strong>${x(Q)}</strong> of tracts</li>`),
+        Me.length && we.push(`<ul class="dac-stats">${Me.join("")}</ul>`),
         Array.isArray(j) &&
           j.length &&
           we.push(
             `<div class="dac-tracts">Tracts ${j.map((be) => D(be)).join(", ")}</div>`,
           ),
-        `<div class="callout" style="border-left-color:${Ie}">${we.join("")}</div>`
+        `<div class="callout" style="border-left-color:${Pe}">${we.join("")}</div>`
       );
     },
     ot = Ee(
       "Disadvantaged Community (DAC) Status",
-      De(b),
+      Oe(b),
       Array.isArray($.dac_tracts)
-        ? De(null, $.dac_tracts, $.dac_population_pct, $.dac_tracts_pct)
+        ? Oe(null, $.dac_tracts, $.dac_population_pct, $.dac_tracts_pct)
         : "",
       Array.isArray(I.dac_tracts)
-        ? De(null, I.dac_tracts, I.dac_population_pct, I.dac_tracts_pct)
+        ? Oe(null, I.dac_tracts, I.dac_population_pct, I.dac_tracts_pct)
         : "",
       '<p class="section-description">This section indicates whether the selected area is designated as a Disadvantaged Community (DAC) using the California Department of Water Resources (DWR) mapping tool. DAC status is determined by household income and is shown as a simple yes/no outcome. This designation is important for identifying areas eligible for certain state and federal funding opportunities and for ensuring that equity considerations are included in outreach and program planning.</p>',
     ),
@@ -3016,8 +3019,8 @@ function rn(t, n, s) {
     ),
     at = Ee(
       "Environmental Hardships",
-      Ue.length
-        ? `<div class="stats">${Ue.map((S) => `<span class="pill">${D(S)}</span>`).join("")}</div>`
+      He.length
+        ? `<div class="stats">${He.map((S) => `<span class="pill">${D(S)}</span>`).join("")}</div>`
         : "",
       Ge.length
         ? `<div class="stats">${Ge.map((S) => `<span class="pill">${D(S)}</span>`).join("")}</div>`
@@ -3027,14 +3030,14 @@ function rn(t, n, s) {
         : "",
       '<p class="section-description">This section lists environmental hardships reported for the selected location, highlighting challenges that may affect residents and program planning.</p>',
     ),
-    Oe = `
+    ke = `
     <section class="section-block">
       <h3 class="section-header">Active Alerts (National Weather Service)</h3>
       <p class="section-description">This section displays any current weather alerts issued by the National Weather Service (NWS) for the selected location. Alerts may include warnings for extreme heat, flooding, wildfire smoke, or other hazardous conditions. Having this information alongside demographic and environmental data helps staff anticipate safety concerns for events, tailor outreach, and ensure programs are responsive to current community conditions.</p>
       ${O.length ? `<div class="stats">${O.map((S) => `<span class="pill">${D(S)}</span>`).join("")}</div>` : '<p class="note">No active alerts found for this location.</p>'}
     </section>
   `,
-    ke = `
+    Ie = `
     <div class="comparison-grid column-headers">
       <div class="col">Census tract</div>
       <div class="col">10 mile radius</div>
@@ -3055,8 +3058,8 @@ function rn(t, n, s) {
         </div>
         <span class="updated">Updated ${Ot()}</span>
       </div>
-      ${ke}
-      ${Ne}
+      ${Ie}
+      ${Le}
       ${st}
       ${Ye}
       ${ve}
@@ -3064,7 +3067,7 @@ function rn(t, n, s) {
       ${ot}
       ${Ve}
       ${at}
-      ${Oe}
+      ${ke}
       <p class="note">Search took ${_n(s)}.</p>
       <p class="note">Values for the surrounding 10-mile area and water district are population-weighted averages.</p>
       <span class="updated--footer">
@@ -3084,7 +3087,7 @@ async function An() {
   const i = s.toLowerCase();
   if (St.has(i)) {
     const o = St.get(i);
-    xe = { address: s, data: o };
+    Fe = { address: s, data: o };
     const r = new URL(window.location);
     (r.searchParams.set("address", s),
       window.history.replaceState(null, "", r.toString()),
@@ -3117,7 +3120,7 @@ async function An() {
       ce("enrichRegionHardships", () => ls(r)),
       ce("enrichUnemployment", () => rs(r)),
     ]);
-    (ft(r, v, h, p), (xe = { address: s, data: r }), St.set(i, r));
+    (ft(r, v, h, p), (Fe = { address: s, data: r }), St.set(i, r));
     const g = new URL(window.location);
     (g.searchParams.set("address", s),
       window.history.replaceState(null, "", g.toString()),

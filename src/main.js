@@ -1543,10 +1543,13 @@ function renderResultOld(address, data, elapsedMs) {
     lat != null && lon != null
       ? `${Number(lat).toFixed(6)}, ${Number(lon).toFixed(6)}`
       : "—";
-  const mapImgHtml =
-    lat != null && lon != null
-      ? `<img class="map-image" src="/api/staticmap?lat=${lat}&lon=${lon}" alt="Map of location" />`
-      : "";
+  let mapImgHtml = "";
+  if (lat != null && lon != null) {
+    const staticMapUrl = new URL("/api/staticmap", window.location.origin);
+    staticMapUrl.searchParams.set("lat", lat);
+    staticMapUrl.searchParams.set("lon", lon);
+    mapImgHtml = `<img class="map-image" src="${staticMapUrl}" alt="Map of location" />`;
+  }
 
   const hardshipSection = `
     <section class="section-block">
@@ -1872,10 +1875,13 @@ function renderResult(address, data, elapsedMs) {
     lat != null && lon != null
       ? `${Number(lat).toFixed(6)}, ${Number(lon).toFixed(6)}`
       : "—";
-  const mapImgHtml =
-    lat != null && lon != null
-      ? `<img class="map-image" src="/api/staticmap?lat=${lat}&lon=${lon}" alt="Map of location" />`
-      : "";
+  let mapImgHtml = "";
+  if (lat != null && lon != null) {
+    const staticMapUrl = new URL("/api/staticmap", window.location.origin);
+    staticMapUrl.searchParams.set("lat", lat);
+    staticMapUrl.searchParams.set("lon", lon);
+    mapImgHtml = `<img class="map-image" src="${staticMapUrl}" alt="Map of location" />`;
+  }
 
   const s = surrounding_10_mile || {};
   const w = water_district || {};
