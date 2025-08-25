@@ -1,11 +1,9 @@
-export function escapeHTML(str = "") {
+import createDOMPurify from "dompurify";
+
+export function sanitizeHTML(str = "") {
   if (str === null || str === undefined) return "";
-  return String(str)
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;")
-    .replace(/'/g, "&#39;");
+  const purifier = createDOMPurify(window);
+  return purifier.sanitize(String(str));
 }
 
 export function nowStamp() {
