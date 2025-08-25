@@ -385,7 +385,7 @@ async function Ot(t = []) {
   for (const h of Object.values(i)) {
     const _ = nt(h.tracts, 50);
     for (const b of _) {
-      const A = `${Z}?get=${["DP05_0001E", "DP05_0018E", "DP03_0062E", "DP03_0088E", "DP03_0128PE", "DP05_0037PE", "DP05_0038PE", "DP05_0039PE", "DP05_0044PE", "DP05_0052PE", "DP05_0057PE", "DP05_0035PE", "DP05_0073PE", "DP05_0078PE"].join(",")}&for=tract:${b.join(",")}&in=state:${h.state}%20county:${h.county}`;
+      const A = `${Z}?get=${["DP05_0001E", "DP05_0018E", "DP03_0062E", "DP03_0088E", "DP03_0128PE", "DP05_0037PE", "DP05_0038PE", "DP05_0039PE", "DP05_0044PE", "DP05_0052PE", "DP05_0057PE", "DP05_0035PE", "DP05_0076PE", "DP05_0081PE"].join(",")}&for=tract:${b.join(",")}&in=state:${h.state}%20county:${h.county}`;
       try {
         const P = await fetch(A).then((S) => S.json());
         if (!Array.isArray(P) || P.length < 2) continue;
@@ -507,7 +507,7 @@ async function Ce(t = []) {
   for (const o of Object.values(s)) {
     const c = nt(o.tracts, 50);
     for (const l of c) {
-      const e = `${Z}?get=${["DP05_0001E", "DP05_0018E", "DP03_0062E", "DP03_0088E", "DP03_0128PE", "DP03_0009PE", "DP05_0037PE", "DP05_0038PE", "DP05_0039PE", "DP05_0044PE", "DP05_0052PE", "DP05_0057PE", "DP05_0035PE", "DP05_0073PE", "DP05_0078PE"].join(",")}&for=tract:${l.join(",")}&in=state:${o.state}%20county:${o.county}`;
+      const e = `${Z}?get=${["DP05_0001E", "DP05_0018E", "DP03_0062E", "DP03_0088E", "DP03_0128PE", "DP03_0009PE", "DP05_0037PE", "DP05_0038PE", "DP05_0039PE", "DP05_0044PE", "DP05_0052PE", "DP05_0057PE", "DP05_0035PE", "DP05_0076PE", "DP05_0081PE"].join(",")}&for=tract:${l.join(",")}&in=state:${o.state}%20county:${o.county}`;
       try {
         const n = await fetch(e).then((u) => u.json());
         if (!Array.isArray(n) || n.length < 2) continue;

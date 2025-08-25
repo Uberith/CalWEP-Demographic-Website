@@ -484,8 +484,8 @@ async function aggregateBasicDemographicsForTracts(fipsList = []) {
         "DP05_0052PE",
         "DP05_0057PE",
         "DP05_0035PE",
-        "DP05_0073PE",
-        "DP05_0078PE",
+        "DP05_0076PE",
+        "DP05_0081PE",
       ].join(
         ",",
       )}&for=tract:${ch.join(",")}&in=state:${g.state}%20county:${g.county}`;
@@ -682,8 +682,8 @@ async function fetchTractDemographics(fipsList = []) {
         "DP05_0052PE", // Native Hawaiian/Pacific Islander
         "DP05_0057PE", // Some other race
         "DP05_0035PE", // Two or more races
-        "DP05_0073PE", // Hispanic or Latino
-        "DP05_0078PE", // Not Hispanic or Latino
+        "DP05_0076PE", // Hispanic or Latino (of any race)
+        "DP05_0081PE", // Not Hispanic or Latino
       ].join(
         ",",
       )}&for=tract:${ch.join(",")}&in=state:${g.state}%20county:${g.county}`;
