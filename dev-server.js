@@ -22,6 +22,10 @@ function parseAllowedOrigins() {
 
 function createServer(options = {}) {
   const app = express();
+  try {
+    const compression = require('compression');
+    app.use(compression());
+  } catch {}
   const port = Number(process.env.PORT || options.port || 5173);
   const staticDir = path.resolve(process.env.STATIC_DIR || options.staticDir || '.');
   const apiBase = String(process.env.API_BASE || options.apiBase || 'https://api.calwep.org');
@@ -57,18 +61,23 @@ function createServer(options = {}) {
   const proxyHandler = async (req, res, targetPathBase = '/api') => {
     const targetUrl = new URL(req.originalUrl.replace(new RegExp(`^${targetPathBase}`), ''), apiBase).toString();
     try {
+      // Forward a minimal, safe set of headers the upstream may rely on
+      const fwdHeaders = {
+        'accept': req.headers['accept'],
+        'content-type': req.headers['content-type'],
+        'authorization': req.headers['authorization'],
+        'user-agent': req.headers['user-agent'],
+      };
       const upstream = await fetch(targetUrl, {
         method: req.method,
-        headers: {
-          'content-type': req.headers['content-type'] || undefined,
-          'authorization': req.headers['authorization'] || undefined,
-        },
+        headers: Object.fromEntries(Object.entries(fwdHeaders).filter(([, v]) => !!v)),
         body: ['GET', 'HEAD'].includes(req.method) ? undefined : req,
         redirect: 'manual',
       });
+      // Reflect upstream headers, skipping hop-by-hop and size-specific headers
       upstream.headers.forEach((value, key) => {
-        // Skip hop-by-hop headers
-        if (!/^connection$/i.test(key)) res.setHeader(key, value);
+        if (/^(connection|transfer-encoding|content-length|content-encoding)$/i.test(key)) return;
+        res.setHeader(key, value);
       });
       res.status(upstream.status);
       // Use arrayBuffer to support all content types reliably in Node

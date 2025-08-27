@@ -5,6 +5,8 @@
 */
 
 let autocomplete = null;
+// Abort controller for in-flight lookups to prevent piling up work
+let currentLookupController = null;
 
 let lastReport = null;
 // Cache previously retrieved results to avoid redundant network requests
@@ -241,15 +243,33 @@ function buildApiUrl(path, params = {}) {
   }
   return url.toString();
 }
-async function fetchJsonWithDiagnostics(url) {
+function withTimeout(promise, ms, fallbackValue, onTimeout) {
+  let timeoutId;
+  const timeoutPromise = new Promise((resolve, reject) => {
+    timeoutId = setTimeout(() => {
+      if (onTimeout) try { onTimeout(); } catch {}
+      if (arguments.length >= 3) resolve(fallbackValue);
+      else reject(new Error('Timed out'));
+    }, ms);
+  });
+  return Promise.race([
+    promise.finally(() => clearTimeout(timeoutId)),
+    timeoutPromise,
+  ]);
+}
+
+async function fetchJsonWithDiagnostics(url, opts = {}) {
+  const { timeoutMs = 15000, signal, headers = {} } = opts;
   let res;
   try {
-    res = await fetch(url, {
+    const p = fetch(url, {
       method: "GET",
       mode: "cors",
       cache: "no-store",
-      headers: { Accept: "application/json" },
+      signal,
+      headers: { Accept: "application/json", ...headers },
     });
+    res = await withTimeout(p, timeoutMs);
   } catch (e) {
     throw new Error(`Network error calling API: ${e?.message || e}`);
   }
@@ -2204,6 +2224,11 @@ async function lookup() {
     return;
   }
 
+  // Cancel any in-flight lookup
+  if (currentLookupController) try { currentLookupController.abort(); } catch {}
+  currentLookupController = new AbortController();
+  const { signal } = currentLookupController;
+
   resultBox.setAttribute("aria-busy", "true");
   renderLoading(address, selections);
   const overlay = document.getElementById("spinnerOverlay");
@@ -2213,18 +2238,18 @@ async function lookup() {
 
   try {
     const url = buildApiUrl(API_PATH, { address });
-    let data = await fetchJsonWithDiagnostics(url);
+    let data = await fetchJsonWithDiagnostics(url, { timeoutMs: 45000, signal });
     if (!data || typeof data !== "object")
       throw new Error("Malformed response.");
     data = await enrichLocation(data);
+
+    // Start enrichment tasks, but do not block initial render beyond a short budget
     const tasks = [];
     tasks.push(categories.language ? fetchLanguageAcs(data) : Promise.resolve({}));
     tasks.push(scopes.radius ? enrichSurrounding(data, categories) : Promise.resolve({}));
     tasks.push(scopes.water ? enrichWaterDistrict(data, address, categories) : Promise.resolve({}));
     tasks.push(categories.language ? enrichEnglishProficiency(data) : Promise.resolve({}));
     tasks.push(categories.alerts ? enrichNwsAlerts(data) : Promise.resolve({}));
-    const [lang, surround, water, english, alerts] = await Promise.all(tasks);
-    deepMerge(data, lang, surround, water, english, alerts);
 
     const regionTasks = [];
     if ((scopes.radius || scopes.water) && (categories.demographics || categories.housing || categories.race))
@@ -2239,15 +2264,38 @@ async function lookup() {
     if ((scopes.radius || scopes.water) && categories.demographics)
       regionTasks.push(enrichUnemployment(data));
     else regionTasks.push(Promise.resolve({}));
-    const [basics, regionLangs, regionHard, unemployment] = await Promise.all(regionTasks);
-    deepMerge(data, basics, regionLangs, regionHard, unemployment);
 
-    lastReport = { address, data };
-    lookupCache.set(cacheKey, data);
+    // Phase 1: wait briefly for quick results, then render
+    const budgetMs = 6000;
+    const phase1 = await Promise.allSettled([
+      withTimeout(tasks[0], budgetMs, {}),
+      withTimeout(tasks[1], budgetMs, {}),
+      withTimeout(tasks[2], budgetMs, {}),
+      withTimeout(tasks[3], budgetMs, {}),
+      withTimeout(tasks[4], budgetMs, {}),
+      withTimeout(regionTasks[0], budgetMs, {}),
+      withTimeout(regionTasks[1], budgetMs, {}),
+      withTimeout(regionTasks[2], budgetMs, {}),
+      withTimeout(regionTasks[3], budgetMs, {}),
+    ]);
+    const phase1Results = phase1.map((r) => (r.status === 'fulfilled' ? r.value || {} : {}));
+    deepMerge(data, ...phase1Results);
+
+    // Early render with whatever we have
     const locUrl = new URL(window.location);
     locUrl.searchParams.set("address", address);
     window.history.replaceState(null, "", locUrl.toString());
     elapsed = stopSearchTimer();
+    renderResult(address, data, elapsed, selections);
+
+    // Phase 2: finish remaining tasks and re-render when done (unless aborted)
+    const all = await Promise.allSettled([...tasks, ...regionTasks]);
+    if (signal.aborted) return;
+    const finalResults = all.map((r) => (r.status === 'fulfilled' ? r.value || {} : {}));
+    deepMerge(data, ...finalResults);
+
+    lastReport = { address, data };
+    lookupCache.set(cacheKey, data);
     renderResult(address, data, elapsed, selections);
   } catch (err) {
     if (!elapsed) elapsed = stopSearchTimer();
