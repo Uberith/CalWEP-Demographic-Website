@@ -1,0 +1,29 @@
+{
+  "name": "calwep-demographics",
+  "version": "0.1.0",
+  "private": true,
+  "description": "CalWEP Demographics site – local dev server and tests",
+  "main": "dev-server.js",
+  "scripts": {
+    "dev": "node dev-server.js",
+    "dev:watch": "nodemon --ext js,html,css dev-server.js",
+    "start": "node dev-server.js",
+    "proxy": "node server.js",
+    "test": "jest",
+    "test:watch": "jest --watchAll"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "dependencies": {
+    "express": "^4.19.2"
+  },
+  "devDependencies": {
+    "jest": "^29.7.0",
+    "nodemon": "^3.1.0"
+  },
+  "jest": {
+    "testEnvironment": "node",
+    "testMatch": ["**/tests/**/*.spec.js"]
+  }
+}
