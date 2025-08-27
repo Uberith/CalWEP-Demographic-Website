@@ -89,8 +89,59 @@ function createServer(options = {}) {
       res.status(502).json({ error: 'Proxy error', details: String(err) });
     }
   };
+  // Proxy common API endpoints to API_BASE
   app.use('/api', (req, res) => proxyHandler(req, res, '/api'));
   app.use('/demographics', (req, res) => proxyHandler(req, res, '/'));
+  app.use('/lookup', (req, res) => proxyHandler(req, res, '/'));
+  app.use('/census-tracts', (req, res) => proxyHandler(req, res, '/'));
+
+  // Simple in-memory cache for ACS (api.census.gov) requests during development
+  const acsCache = new Map(); // key -> { status, headers, body: Buffer, expiresAt }
+  const ACS_TTL_MS = Number(process.env.ACS_CACHE_TTL_MS || 10 * 60 * 1000); // 10 minutes default
+  const ACS_MAX_ENTRIES = Number(process.env.ACS_CACHE_MAX || 500);
+
+  function acsCacheGet(key) {
+    const entry = acsCache.get(key);
+    if (!entry) return null;
+    if (Date.now() > entry.expiresAt) {
+      acsCache.delete(key);
+      return null;
+    }
+    return entry;
+  }
+  function acsCacheSet(key, value) {
+    if (acsCache.size >= ACS_MAX_ENTRIES) {
+      const firstKey = acsCache.keys().next().value;
+      if (firstKey) acsCache.delete(firstKey);
+    }
+    acsCache.set(key, { ...value, expiresAt: Date.now() + ACS_TTL_MS });
+  }
+
+  app.use('/proxy/acs', async (req, res) => {
+    try {
+      if (req.method !== 'GET') return res.status(405).send('Method Not Allowed');
+      const suffix = req.originalUrl.replace(/^\/proxy\/acs/, '') || '/';
+      const target = `https://api.census.gov${suffix}`;
+      const key = target;
+      const cached = acsCacheGet(key);
+      if (cached) {
+        for (const [k, v] of Object.entries(cached.headers)) res.setHeader(k, v);
+        return res.status(cached.status).send(cached.body);
+      }
+      const upstream = await fetch(target, { headers: { 'accept': 'application/json', 'user-agent': 'CalWEP-Dev-Server' } });
+      const buf = Buffer.from(await upstream.arrayBuffer());
+      const headers = {};
+      upstream.headers.forEach((value, key) => {
+        if (/^(connection|transfer-encoding|content-length|content-encoding)$/i.test(key)) return;
+        headers[key] = value;
+        res.setHeader(key, value);
+      });
+      res.status(upstream.status).send(buf);
+      if (upstream.ok && buf.length && ACS_TTL_MS > 0) acsCacheSet(key, { status: upstream.status, headers, body: buf });
+    } catch (e) {
+      res.status(502).json({ error: 'ACS proxy error', details: String(e) });
+    }
+  });
 
   // Static assets (no aggressive caching in dev)
   app.use(express.static(staticDir, { etag: true, lastModified: true, index: false, cacheControl: false }));

@@ -7,6 +7,80 @@
 let autocomplete = null;
 // Abort controller for in-flight lookups to prevent piling up work
 let currentLookupController = null;
+let CURRENT_SOURCE_LOG = null;
+
+function logSource(section, url, ok, note = "") {
+  if (!CURRENT_SOURCE_LOG) return;
+  if (!CURRENT_SOURCE_LOG[section]) CURRENT_SOURCE_LOG[section] = [];
+  CURRENT_SOURCE_LOG[section].push({ url, ok: !!ok, note: String(note || "") });
+}
+
+async function fetchJsonRetryL(url, section, opts = {}) {
+  try {
+    const j = await fetchJsonRetry(url, opts);
+    logSource(section, url, true);
+    return j;
+  } catch (e) {
+    logSource(section, url, false, e && e.message ? e.message : String(e));
+    throw e;
+  }
+}
+
+function sourceDomainLabel(u) {
+  try {
+    const url = new URL(u);
+    const host = url.hostname;
+    const isLocal = host === 'localhost' || host === '127.0.0.1' || host === '[::1]' || host === window.location.hostname;
+    const path = url.pathname || '';
+    if (isLocal) {
+      if (/^\/(demographics|lookup|census-tracts)/.test(path)) return 'api.calwep.org';
+      return null;
+    }
+    return host;
+  } catch {
+    return null;
+  }
+}
+
+function renderSourceNotesGrouped(section, sourceLog) {
+  const entries = sourceLog && sourceLog[section] ? sourceLog[section] : [];
+  if (!entries.length) return "";
+  const grouped = new Map();
+  let order = 0;
+  for (const e of entries) {
+    const label = sourceDomainLabel(e.url);
+    if (!label) continue;
+    if (!grouped.has(label)) grouped.set(label, { ok: 0, fail: 0, total: 0, lastOkOrder: -1 });
+    const g = grouped.get(label);
+    g.total += 1;
+    if (e.ok) { g.ok += 1; g.lastOkOrder = order; } else { g.fail += 1; }
+    order += 1;
+  }
+  if (!grouped.size) return "";
+  // Determine the domain that materially provided data (latest success)
+  let usedDomain = null; let usedOrder = -1;
+  for (const [domain, stats] of grouped.entries()) {
+    if (stats.lastOkOrder > usedOrder) { usedOrder = stats.lastOkOrder; usedDomain = domain; }
+  }
+  const lines = [];
+  if (usedDomain) lines.push(`${escapeHTML(usedDomain)} — used`);
+  for (const [domain, stats] of grouped.entries()) {
+    if (domain === usedDomain) continue;
+    if (stats.fail > 0 && stats.ok === 0) lines.push(`${escapeHTML(domain)} — down (${stats.fail})`);
+  }
+  if (!lines.length) return "";
+  return `<details class=\"source-notes\"><summary>Details</summary><p class=\"note\">${lines.join('<br>')}</p></details>`;
+}
+function renderSourceNotes(section, sourceLog) {
+  const entries = sourceLog && sourceLog[section] ? sourceLog[section] : [];
+  if (!entries.length) return "";
+  const succ = entries.filter((e) => e.ok);
+  const fail = entries.filter((e) => !e.ok);
+  const list = entries
+    .map((e) => `${e.ok ? "✓" : "✗"} ${escapeHTML(e.url)}${e.ok ? "" : ` — ${escapeHTML(e.note)}`}`)
+    .join("<br>");
+  return `<div class="source-notes"><p class="note"><strong>Endpoints tried:</strong><br>${list}</p></div>`;
+}
 
 let lastReport = null;
 // Cache previously retrieved results to avoid redundant network requests
@@ -287,17 +361,52 @@ async function fetchJsonWithDiagnostics(url, opts = {}) {
   }
 }
 
+async function fetchJsonRetry(url, opts = {}) {
+  const {
+    retries = 2,
+    backoffMs = 600,
+    timeoutMs = 12000,
+    signal,
+    headers = {},
+  } = opts || {};
+  let lastErr;
+  for (let attempt = 0; attempt <= retries; attempt++) {
+    try {
+      return await fetchJsonWithDiagnostics(url, { timeoutMs, signal, headers });
+    } catch (e) {
+      lastErr = e;
+      if (attempt < retries) {
+        await new Promise((r) => setTimeout(r, backoffMs * (attempt + 1)));
+        continue;
+      }
+    }
+  }
+  throw lastErr;
+}
+
+function toCensus(url) {
+  try {
+    const u = new URL(url);
+    if (u.hostname.endsWith('api.census.gov')) {
+      const pathAndQuery = u.pathname + (u.search || '');
+      return `${window.location.origin}/proxy/acs${pathAndQuery}`;
+    }
+  } catch {}
+  return url;
+}
 // Attempt to fill in missing city or census tract using public geocoders
 async function enrichLocation(data = {}) {
   let { city, census_tract, lat, lon, state_fips, county_fips, tract_code } =
     data;
+  let usedGeocoderFallback = false;
+  let geocodeFallbackSource = null;
   const tasks = [];
   if (!city && lat != null && lon != null) {
     tasks.push(
-      fetch(
+      fetchJsonRetry(
         `https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=${lat}&longitude=${lon}&localityLanguage=en`,
+        { retries: 1, timeoutMs: 8000 },
       )
-        .then((r) => r.json())
         .then((j) => {
           const adminCity = Array.isArray(j?.localityInfo?.administrative)
             ? j.localityInfo.administrative.find(
@@ -305,34 +414,174 @@ async function enrichLocation(data = {}) {
               )?.name
             : null;
           city = adminCity || j.city || j.locality || city;
+          // County name if missing
+          const adminCounty = Array.isArray(j?.localityInfo?.administrative)
+            ? j.localityInfo.administrative.find((a) => a.order === 6 || a.adminLevel === 6)?.name
+            : null;
+          if (!data.county && adminCounty) data.county = adminCounty;
+          // FIPS codes if available
+          const sFips = j?.fips?.state;
+          const cFips = j?.fips?.county;
+          if (!state_fips && sFips) state_fips = String(sFips).padStart(2, '0');
+          if (!county_fips && cFips) county_fips = String(cFips).padStart(3, '0');
         })
         .catch(() => {}),
     );
+  }
+  async function fipsFromCensusGeocoder(lat, lon) {
+    try {
+      const u = `https://geocoding.geo.census.gov/geocoder/geographies/coordinates?x=${lon}&y=${lat}&benchmark=Public_AR_Current&vintage=Current_Current&format=json`;
+      const j = await fetchJsonRetry(u, { retries: 1, timeoutMs: 10000 });
+      const tract = j?.result?.geographies?.["Census Tracts"]?.[0];
+      const geoid = tract?.GEOID;
+      const name = tract?.NAME;
+      if (geoid && geoid.length >= 11) {
+        const state = geoid.slice(0, 2);
+        const county = geoid.slice(2, 5);
+        const tract6 = geoid.slice(5);
+        return {
+          state_fips: state,
+          county_fips: county,
+          tract_code: tract6,
+          census_tract: name || `${tract6.slice(0, 4)}.${tract6.slice(4)}`,
+          source: 'census_geocoder',
+        };
+      }
+    } catch {}
+    return null;
+  }
+  async function fipsFromTigerWeb(lat, lon) {
+    try {
+      const tractUrl =
+        "https://tigerweb.geo.census.gov/arcgis/rest/services/TIGERweb/Tracts_Blocks/MapServer/10/query";
+      const params = new URLSearchParams({
+        where: "1=1",
+        geometry: JSON.stringify({ x: Number(lon), y: Number(lat), spatialReference: { wkid: 4326 } }),
+        geometryType: "esriGeometryPoint",
+        inSR: "4326",
+        spatialRel: "esriSpatialRelIntersects",
+        outFields: "NAME,GEOID,INTPTLAT,INTPTLON",
+        returnGeometry: "false",
+        f: "json",
+      });
+      const j = await fetchJsonRetryL(`${tractUrl}?${params.toString()}`, 'location', { retries: 1, timeoutMs: 10000 });
+      const attrs = j?.features?.[0]?.attributes;
+      const geoid = attrs?.GEOID;
+      const name = attrs?.NAME;
+      const latp = attrs?.INTPTLAT;
+      const lonp = attrs?.INTPTLON;
+      // Also fetch county name from TIGERweb Counties layer (9)
+      let countyName = null;
+      try {
+        const countyUrl =
+          "https://tigerweb.geo.census.gov/arcgis/rest/services/TIGERweb/Tracts_Blocks/MapServer/9/query";
+        const cparams = new URLSearchParams({
+          where: "1=1",
+          geometry: JSON.stringify({ x: Number(lon), y: Number(lat), spatialReference: { wkid: 4326 } }),
+          geometryType: "esriGeometryPoint",
+          inSR: "4326",
+          spatialRel: "esriSpatialRelIntersects",
+          outFields: "NAME,GEOID",
+          returnGeometry: "false",
+          f: "json",
+        });
+        const cj = await fetchJsonRetryL(`${countyUrl}?${cparams.toString()}`, 'location', { retries: 1, timeoutMs: 10000 });
+        countyName = cj?.features?.[0]?.attributes?.NAME || null;
+      } catch {}
+      // Try to fetch place (city/CDP) name from possible Places layers (best-effort)
+      let placeName = null;
+      const placeLayers = [7, 8];
+      for (const layer of placeLayers) {
+        try {
+          const placeUrl = `https://tigerweb.geo.census.gov/arcgis/rest/services/TIGERweb/Tracts_Blocks/MapServer/${layer}/query`;
+          const pparams = new URLSearchParams({
+            where: "1=1",
+            geometry: JSON.stringify({ x: Number(lon), y: Number(lat), spatialReference: { wkid: 4326 } }),
+            geometryType: "esriGeometryPoint",
+            inSR: "4326",
+            spatialRel: "esriSpatialRelIntersects",
+            outFields: "NAME,GEOID",
+            returnGeometry: "false",
+            f: "json",
+          });
+          const pj = await fetchJsonRetryL(`${placeUrl}?${pparams.toString()}`, 'location', { retries: 1, timeoutMs: 8000 });
+          const n = pj?.features?.[0]?.attributes?.NAME;
+          if (n) { placeName = n; break; }
+        } catch {}
+      }
+      if (geoid && geoid.length >= 11) {
+        const state = String(geoid).slice(0, 2);
+        const county = String(geoid).slice(2, 5);
+        const tract6 = String(geoid).slice(5);
+        const info = {
+          state_fips: state,
+          county_fips: county,
+          tract_code: tract6,
+          census_tract: name || `${tract6.slice(0, 4)}.${tract6.slice(4)}`,
+          source: 'tigerweb',
+        };
+        if (countyName) info.county = countyName;
+        if (placeName) info.city = placeName;
+        if (latp && lonp) { info.lat = Number(latp); info.lon = Number(lonp); }
+        return info;
+      }
+    } catch {}
+    return null;
   }
   if (
     (!census_tract || !state_fips || !county_fips || !tract_code) &&
     lat != null &&
     lon != null
   ) {
-    tasks.push(
-      fetch(
-        `https://geo.fcc.gov/api/census/block/find?latitude=${lat}&longitude=${lon}&format=json`,
-      )
-        .then((r) => r.json())
-        .then((j) => {
+    tasks.push((async () => {
+      // Preferred order: Census Geocoder → TIGERweb → FCC
+      let alt = await fipsFromCensusGeocoder(lat, lon);
+      if (!alt) alt = await fipsFromTigerWeb(lat, lon);
+      if (!alt) {
+        try {
+          const j = await fetchJsonRetry(
+            `https://geo.fcc.gov/api/census/block/find?latitude=${lat}&longitude=${lon}&format=json`,
+            { retries: 2, timeoutMs: 10000 },
+          );
           const fips = j?.Block?.FIPS;
           if (fips && fips.length >= 11) {
             state_fips = fips.slice(0, 2);
             county_fips = fips.slice(2, 5);
             tract_code = fips.slice(5, 11);
             census_tract = `${tract_code.slice(0, 4)}.${tract_code.slice(4)}`;
+            geocodeFallbackSource = 'fcc';
+            usedGeocoderFallback = true; // fallback from preferred
+            return;
           }
-        })
-        .catch(() => {}),
-    );
+        } catch {}
+      }
+      if (alt) {
+        state_fips = alt.state_fips;
+        county_fips = alt.county_fips;
+        tract_code = alt.tract_code;
+        census_tract = alt.census_tract;
+        geocodeFallbackSource = alt.source || 'census_geocoder';
+        // If source isn't census_geocoder, we consider it a fallback
+        usedGeocoderFallback = geocodeFallbackSource !== 'census_geocoder';
+        if ((alt.lat != null && alt.lon != null) && (lat == null || lon == null)) {
+          lat = alt.lat;
+          lon = alt.lon;
+        }
+        if (alt.city && !city) city = alt.city;
+      }
+    })());
   }
   if (tasks.length) await Promise.all(tasks);
-  return { ...data, city, census_tract, state_fips, county_fips, tract_code };
+  return {
+    ...data,
+    city,
+    census_tract,
+    state_fips,
+    county_fips,
+    tract_code,
+    geocoder_fallback: usedGeocoderFallback,
+    geocode_fallback_source: geocodeFallbackSource,
+  };
 }
 
 let LANGUAGE_META = null;
@@ -340,7 +589,7 @@ async function getLanguageMeta() {
   if (LANGUAGE_META) return LANGUAGE_META;
   try {
     const meta = await fetchJsonWithDiagnostics(
-      "https://api.census.gov/data/2022/acs/acs5/groups/C16001.json",
+      toCensus("https://api.census.gov/data/2022/acs/acs5/groups/C16001.json"),
     );
     const vars = meta?.variables || {};
     const codes = [];
@@ -393,19 +642,17 @@ async function aggregateLanguageForTracts(fipsList = []) {
               ? ["C16001_001E", "C16001_002E", ...varChunk]
               : varChunk;
           const url =
-            `https://api.census.gov/data/2022/acs/acs5?get=${vars.join(",")}&for=tract:${tractStr}&in=state:${g.state}%20county:${g.county}`;
+            toCensus(`https://api.census.gov/data/2022/acs/acs5?get=${vars.join(",")}&for=tract:${tractStr}&in=state:${g.state}%20county:${g.county}`);
           tasks.push(
-            fetch(url)
-              .then((r) => r.json())
+            fetchJsonRetryL(url, 'language', { retries: 2, timeoutMs: 15000 })
               .then((rows) => ({ type: "lang", rows, chunk: varChunk }))
               .catch(() => null),
           );
         }
         const url2 =
-          `https://api.census.gov/data/2022/acs/acs5/profile?get=DP02_0115E&for=tract:${tractStr}&in=state:${g.state}%20county:${g.county}`;
+          toCensus(`https://api.census.gov/data/2022/acs/acs5/profile?get=DP02_0115E&for=tract:${tractStr}&in=state:${g.state}%20county:${g.county}`);
         tasks.push(
-          fetch(url2)
-            .then((r) => r.json())
+          fetchJsonRetryL(url2, 'language', { retries: 2, timeoutMs: 15000 })
             .then((rows) => ({ type: "english", rows }))
             .catch(() => null),
         );
@@ -510,26 +757,75 @@ async function aggregateBasicDemographicsForTracts(fipsList = []) {
   let povertyCount = 0;
 
   const tasks = [];
+  const fbTasks = [];
   for (const g of Object.values(groups)) {
     const tractChunks = chunk(g.tracts, 50);
     for (const ch of tractChunks) {
       const url =
-        "https://api.census.gov/data/2022/acs/acs5/profile?get=DP05_0001E,DP05_0018E,DP03_0062E,DP03_0088E,DP03_0128PE&for=tract:" +
+        toCensus("https://api.census.gov/data/2022/acs/acs5/profile?get=DP05_0001E,DP05_0018E,DP03_0062E,DP03_0088E,DP03_0128PE&for=tract:") +
         ch.join(",") +
         `&in=state:${g.state}%20county:${g.county}`;
       tasks.push(
-        fetch(url)
-          .then((r) => r.json())
+        fetchJsonRetryL(url, 'population', { retries: 2, timeoutMs: 15000 })
           .catch(() => null),
       );
+      // Fallbacks: base and subject tables
+      const fb1 =
+        toCensus("https://api.census.gov/data/2022/acs/acs5?get=B01003_001E,B01002_001E,B19013_001E,B19301_001E&for=tract:") +
+        ch.join(",") +
+        `&in=state:${g.state}%20county:${g.county}`;
+      const fb2 =
+        toCensus("https://api.census.gov/data/2022/acs/acs5/subject?get=S1701_C02_001E&for=tract:") +
+        ch.join(",") +
+        `&in=state:${g.state}%20county:${g.county}`;
+      fbTasks.push(fetchJsonRetryL(fb1, 'population', { retries: 2, timeoutMs: 15000 }).catch(() => null));
+      fbTasks.push(fetchJsonRetryL(fb2, 'population', { retries: 2, timeoutMs: 15000 }).catch(() => null));
     }
   }
 
   const responses = await Promise.all(tasks);
+  const fbResponses = await Promise.all(fbTasks);
+  const fbMap = new Map();
+  for (const rows of fbResponses) {
+    if (!Array.isArray(rows) || rows.length < 2) continue;
+    const headers = rows[0];
+    for (let i = 1; i < rows.length; i++) {
+      const row = rows[i];
+      const rec = {};
+      headers.forEach((h, idx) => (rec[h] = row[idx]));
+      const state = rec.state, county = rec.county, tract = rec.tract;
+      if (!state || !county || !tract) continue;
+      const geoid = `${state}${county}${tract}`;
+      if (!fbMap.has(geoid)) fbMap.set(geoid, {});
+      const dest = fbMap.get(geoid);
+      if (rec.B01003_001E) dest.pop = Number(rec.B01003_001E);
+      if (rec.B01002_001E) dest.age = Number(rec.B01002_001E);
+      if (rec.B19013_001E) dest.mhi = Number(rec.B19013_001E);
+      if (rec.B19301_001E) dest.pci = Number(rec.B19301_001E);
+      if (rec.S1701_C02_001E) dest.povPct = Number(rec.S1701_C02_001E);
+    }
+  }
   for (const rows of responses) {
     if (!Array.isArray(rows) || rows.length < 2) continue;
+    const header = rows[0];
     for (let i = 1; i < rows.length; i++) {
-      const [pop, age, income, perCapita, povPct] = rows[i].map(Number);
+      const row = rows[i];
+      const rec = {};
+      header.forEach((h, idx) => (rec[h] = row[idx]));
+      let pop = Number(rec.DP05_0001E);
+      let age = Number(rec.DP05_0018E);
+      let income = Number(rec.DP03_0062E);
+      let perCapita = Number(rec.DP03_0088E);
+      let povPct = Number(rec.DP03_0128PE);
+      if (!Number.isFinite(pop) || pop <= 0 || !Number.isFinite(age) || !Number.isFinite(income) || !Number.isFinite(perCapita) || !Number.isFinite(povPct)) {
+        const geoid = `${rec.state}${rec.county}${rec.tract}`;
+        const fb = fbMap.get(geoid) || {};
+        if ((!Number.isFinite(pop) || pop <= 0) && Number.isFinite(fb.pop)) pop = fb.pop;
+        if (!Number.isFinite(age) && Number.isFinite(fb.age)) age = fb.age;
+        if (!Number.isFinite(income) && Number.isFinite(fb.mhi)) income = fb.mhi;
+        if (!Number.isFinite(perCapita) && Number.isFinite(fb.pci)) perCapita = fb.pci;
+        if (!Number.isFinite(povPct) && Number.isFinite(fb.povPct)) povPct = fb.povPct;
+      }
       if (Number.isFinite(pop) && pop > 0) {
         totalPop += pop;
         if (Number.isFinite(age)) ageWeighted += age * pop;
@@ -554,6 +850,284 @@ async function aggregateBasicDemographicsForTracts(fipsList = []) {
   return result;
 }
 
+// Aggregate race and ethnicity using ACS tables B02001 (race) and B03003 (Hispanic)
+async function aggregateRaceForTracts(fipsList = []) {
+  const groups = {};
+  for (const f of fipsList) {
+    const code = String(f).replace(/[^0-9]/g, "").padStart(11, "0");
+    if (code.length !== 11) continue;
+    const state = code.slice(0, 2);
+    const county = code.slice(2, 5);
+    const tract = code.slice(5);
+    const key = `${state}${county}`;
+    if (!groups[key]) groups[key] = { state, county, tracts: [] };
+    groups[key].tracts.push(tract);
+  }
+  let tot = 0;
+  let white = 0;
+  let black = 0;
+  let asian = 0;
+  let native = 0;
+  let pacific = 0;
+  let other = 0;
+  let twoPlus = 0;
+  let hisp = 0;
+  let notHisp = 0;
+  const tasks = [];
+  for (const g of Object.values(groups)) {
+    const chunks = chunk(g.tracts, 50);
+    for (const ch of chunks) {
+      const urlRace =
+        "https://api.census.gov/data/2022/acs/acs5?get=B02001_001E,B02001_002E,B02001_003E,B02001_004E,B02001_005E,B02001_006E,B02001_007E,B02001_008E&for=tract:" +
+        ch.join(",") +
+        `&in=state:${g.state}%20county:${g.county}`;
+      const urlEth =
+        "https://api.census.gov/data/2022/acs/acs5?get=B03003_001E,B03003_002E,B03003_003E&for=tract:" +
+        ch.join(",") +
+        `&in=state:${g.state}%20county:${g.county}`;
+      tasks.push(
+        Promise.all([
+          fetch(urlRace).then((r) => r.json()).catch(() => null),
+          fetch(urlEth).then((r) => r.json()).catch(() => null),
+        ]),
+      );
+    }
+  }
+  const responses = await Promise.all(tasks);
+  for (const pair of responses) {
+    const [rowsRace, rowsEth] = pair || [];
+    if (Array.isArray(rowsRace) && rowsRace.length > 1) {
+      for (let i = 1; i < rowsRace.length; i++) {
+        const [t, w, b, n, a, p, o, m] = rowsRace[i]
+          .slice(0, 8)
+          .map((x) => Number(x));
+        if (Number.isFinite(t) && t > 0) {
+          tot += t;
+          if (Number.isFinite(w)) white += w;
+          if (Number.isFinite(b)) black += b;
+          if (Number.isFinite(n)) native += n;
+          if (Number.isFinite(a)) asian += a;
+          if (Number.isFinite(p)) pacific += p;
+          if (Number.isFinite(o)) other += o;
+          if (Number.isFinite(m)) twoPlus += m;
+        }
+      }
+    }
+    if (Array.isArray(rowsEth) && rowsEth.length > 1) {
+      for (let i = 1; i < rowsEth.length; i++) {
+        const [t, notH, h] = rowsEth[i]
+          .slice(0, 3)
+          .map((x) => Number(x));
+        if (Number.isFinite(t) && t > 0) {
+          if (Number.isFinite(notH)) notHisp += notH;
+          if (Number.isFinite(h)) hisp += h;
+        }
+      }
+    }
+  }
+  if (tot <= 0) return {};
+  return {
+    white_pct: (white / tot) * 100,
+    black_pct: (black / tot) * 100,
+    native_pct: (native / tot) * 100,
+    asian_pct: (asian / tot) * 100,
+    pacific_pct: (pacific / tot) * 100,
+    other_race_pct: (other / tot) * 100,
+    two_or_more_races_pct: (twoPlus / tot) * 100,
+    hispanic_pct: (hisp / (hisp + notHisp || 1)) * 100,
+    not_hispanic_pct: (notHisp / (hisp + notHisp || 1)) * 100,
+  };
+}
+
+// Aggregate housing and education using ACS tables B25003 (tenure) and B15003 (education)
+async function aggregateHousingEducationForTracts(fipsList = []) {
+  const groups = {};
+  for (const f of fipsList) {
+    const code = String(f).replace(/[^0-9]/g, "").padStart(11, "0");
+    if (code.length !== 11) continue;
+    const state = code.slice(0, 2);
+    const county = code.slice(2, 5);
+    const tract = code.slice(5);
+    const key = `${state}${county}`;
+    if (!groups[key]) groups[key] = { state, county, tracts: [] };
+    groups[key].tracts.push(tract);
+  }
+  let occTotal = 0;
+  let owners = 0;
+  let renters = 0;
+  let eduTotal = 0;
+  let bachelorsPlus = 0;
+  let hsOrHigher = 0;
+  let lessHS = 0;
+  let hsGrad = 0;
+  let someCollege = 0;
+  let bachelorsOnly = 0;
+  let gradProf = 0;
+  const ownerUnitsByGeoid = {};
+  const renterUnitsByGeoid = {};
+  let ownerUnitsTotal = 0;
+  let renterUnitsTotal = 0;
+  let medianHomeWeighted = 0;
+  let medianRentWeighted = 0;
+  let housingUnitsTotal = 0;
+  let occupiedUnits = 0;
+  let vacantUnits = 0;
+  const tasks = [];
+  for (const g of Object.values(groups)) {
+    const chunks = chunk(g.tracts, 50);
+    for (const ch of chunks) {
+      const urlTenure =
+        "https://api.census.gov/data/2022/acs/acs5?get=B25003_001E,B25003_002E,B25003_003E&for=tract:" +
+        ch.join(",") +
+        `&in=state:${g.state}%20county:${g.county}`;
+      const urlEdu =
+        "https://api.census.gov/data/2022/acs/acs5?get=B15003_001E,B15003_022E,B15003_023E,B15003_024E,B15003_025E&for=tract:" +
+        ch.join(",") +
+        `&in=state:${g.state}%20county:${g.county}`;
+      const urlEduHS =
+        "https://api.census.gov/data/2022/acs/acs5?get=B15003_001E,B15003_017E,B15003_018E,B15003_019E,B15003_020E,B15003_021E,B15003_022E,B15003_023E,B15003_024E,B15003_025E&for=tract:" +
+        ch.join(",") +
+        `&in=state:${g.state}%20county:${g.county}`;
+      const urlMedians =
+        "https://api.census.gov/data/2022/acs/acs5?get=B25077_001E,B25064_001E&for=tract:" +
+        ch.join(",") +
+        `&in=state:${g.state}%20county:${g.county}`;
+      const urlOccupancy =
+        "https://api.census.gov/data/2022/acs/acs5?get=B25002_001E,B25002_002E,B25002_003E&for=tract:" +
+        ch.join(",") +
+        `&in=state:${g.state}%20county:${g.county}`;
+      tasks.push(
+        Promise.all([
+          fetchJsonRetryL(toCensus(urlTenure), 'housing', { retries: 2, timeoutMs: 15000 }).catch(() => null),
+          fetchJsonRetryL(toCensus(urlEdu), 'housing', { retries: 2, timeoutMs: 15000 }).catch(() => null),
+          fetchJsonRetryL(toCensus(urlEduHS), 'housing', { retries: 2, timeoutMs: 15000 }).catch(() => null),
+          fetchJsonRetryL(toCensus(urlMedians), 'housing', { retries: 2, timeoutMs: 15000 }).catch(() => null),
+          fetchJsonRetryL(toCensus(urlOccupancy), 'housing', { retries: 2, timeoutMs: 15000 }).catch(() => null),
+        ]),
+      );
+    }
+  }
+  const responses = await Promise.all(tasks);
+  for (const pair of responses) {
+    const [rowsTenure, rowsEdu, rowsEduHS, rowsMedians, rowsOccup] = pair || [];
+    if (Array.isArray(rowsTenure) && rowsTenure.length > 1) {
+      for (let i = 1; i < rowsTenure.length; i++) {
+        const row = rowsTenure[i];
+        const [t, o, r] = row.slice(0, 3).map((x) => Number(x));
+        const [state, county, tract] = row.slice(-3);
+        const geoid = `${state}${county}${tract}`;
+        if (Number.isFinite(t) && t > 0) {
+          occTotal += t;
+          if (Number.isFinite(o)) {
+            owners += o;
+            ownerUnitsByGeoid[geoid] = (ownerUnitsByGeoid[geoid] || 0) + o;
+            ownerUnitsTotal += o;
+          }
+          if (Number.isFinite(r)) {
+            renters += r;
+            renterUnitsByGeoid[geoid] = (renterUnitsByGeoid[geoid] || 0) + r;
+            renterUnitsTotal += r;
+          }
+        }
+      }
+    }
+    if (Array.isArray(rowsEdu) && rowsEdu.length > 1) {
+      for (let i = 1; i < rowsEdu.length; i++) {
+        const [t, b, m, p, d] = rowsEdu[i]
+          .slice(0, 5)
+          .map((x) => Number(x));
+        if (Number.isFinite(t) && t > 0) {
+          eduTotal += t;
+          bachelorsPlus += [b, m, p, d].filter(Number.isFinite).reduce((a, n) => a + n, 0);
+        }
+      }
+    }
+    if (Array.isArray(rowsEduHS) && rowsEduHS.length > 1) {
+      for (let i = 1; i < rowsEduHS.length; i++) {
+        const nums = rowsEduHS[i].slice(0, 10).map((x) => Number(x));
+        const t = nums[0];
+        const hs = nums[1]; // 017E
+        const sc = [nums[2], nums[3], nums[4], nums[5]] // 018E-021E
+          .filter(Number.isFinite)
+          .reduce((a, n) => a + n, 0);
+        const bach = nums[6]; // 022E
+        const grad = [nums[7], nums[8], nums[9]] // 023E-025E
+          .filter(Number.isFinite)
+          .reduce((a, n) => a + n, 0);
+        if (Number.isFinite(t) && t > 0) {
+          hsOrHigher += (Number.isFinite(hs) ? hs : 0) + sc + (Number.isFinite(bach) ? bach : 0) + grad;
+          hsGrad += Number.isFinite(hs) ? hs : 0;
+          someCollege += sc;
+          bachelorsOnly += Number.isFinite(bach) ? bach : 0;
+          gradProf += grad;
+          // less than HS = total - (hs + sc + bach + grad)
+          const less = t - ((Number.isFinite(hs) ? hs : 0) + sc + (Number.isFinite(bach) ? bach : 0) + grad);
+          if (Number.isFinite(less) && less > 0) lessHS += less;
+        }
+      }
+    }
+    if (Array.isArray(rowsMedians) && rowsMedians.length > 1) {
+      for (let i = 1; i < rowsMedians.length; i++) {
+        const row = rowsMedians[i];
+        const [mv, mr] = row.slice(0, 2).map((x) => Number(x));
+        const [state, county, tract] = row.slice(-3);
+        const geoid = `${state}${county}${tract}`;
+        const ou = ownerUnitsByGeoid[geoid] || 0;
+        const ru = renterUnitsByGeoid[geoid] || 0;
+        if (Number.isFinite(mv) && mv > 0 && ou > 0) {
+          medianHomeWeighted += mv * ou;
+        }
+        if (Number.isFinite(mr) && mr > 0 && ru > 0) {
+          medianRentWeighted += mr * ru;
+        }
+      }
+    }
+    if (Array.isArray(rowsOccup) && rowsOccup.length > 1) {
+      for (let i = 1; i < rowsOccup.length; i++) {
+        const [total, occ, vac] = rowsOccup[i].slice(0, 3).map((x) => Number(x));
+        if (Number.isFinite(total) && total > 0) {
+          housingUnitsTotal += total;
+          if (Number.isFinite(occ)) occupiedUnits += occ;
+          if (Number.isFinite(vac)) vacantUnits += vac;
+        }
+      }
+    }
+  }
+  const out = {};
+  if (occTotal > 0) {
+    out.owner_occupied_pct = (owners / occTotal) * 100;
+    out.renter_occupied_pct = (renters / occTotal) * 100;
+  }
+  if (eduTotal > 0) {
+    out.bachelors_or_higher_pct = (bachelorsPlus / eduTotal) * 100;
+  }
+  if (hsOrHigher > 0 && eduTotal > 0) {
+    out.high_school_or_higher_pct = (hsOrHigher / eduTotal) * 100;
+  }
+  if (eduTotal > 0) {
+    out.less_than_hs_pct = (lessHS / eduTotal) * 100;
+    out.hs_grad_pct = (hsGrad / eduTotal) * 100;
+    out.some_college_or_assoc_pct = (someCollege / eduTotal) * 100;
+    out.bachelors_pct = (bachelorsOnly / eduTotal) * 100;
+    out.grad_prof_pct = (gradProf / eduTotal) * 100;
+  }
+  if (ownerUnitsTotal > 0 && medianHomeWeighted > 0) {
+    out.median_home_value = medianHomeWeighted / ownerUnitsTotal;
+  }
+  if (renterUnitsTotal > 0 && medianRentWeighted > 0) {
+    out.median_gross_rent = medianRentWeighted / renterUnitsTotal;
+  }
+  // Set occupancy counts and derived rates
+  if (housingUnitsTotal > 0) {
+    out.housing_units_total = housingUnitsTotal;
+    out.housing_units_occupied = occupiedUnits;
+    out.housing_units_vacant = vacantUnits;
+    out.vacancy_rate_pct = (vacantUnits / housingUnitsTotal) * 100;
+    out.occupancy_rate_pct = (occupiedUnits / housingUnitsTotal) * 100;
+  }
+  return out;
+}
+
 // Fetch unemployment rate and population for one or more census tracts
 async function fetchUnemploymentForTracts(fipsList = []) {
   const groups = {};
@@ -573,12 +1147,20 @@ async function fetchUnemploymentForTracts(fipsList = []) {
     const tractChunks = chunk(g.tracts, 50);
     for (const ch of tractChunks) {
       const url =
-        "https://api.census.gov/data/2022/acs/acs5/profile?get=DP03_0009PE,DP05_0001E&for=tract:" +
+        toCensus("https://api.census.gov/data/2022/acs/acs5/profile?get=DP03_0009PE,DP05_0001E&for=tract:") +
         ch.join(",") +
         `&in=state:${g.state}%20county:${g.county}`;
       tasks.push(
-        fetch(url)
-          .then((r) => r.json())
+        fetchJsonRetryL(url, 'population', { retries: 2, timeoutMs: 15000 })
+          .catch(() => null),
+      );
+      // Fallback: Subject table S2301 (unemployment rate percent)
+      const fb =
+        toCensus("https://api.census.gov/data/2022/acs/acs5/subject?get=S2301_C04_001E,S2301_C01_001E&for=tract:") +
+        ch.join(",") +
+        `&in=state:${g.state}%20county:${g.county}`;
+      tasks.push(
+        fetchJsonRetryL(fb, 'population', { retries: 2, timeoutMs: 15000 })
           .catch(() => null),
       );
     }
@@ -587,12 +1169,18 @@ async function fetchUnemploymentForTracts(fipsList = []) {
   for (const rows of responses) {
     if (!Array.isArray(rows) || rows.length < 2) continue;
     for (let i = 1; i < rows.length; i++) {
-      const [unemp, pop, state, county, tract] = rows[i];
+      const hdr = responses.find(r => Array.isArray(r) && r[0] && Array.isArray(r[0]) && r[0].includes('state') && r[0].includes('county'))?.[0] || rows[0];
+      const header = Array.isArray(hdr) ? hdr : rows[0];
+      const rec = {};
+      header.forEach((h, idx) => (rec[h] = rows[i][idx]));
+      const state = rec.state, county = rec.county, tract = rec.tract;
       const geoid = `${state}${county}${tract}`;
-      results[geoid] = {
-        unemployment_rate: Number(unemp),
-        population: Number(pop),
-      };
+      const out = results[geoid] || { unemployment_rate: NaN, population: NaN };
+      if (rec.DP03_0009PE) out.unemployment_rate = Number(rec.DP03_0009PE);
+      if (rec.DP05_0001E) out.population = Number(rec.DP05_0001E);
+      if (rec.S2301_C04_001E && !Number.isFinite(out.unemployment_rate)) out.unemployment_rate = Number(rec.S2301_C04_001E);
+      if (rec.S2301_C01_001E && !Number.isFinite(out.population)) out.population = Number(rec.S2301_C01_001E);
+      results[geoid] = out;
     }
   }
   return results;
@@ -638,7 +1226,7 @@ async function aggregateHardshipsForTracts(fipsList = []) {
     fipsList.map(async (f) => {
       try {
         const url = buildApiUrl(API_PATH, { fips: f, census_tract: f, geoid: f });
-        const j = await fetchJsonWithDiagnostics(url);
+        const j = await fetchJsonRetryL(url, 'hardships', { retries: 1, timeoutMs: 20000 });
         if (Array.isArray(j.environmental_hardships)) {
           j.environmental_hardships.forEach((h) => set.add(h));
         }
@@ -781,6 +1369,48 @@ async function enrichRegionLanguages(data = {}) {
     const lang = await aggregateLanguageForTracts(wFips);
     const d = w.demographics || {};
     out.water_district = { ...w, demographics: { ...d, ...lang } };
+  }
+  return out;
+}
+
+async function enrichRegionRace(data = {}) {
+  const { surrounding_10_mile, water_district } = data || {};
+  const out = { ...data };
+  const s = surrounding_10_mile || {};
+  if (Array.isArray(s.census_tracts_fips) && s.census_tracts_fips.length) {
+    const race = await aggregateRaceForTracts(s.census_tracts_fips);
+    const d = s.demographics || {};
+    out.surrounding_10_mile = { ...s, demographics: { ...d, ...race } };
+  }
+  const w = water_district || {};
+  const wFips = Array.isArray(w.census_tracts_fips)
+    ? w.census_tracts_fips.map(String)
+    : [];
+  if (wFips.length) {
+    const race = await aggregateRaceForTracts(wFips);
+    const d = w.demographics || {};
+    out.water_district = { ...w, demographics: { ...d, ...race } };
+  }
+  return out;
+}
+
+async function enrichRegionHousingEducation(data = {}) {
+  const { surrounding_10_mile, water_district } = data || {};
+  const out = { ...data };
+  const s = surrounding_10_mile || {};
+  if (Array.isArray(s.census_tracts_fips) && s.census_tracts_fips.length) {
+    const he = await aggregateHousingEducationForTracts(s.census_tracts_fips);
+    const d = s.demographics || {};
+    out.surrounding_10_mile = { ...s, demographics: { ...d, ...he } };
+  }
+  const w = water_district || {};
+  const wFips = Array.isArray(w.census_tracts_fips)
+    ? w.census_tracts_fips.map(String)
+    : [];
+  if (wFips.length) {
+    const he = await aggregateHousingEducationForTracts(wFips);
+    const d = w.demographics || {};
+    out.water_district = { ...w, demographics: { ...d, ...he } };
   }
   return out;
 }
@@ -1209,26 +1839,68 @@ async function enrichWaterDistrict(data = {}, address = "", categories = {}) {
 
 // Fetch English proficiency percentage if missing
 async function enrichEnglishProficiency(data = {}) {
-  const { lat, lon, english_less_than_very_well_pct } = data || {};
+  const { lat, lon, english_less_than_very_well_pct, state_fips, county_fips, tract_code } = data || {};
   if (!isMissing(english_less_than_very_well_pct) || lat == null || lon == null)
     return data;
   try {
-    const geo = await fetch(
-      `https://geo.fcc.gov/api/census/block/find?latitude=${lat}&longitude=${lon}&format=json`,
-    ).then((r) => r.json());
-    const fips = geo?.Block?.FIPS;
-    if (fips && fips.length >= 11) {
-      const state = fips.slice(0, 2);
-      const county = fips.slice(2, 5);
-      const tract = fips.slice(5, 11);
-      const url =
-        `https://api.census.gov/data/2022/acs/acs5/profile?get=DP02_0111PE&for=tract:${tract}&in=state:${state}+county:${county}`;
-      const acs = await fetch(url).then((r) => r.json());
+    // If we already have FIPS parts from earlier, avoid lookups
+    if (state_fips && county_fips && tract_code) {
+      const url = toCensus(`https://api.census.gov/data/2022/acs/acs5/profile?get=DP02_0111PE&for=tract:${tract_code}&in=state:${state_fips}+county:${county_fips}`);
+      const acs = await fetchJsonRetry(url, { retries: 1, timeoutMs: 12000 });
       const val = acs?.[1]?.[0];
       const num = Number(val);
-      if (Number.isFinite(num) && num >= 0) {
-        return { ...data, english_less_than_very_well_pct: num };
-      }
+      if (Number.isFinite(num) && num >= 0) return { ...data, english_less_than_very_well_pct: num };
+    }
+    // Prefer Census Geocoder → TIGERweb → FCC to derive FIPS
+    const fromGeocoder = await (async () => {
+      try {
+        const u = `https://geocoding.geo.census.gov/geocoder/geographies/coordinates?x=${lon}&y=${lat}&benchmark=Public_AR_Current&vintage=Current_Current&format=json`;
+        const g = await fetchJsonRetry(u, { retries: 1, timeoutMs: 10000 });
+        const ct = g?.result?.geographies?.["Census Tracts"]?.[0];
+        const geoid = ct?.GEOID;
+        if (geoid && geoid.length >= 11) return { state: geoid.slice(0,2), county: geoid.slice(2,5), tract: geoid.slice(5,11) };
+      } catch {}
+      return null;
+    })();
+    const fromTiger = !fromGeocoder ? await (async () => {
+      try {
+        const tractUrl = "https://tigerweb.geo.census.gov/arcgis/rest/services/TIGERweb/Tracts_Blocks/MapServer/10/query";
+        const params = new URLSearchParams({
+          where: "1=1",
+          geometry: JSON.stringify({ x: Number(lon), y: Number(lat), spatialReference: { wkid: 4326 } }),
+          geometryType: "esriGeometryPoint",
+          inSR: "4326",
+          spatialRel: "esriSpatialRelIntersects",
+          outFields: "NAME,GEOID",
+          returnGeometry: "false",
+          f: "json",
+        });
+        const j = await fetchJsonRetry(`${tractUrl}?${params.toString()}`, { retries: 1, timeoutMs: 10000 });
+        const attrs = j?.features?.[0]?.attributes;
+        const geoid = attrs?.GEOID;
+        if (geoid && geoid.length >= 11) return { state: geoid.slice(0,2), county: geoid.slice(2,5), tract: geoid.slice(5,11) };
+      } catch {}
+      return null;
+    })() : null;
+    let fips = fromGeocoder || fromTiger;
+    if (!fips) {
+      try {
+        const geo = await fetchJsonRetry(
+          `https://geo.fcc.gov/api/census/block/find?latitude=${lat}&longitude=${lon}&format=json`,
+          { retries: 2, timeoutMs: 10000 },
+        );
+        const block = geo?.Block?.FIPS;
+        if (block && block.length >= 11) {
+          fips = { state: block.slice(0,2), county: block.slice(2,5), tract: block.slice(5,11) };
+        }
+      } catch {}
+    }
+    if (fips) {
+      const url = toCensus(`https://api.census.gov/data/2022/acs/acs5/profile?get=DP02_0111PE&for=tract:${fips.tract}&in=state:${fips.state}+county:${fips.county}`);
+      const acs = await fetchJsonRetry(url, { retries: 1, timeoutMs: 12000 });
+      const val = acs?.[1]?.[0];
+      const num = Number(val);
+      if (Number.isFinite(num) && num >= 0) return { ...data, english_less_than_very_well_pct: num };
     }
   } catch (e) {
     // Ignore errors and fall through
@@ -1249,7 +1921,7 @@ async function enrichNwsAlerts(data = {}) {
       },
     });
     if (!res.ok) throw new Error("NWS response not ok");
-    const j = await res.json();
+    const j = await (async () => { try { const jj = await res.json(); logSource('alerts', url, true); return jj; } catch (e) { logSource('alerts', url, false, String(e)); throw e; } })();
     const alerts = Array.isArray(j?.features)
       ? j.features
           .map((f) => f?.properties?.headline)
@@ -1542,6 +2214,7 @@ function renderResultOld(address, data, elapsedMs) {
     owner_occupied_pct,
     renter_occupied_pct,
     median_home_value,
+    median_gross_rent,
     high_school_or_higher_pct,
     bachelors_or_higher_pct,
     alerts,
@@ -1601,6 +2274,7 @@ const hardshipSection = `
         <div class="key">Owner occupied</div><div class="val">${fmtPct(owner_occupied_pct)}</div>
         <div class="key">Renter occupied</div><div class="val">${fmtPct(renter_occupied_pct)}</div>
         <div class="key">Median home value</div><div class="val">${fmtCurrency(median_home_value)}</div>
+        <div class="key">Median gross rent</div><div class="val">${fmtCurrency(median_gross_rent)}</div>
         <div class="key">High school or higher</div><div class="val">${fmtPct(high_school_or_higher_pct)}</div>
         <div class="key">Bachelor's degree or higher</div><div class="val">${fmtPct(bachelors_or_higher_pct)}</div>
       </div>
@@ -1852,6 +2526,8 @@ function renderResult(address, data, elapsedMs, selections) {
     census_tract,
     lat,
     lon,
+    geocoder_fallback,
+    geocode_fallback_source,
     english_less_than_very_well_pct,
     language_other_than_english_pct,
     spanish_at_home_pct,
@@ -1877,6 +2553,7 @@ function renderResult(address, data, elapsedMs, selections) {
     owner_occupied_pct,
     renter_occupied_pct,
     median_home_value,
+    median_gross_rent,
     high_school_or_higher_pct,
     bachelors_or_higher_pct,
     alerts,
@@ -1908,13 +2585,13 @@ function renderResult(address, data, elapsedMs, selections) {
     ? Array.from(new Set(w.environmental_hardships))
     : [];
   const sTracts = Array.isArray(s.census_tracts)
-    ? s.census_tracts.join(", ")
+    ? s.census_tracts
     : escapeHTML(s.census_tracts) || "—";
   const sCities = Array.isArray(s.cities)
     ? s.cities.join(", ")
     : escapeHTML(s.cities) || "—";
   const wTracts = Array.isArray(w.census_tracts)
-    ? w.census_tracts.join(", ")
+    ? w.census_tracts
     : escapeHTML(w.census_tracts) || "—";
   const wCities = Array.isArray(w.cities)
     ? w.cities.join(", ")
@@ -1930,25 +2607,37 @@ function renderResult(address, data, elapsedMs, selections) {
     </div>
     ${mapImgHtml}
   `;
+  function renderTractList(arr, id) {
+    if (!Array.isArray(arr) || !arr.length) return '—';
+    const shown = arr.slice(0, 5).join(', ');
+    const full = arr.join(', ');
+    if (arr.length <= 5) return escapeHTML(full);
+    return `<span id="${id}-tracts">${escapeHTML(shown)} …</span> <button class="link-button" data-expand="${id}" data-full="${escapeHTML(full)}">More…</button>`;
+  }
   const locSurround = `
     <div class="kv">
       <div class="key">Cities</div><div class="val">${sCities}</div>
-      <div class="key">Census tracts</div><div class="val">${sTracts}</div>
+      <div class="key">Census tracts</div><div class="val">${renderTractList(sTracts, 's')}</div>
     </div>
   `;
   const locDistrict = `
     <div class="kv">
       <div class="key">District</div><div class="val">${escapeHTML(w.name) || "—"}</div>
       <div class="key">Cities</div><div class="val">${wCities}</div>
-      <div class="key">Census tracts</div><div class="val">${wTracts}</div>
+      <div class="key">Census tracts</div><div class="val">${renderTractList(wTracts, 'w')}</div>
     </div>
   `;
+  const locDescBase = '<p class="section-description">This section lists basic geographic information for the census tract, surrounding 10&#8209;mile area, and water district, such as city, ZIP code, county, and coordinates.</p>' + renderSourceNotesGrouped('location', data._source_log);
+  const fallbackName = geocode_fallback_source === 'tigerweb' ? 'Census TIGERweb' : (geocode_fallback_source === 'fcc' ? 'FCC Block API' : 'Census Geocoder');
+  const locDescFallback = geocoder_fallback
+    ? `<p class="note">Using ${fallbackName} fallback due to FCC endpoint issues.</p>`
+    : '';
   const locationRow = buildComparisonRow(
     "Location Summary",
     locLocal,
     locSurround,
     locDistrict,
-    '<p class="section-description">This section lists basic geographic information for the census tract, surrounding 10&#8209;mile area, and water district, such as city, ZIP code, county, and coordinates.</p>',
+    locDescBase + locDescFallback,
     scopes,
   );
 
@@ -1977,7 +2666,7 @@ function renderResult(address, data, elapsedMs, selections) {
     }),
     popFields(s.demographics || {}),
     popFields(w.demographics || {}),
-    '<p class="section-description">This section provides a snapshot of the people living in the selected area, drawn from the American Community Survey (ACS). It includes the total population, median age, household income, poverty rate, and unemployment rate. These indicators offer a quick view of community size, economic stability, and social conditions.</p><p class="section-description"><em>Values for the surrounding 10-mile area and water district are population-weighted averages.</em></p>',
+    '<p class="section-description">This section provides a snapshot of the people living in the selected area, drawn from the American Community Survey (ACS). It includes the total population, median age, household income, poverty rate, and unemployment rate. These indicators offer a quick view of community size, economic stability, and social conditions.</p><p class="section-description"><em>Values for the surrounding 10-mile area and water district are population-weighted averages.</em></p>' + renderSourceNotesGrouped('population', data._source_log),
     scopes,
   );
   const languageFields = (d = {}) => {
@@ -2009,7 +2698,7 @@ function renderResult(address, data, elapsedMs, selections) {
     }),
     languageFields(s.demographics || {}),
     languageFields(w.demographics || {}),
-    '<p class="section-description">This section highlights the primary and secondary languages spoken in the community and key language indicators based on American Community Survey (ACS) 5&#8209;year estimates.</p><p class="section-description"><em>Values for the surrounding 10-mile area and water district are population-weighted averages.</em></p>',
+    '<p class="section-description">This section highlights the primary and secondary languages spoken in the community and key language indicators based on American Community Survey (ACS) 5&#8209;year estimates.</p><p class="section-description"><em>Values for the surrounding 10-mile area and water district are population-weighted averages.</em></p>' + renderSourceNotesGrouped('language', data._source_log),
     scopes,
   );
 
@@ -2044,17 +2733,28 @@ function renderResult(address, data, elapsedMs, selections) {
     }),
     raceContent(s.demographics || {}),
     raceContent(w.demographics || {}),
-    '<p class="section-description">This section shows the racial and ethnic composition of the community, expressed as percentages of the total population using American Community Survey (ACS) data. These insights help identify the diversity of the area and support efforts to ensure programs, outreach, and engagement strategies reflect and serve all community groups.</p><p class="section-description"><em>Values for the surrounding 10-mile area and water district are population-weighted averages.</em></p>',
+    '<p class="section-description">This section shows the racial and ethnic composition of the community, expressed as percentages of the total population using American Community Survey (ACS) data. These insights help identify the diversity of the area and support efforts to ensure programs, outreach, and engagement strategies reflect and serve all community groups.</p><p class="section-description"><em>Values for the surrounding 10-mile area and water district are population-weighted averages.</em></p>' + renderSourceNotesGrouped('race', data._source_log),
     scopes,
   );
 
   const housingContent = (d = {}) => {
     const entries = [
+      ["Total housing units", fmtInt(d.housing_units_total)],
+      ["Occupied units", fmtInt(d.housing_units_occupied)],
+      ["Vacant units", fmtInt(d.housing_units_vacant)],
+      ["Vacancy rate", fmtPct(d.vacancy_rate_pct)],
+      ["Occupancy rate", fmtPct(d.occupancy_rate_pct)],
       ["Owner occupied", fmtPct(d.owner_occupied_pct)],
       ["Renter occupied", fmtPct(d.renter_occupied_pct)],
       ["Median home value", fmtCurrency(d.median_home_value)],
+      ["Median gross rent", fmtCurrency(d.median_gross_rent)],
       ["High school or higher", fmtPct(d.high_school_or_higher_pct)],
       ["Bachelor's degree or higher", fmtPct(d.bachelors_or_higher_pct)],
+      ["Less than high school", fmtPct(d.less_than_hs_pct)],
+      ["High school graduate (incl. equivalency)", fmtPct(d.hs_grad_pct)],
+      ["Some college or associate's", fmtPct(d.some_college_or_assoc_pct)],
+      ["Bachelor's degree", fmtPct(d.bachelors_pct)],
+      ["Graduate or professional degree", fmtPct(d.grad_prof_pct)],
     ];
     return `<div class="kv">${entries
       .map(([k, v]) => `<div class="key">${k}</div><div class="val">${v}</div>`)
@@ -2066,12 +2766,13 @@ function renderResult(address, data, elapsedMs, selections) {
       owner_occupied_pct,
       renter_occupied_pct,
       median_home_value,
+      median_gross_rent,
       high_school_or_higher_pct,
       bachelors_or_higher_pct,
     }),
     housingContent(s.demographics || {}),
     housingContent(w.demographics || {}),
-    '<p class="section-description">This section combines information on housing and educational attainment in the community. It includes the percentage of owner&#8209;occupied and renter&#8209;occupied homes, median home value, and levels of education such as high school completion and bachelor’s degree or higher. These indicators provide insight into community stability, affordability, and educational opportunities, helping inform outreach strategies and program planning.</p><p class="section-description"><em>Values for the surrounding 10-mile area and water district are population-weighted averages.</em></p>',
+    '<p class="section-description">This section combines information on housing and educational attainment in the community. It includes the percentage of owner&#8209;occupied and renter&#8209;occupied homes, median home value, and levels of education such as high school completion and bachelor’s degree or higher. These indicators provide insight into community stability, affordability, and educational opportunities, helping inform outreach strategies and program planning.</p><p class="section-description"><em>Values for the surrounding 10-mile area and water district are population-weighted averages.</em></p>' + renderSourceNotesGrouped('housing', data._source_log),
     scopes,
   );
 
@@ -2109,7 +2810,7 @@ function renderResult(address, data, elapsedMs, selections) {
     Array.isArray(w.dac_tracts)
       ? dacCallout(null, w.dac_tracts, w.dac_population_pct, w.dac_tracts_pct)
       : "",
-    '<p class="section-description">This section indicates whether the selected area is designated as a Disadvantaged Community (DAC) using the California Department of Water Resources (DWR) mapping tool. DAC status is determined by household income and is shown as a simple yes/no outcome. This designation is important for identifying areas eligible for certain state and federal funding opportunities and for ensuring that equity considerations are included in outreach and program planning.</p>',
+    '<p class="section-description">This section indicates whether the selected area is designated as a Disadvantaged Community (DAC) using the California Department of Water Resources (DWR) mapping tool. DAC status is determined by household income and is shown as a simple yes/no outcome. This designation is important for identifying areas eligible for certain state and federal funding opportunities and for ensuring that equity considerations are included in outreach and program planning.</p>' + renderSourceNotesGrouped('dac', data._source_log),
     scopes,
   );
 
@@ -2118,7 +2819,7 @@ function renderResult(address, data, elapsedMs, selections) {
     renderEnviroscreenContent(enviroscreen),
     renderEnviroscreenContent(s.environment),
     renderEnviroscreenContent(w.environment),
-    '<p class="section-description">This section shows environmental and community health indicators from California’s Enviroscreen tool. Results are presented as percentiles, with higher numbers (and darker colors) indicating greater environmental burdens compared to other areas in the state. These measures include factors such as air quality, traffic pollution, and access to safe drinking water.</p><p class="section-description">Staff can use this information to understand potential environmental challenges facing a neighborhood, strengthen grant applications that require equity or environmental justice considerations, and design outreach that addresses local concerns. For example, if an event is planned in an area with a high Enviroscreen percentile, staff may want to highlight programs or benefits related to clean water, pollution reduction, or community health.</p><p class="section-description"><strong>How to Read This</strong><br>Green = Low burden (fewer environmental and health challenges)<br>Yellow/Orange = Moderate burden<br>Red = High burden (greater environmental and health challenges)<br>Percentile score shows how the community compares to others across California.</p>',
+    '<p class="section-description">This section shows environmental and community health indicators from California’s Enviroscreen tool. Results are presented as percentiles, with higher numbers (and darker colors) indicating greater environmental burdens compared to other areas in the state. These measures include factors such as air quality, traffic pollution, and access to safe drinking water.</p><p class="section-description">Staff can use this information to understand potential environmental challenges facing a neighborhood, strengthen grant applications that require equity or environmental justice considerations, and design outreach that addresses local concerns. For example, if an event is planned in an area with a high Enviroscreen percentile, staff may want to highlight programs or benefits related to clean water, pollution reduction, or community health.</p><p class="section-description"><strong>How to Read This</strong><br>Green = Low burden (fewer environmental and health challenges)<br>Yellow/Orange = Moderate burden<br>Red = High burden (greater environmental and health challenges)<br>Percentile score shows how the community compares to others across California.</p>' + renderSourceNotesGrouped('enviroscreen', data._source_log),
     scopes,
   );
 
@@ -2193,7 +2894,8 @@ function renderResult(address, data, elapsedMs, selections) {
   `;
 }
 // ---------- Flow ----------
-async function lookup() {
+async function lookup(opts = {}) {
+  const { force = false } = opts || {};
   const input = document.getElementById("autocomplete");
   const resultBox = document.getElementById("result");
   const address = (input?.value || "").trim();
@@ -2214,7 +2916,7 @@ async function lookup() {
   }
 
   const cacheKey = address.toLowerCase();
-  if (lookupCache.has(cacheKey)) {
+  if (!force && lookupCache.has(cacheKey)) {
     const cached = lookupCache.get(cacheKey);
     lastReport = { address, data: cached };
     const locUrl = new URL(window.location);
@@ -2238,46 +2940,42 @@ async function lookup() {
 
   try {
     const url = buildApiUrl(API_PATH, { address });
-    let data = await fetchJsonWithDiagnostics(url, { timeoutMs: 45000, signal });
+    CURRENT_SOURCE_LOG = {};
+    let data = await fetchJsonRetryL(url, 'population', { timeoutMs: 45000, signal });
     if (!data || typeof data !== "object")
       throw new Error("Malformed response.");
     data = await enrichLocation(data);
 
     // Start enrichment tasks, but do not block initial render beyond a short budget
-    const tasks = [];
-    tasks.push(categories.language ? fetchLanguageAcs(data) : Promise.resolve({}));
-    tasks.push(scopes.radius ? enrichSurrounding(data, categories) : Promise.resolve({}));
-    tasks.push(scopes.water ? enrichWaterDistrict(data, address, categories) : Promise.resolve({}));
-    tasks.push(categories.language ? enrichEnglishProficiency(data) : Promise.resolve({}));
-    tasks.push(categories.alerts ? enrichNwsAlerts(data) : Promise.resolve({}));
-
-    const regionTasks = [];
-    if ((scopes.radius || scopes.water) && (categories.demographics || categories.housing || categories.race))
-      regionTasks.push(enrichRegionBasics(data));
-    else regionTasks.push(Promise.resolve({}));
-    if ((scopes.radius || scopes.water) && categories.language)
-      regionTasks.push(enrichRegionLanguages(data));
-    else regionTasks.push(Promise.resolve({}));
-    if ((scopes.radius || scopes.water) && categories.enviroscreen)
-      regionTasks.push(enrichRegionHardships(data));
-    else regionTasks.push(Promise.resolve({}));
-    if ((scopes.radius || scopes.water) && categories.demographics)
-      regionTasks.push(enrichUnemployment(data));
-    else regionTasks.push(Promise.resolve({}));
-
+    // Primary tasks (local + discover surrounding/district context)
+    const primaryTasks = [];
+    primaryTasks.push(categories.language ? fetchLanguageAcs(data) : Promise.resolve({}));
+    primaryTasks.push(categories.race ? (async () => {
+      const { state_fips, county_fips, tract_code } = data || {};
+      if (state_fips && county_fips && tract_code) {
+        const fips = `${state_fips}${county_fips}${tract_code}`;
+        return aggregateRaceForTracts([fips]);
+      }
+      return {};
+    })() : Promise.resolve({}));
+    primaryTasks.push(categories.housing ? (async () => {
+      const { state_fips, county_fips, tract_code } = data || {};
+      if (state_fips && county_fips && tract_code) {
+        const fips = `${state_fips}${county_fips}${tract_code}`;
+        return aggregateHousingEducationForTracts([fips]);
+      }
+      return {};
+    })() : Promise.resolve({}));
+    primaryTasks.push(scopes.radius ? enrichSurrounding(data, categories) : Promise.resolve({}));
+    primaryTasks.push(scopes.water ? enrichWaterDistrict(data, address, categories) : Promise.resolve({}));
+    primaryTasks.push(categories.language ? enrichEnglishProficiency(data) : Promise.resolve({}));
+    primaryTasks.push(categories.alerts ? enrichNwsAlerts(data) : Promise.resolve({}));
+    
     // Phase 1: wait briefly for quick results, then render
     const budgetMs = 6000;
-    const phase1 = await Promise.allSettled([
-      withTimeout(tasks[0], budgetMs, {}),
-      withTimeout(tasks[1], budgetMs, {}),
-      withTimeout(tasks[2], budgetMs, {}),
-      withTimeout(tasks[3], budgetMs, {}),
-      withTimeout(tasks[4], budgetMs, {}),
-      withTimeout(regionTasks[0], budgetMs, {}),
-      withTimeout(regionTasks[1], budgetMs, {}),
-      withTimeout(regionTasks[2], budgetMs, {}),
-      withTimeout(regionTasks[3], budgetMs, {}),
-    ]);
+    const phase1 = await Promise.allSettled(
+      primaryTasks.map((t) => withTimeout(t, budgetMs, {})),
+    );
     const phase1Results = phase1.map((r) => (r.status === 'fulfilled' ? r.value || {} : {}));
     deepMerge(data, ...phase1Results);
 
@@ -2288,12 +2986,42 @@ async function lookup() {
     elapsed = stopSearchTimer();
     renderResult(address, data, elapsed, selections);
 
-    // Phase 2: finish remaining tasks and re-render when done (unless aborted)
-    const all = await Promise.allSettled([...tasks, ...regionTasks]);
+    // Phase 2: finish remaining primary tasks and re-render when done (unless aborted)
+    const allPrimary = await Promise.allSettled(primaryTasks);
     if (signal.aborted) return;
-    const finalResults = all.map((r) => (r.status === 'fulfilled' ? r.value || {} : {}));
-    deepMerge(data, ...finalResults);
+    const finalPrimary = allPrimary.map((r) => (r.status === 'fulfilled' ? r.value || {} : {}));
+    deepMerge(data, ...finalPrimary);
 
+    // Now that surrounding/district context is available, run region aggregations
+    const regionTasks = [];
+    if ((scopes.radius || scopes.water) && (categories.demographics || categories.housing || categories.race))
+      regionTasks.push(enrichRegionBasics(data));
+    if ((scopes.radius || scopes.water) && categories.language)
+      regionTasks.push(enrichRegionLanguages(data));
+    if ((scopes.radius || scopes.water) && categories.race)
+      regionTasks.push(enrichRegionRace(data));
+    if ((scopes.radius || scopes.water) && categories.housing)
+      regionTasks.push(enrichRegionHousingEducation(data));
+    if ((scopes.radius || scopes.water) && categories.enviroscreen)
+      regionTasks.push(enrichRegionHardships(data));
+    if ((scopes.radius || scopes.water) && categories.demographics)
+      regionTasks.push(enrichUnemployment(data));
+
+    // Quick pass
+    const phaseR1 = await Promise.allSettled(
+      regionTasks.map((t) => withTimeout(t, budgetMs, {})),
+    );
+    const regionQuick = phaseR1.map((r) => (r.status === 'fulfilled' ? r.value || {} : {}));
+    deepMerge(data, ...regionQuick);
+    renderResult(address, data, elapsed, selections);
+
+    // Finalize region
+    const allRegion = await Promise.allSettled(regionTasks);
+    if (signal.aborted) return;
+    const regionFinal = allRegion.map((r) => (r.status === 'fulfilled' ? r.value || {} : {}));
+    deepMerge(data, ...regionFinal);
+
+    data._source_log = CURRENT_SOURCE_LOG;
     lastReport = { address, data };
     lookupCache.set(cacheKey, data);
     renderResult(address, data, elapsed, selections);
@@ -2319,6 +3047,38 @@ function bindLookupTrigger() {
   });
 }
 
+function debounce(fn, wait = 250) {
+  let t;
+  return (...args) => {
+    clearTimeout(t);
+    t = setTimeout(() => fn(...args), wait);
+  };
+}
+
+function bindOptionToggles() {
+  const handler = debounce(() => {
+    const input = document.getElementById("autocomplete");
+    const addr = (input?.value || "").trim();
+    if (addr.length >= 4) lookup({ force: true }).catch(console.error);
+  }, 200);
+  document
+    .querySelectorAll('.scope-options input[type="checkbox"], .category-options input[type="checkbox"]')
+    .forEach((el) => el.addEventListener("change", handler));
+}
+
+function bindExpanders() {
+  document.addEventListener('click', (e) => {
+    const btn = e.target.closest('button[data-expand]');
+    if (!btn) return;
+    const id = btn.getAttribute('data-expand');
+    const full = btn.getAttribute('data-full');
+    if (!id || !full) return;
+    const span = document.getElementById(`${id}-tracts`);
+    if (span) span.textContent = full;
+    btn.remove();
+  });
+}
+
 function loadGoogleMaps() {
   const script = document.createElement("script");
   script.src = `https://maps.googleapis.com/maps/api/js?key=${GOOGLE_MAPS_KEY}&libraries=places&callback=initAutocomplete`;
@@ -2332,6 +3092,8 @@ getLanguageMeta().catch(() => {});
 window.onload = () => {
   loadGoogleMaps();
   bindLookupTrigger();
+  bindOptionToggles();
+  bindExpanders();
   const params = new URLSearchParams(window.location.search);
   const addr = params.get("address");
   if (addr) {

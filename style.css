@@ -178,22 +178,43 @@ h1 {
 }
 
 .selections {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--space-4);
   margin-top: var(--space-4);
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: var(--space-4);
 }
 .selections fieldset {
   border: 1px solid var(--border);
   border-radius: var(--radius);
   padding: var(--space-3);
+  background: #fff;
 }
 .selections legend {
   font-weight: 600;
 }
 .selections label {
-  display: block;
+  display: flex;
+  gap: 8px;
+  align-items: center;
   margin-top: var(--space-2);
+}
+
+/* Inline link-style buttons (e.g., More...) */
+.link-button {
+  background: none;
+  border: none;
+  padding: 0;
+  color: var(--accent, #2563eb);
+  text-decoration: underline;
+  cursor: pointer;
+  font: inherit;
+}
+
+.source-notes {
+  margin-top: 6px;
+}
+.source-notes summary {
+  cursor: pointer;
 }
 
 input[type="text"] {
