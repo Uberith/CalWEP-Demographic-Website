@@ -24,7 +24,7 @@ function createServer(options = {}) {
   const app = express();
   const port = Number(process.env.PORT || options.port || 5173);
   const staticDir = path.resolve(process.env.STATIC_DIR || options.staticDir || '.');
-  const apiBase = String(process.env.API_BASE || options.apiBase || 'https://nftapi.cyberwiz.io');
+  const apiBase = String(process.env.API_BASE || options.apiBase || 'https://api.calwep.org');
   const allowed = parseAllowedOrigins();
 
   // CORS for dev
@@ -71,8 +71,12 @@ function createServer(options = {}) {
         if (!/^connection$/i.test(key)) res.setHeader(key, value);
       });
       res.status(upstream.status);
-      if (upstream.body) upstream.body.pipe(res); else res.end();
+      // Use arrayBuffer to support all content types reliably in Node
+      const buf = await upstream.arrayBuffer();
+      res.send(Buffer.from(buf));
     } catch (err) {
+      // eslint-disable-next-line no-console
+      console.error('Proxy error →', targetUrl, err);
       res.status(502).json({ error: 'Proxy error', details: String(err) });
     }
   };
