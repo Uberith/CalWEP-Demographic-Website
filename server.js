@@ -1,7 +1,20 @@
 const express = require('express');
 const app = express();
 
-const ALLOWED_ORIGINS = [/\.calwep\.org$/i, /\.cyberwiz\.io$/i];
+const DEV_ALLOWED = [/^localhost$/i, /^127\.0\.0\.1$/i, /^\[::1\]$/i];
+const DEFAULT_ALLOWED = [/\.calwep\.org$/i, /\.cyberwiz\.io$/i];
+const EXTRA_ALLOWED = (process.env.ALLOW_ORIGINS || '')
+  .split(',')
+  .map((s) => s.trim())
+  .filter(Boolean)
+  .map((pat) => (pat.startsWith('/') && pat.endsWith('/'))
+    ? new RegExp(pat.slice(1, -1), 'i')
+    : new RegExp(`^${pat.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, 'i'));
+const ALLOWED_ORIGINS = [
+  ...DEFAULT_ALLOWED,
+  ...(process.env.NODE_ENV === 'development' ? DEV_ALLOWED : []),
+  ...EXTRA_ALLOWED,
+];
 
 app.use((req, res, next) => {
   const origin = req.headers.origin;
