@@ -2,7 +2,7 @@
 
 ## Project Structure & Module Organization
 - Root app: `index.html`, `style.css`, `script.js`, `config.js`.
-- CORS proxy: `server.js` (Express) for API requests to `https://nftapi.cyberwiz.io`.
+- CORS proxy: `server.js` (Express) for API requests to `https://api.calwep.org`.
 - Mobile wrappers: `android/` and `ios/` directories for platform-specific builds.
 - No separate build output; static assets are served directly.
 
@@ -28,4 +28,3 @@
 - Secrets: do not commit API keys. Use environment variables and inject via server or CI. Review `config.js` before pushing.
 - CORS: update `ALLOWED_ORIGINS` in `server.js` when deploying to new domains.
 - External calls: `script.js` reads API base from `<meta name="api-base">`; ensure it matches your environment.
-

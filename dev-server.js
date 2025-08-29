@@ -2,7 +2,7 @@
 // Env vars:
 // - PORT: port to listen on (default 5173)
 // - STATIC_DIR: directory to serve (default ".")
-// - API_BASE: upstream API base for /api/* proxy (default https://nftapi.cyberwiz.io)
+// - API_BASE: upstream API base for /api/* proxy (default https://api.calwep.org)
 // - ALLOW_ORIGINS: comma-separated list of allowed origin hostnames (regex ok); defaults to localhost
 
 const express = require('express');
@@ -140,6 +140,24 @@ function createServer(options = {}) {
       if (upstream.ok && buf.length && ACS_TTL_MS > 0) acsCacheSet(key, { status: upstream.status, headers, body: buf });
     } catch (e) {
       res.status(502).json({ error: 'ACS proxy error', details: String(e) });
+    }
+  });
+
+  // Proxy for Census Geocoder to avoid browser CORS issues in dev
+  app.use('/proxy/geocoder', async (req, res) => {
+    try {
+      if (req.method !== 'GET') return res.status(405).send('Method Not Allowed');
+      const suffix = req.originalUrl.replace(/^\/proxy\/geocoder/, '') || '/';
+      const target = `https://geocoding.geo.census.gov${suffix}`;
+      const upstream = await fetch(target, { headers: { 'accept': req.headers['accept'] || 'application/json', 'user-agent': 'CalWEP-Dev-Server' } });
+      const buf = Buffer.from(await upstream.arrayBuffer());
+      upstream.headers.forEach((value, key) => {
+        if (/^(connection|transfer-encoding|content-length|content-encoding)$/i.test(key)) return;
+        res.setHeader(key, value);
+      });
+      res.status(upstream.status).send(buf);
+    } catch (e) {
+      res.status(502).json({ error: 'Geocoder proxy error', details: String(e) });
     }
   });
 
