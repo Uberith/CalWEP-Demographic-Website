@@ -8,6 +8,21 @@ let autocomplete = null;
 // Abort controller for in-flight lookups to prevent piling up work
 let currentLookupController = null;
 let CURRENT_SOURCE_LOG = null;
+// Simple in-memory JSON cache for GET requests (per session)
+const HTTP_JSON_CACHE = new Map(); // url -> Promise or value
+function isCacheableUrl(url) {
+  try {
+    const u = new URL(url, window.location.origin);
+    // Cache Census APIs and local dev proxies (ACS + Geocoder). Also cache our API reads.
+    return (
+      /api\.census\.gov$/i.test(u.hostname) ||
+      (u.origin === window.location.origin && /^\/proxy\/(acs|geocoder)\b/.test(u.pathname)) ||
+      (u.origin === window.location.origin && /^(?:\/demographics|\/lookup|\/census-tracts)\b/.test(u.pathname))
+    );
+  } catch {
+    return false;
+  }
+}
 
 function logSource(section, url, ok, note = "") {
   if (!CURRENT_SOURCE_LOG) return;
@@ -175,6 +190,10 @@ function escapeHTML(str = "") {
 }
 function isMissing(n) {
   return n == null || Number(n) === -888888888;
+}
+function isMissingOrZero(n) {
+  const v = Number(n);
+  return n == null || !Number.isFinite(v) || v === 0 || v === -888888888;
 }
 function fmtInt(n) {
   return !isMissing(n) && Number.isFinite(Number(n))
@@ -368,11 +387,22 @@ async function fetchJsonRetry(url, opts = {}) {
     timeoutMs = 12000,
     signal,
     headers = {},
+    noCache = false,
   } = opts || {};
+  const cacheable = !noCache && isCacheableUrl(url);
+  if (cacheable && HTTP_JSON_CACHE.has(url)) {
+    const cached = HTTP_JSON_CACHE.get(url);
+    if (cached && typeof cached.then === 'function') return cached; // in-flight promise
+    return cached; // resolved value
+  }
   let lastErr;
   for (let attempt = 0; attempt <= retries; attempt++) {
     try {
-      return await fetchJsonWithDiagnostics(url, { timeoutMs, signal, headers });
+      const p = fetchJsonWithDiagnostics(url, { timeoutMs, signal, headers });
+      if (cacheable) HTTP_JSON_CACHE.set(url, p);
+      const val = await p;
+      if (cacheable) HTTP_JSON_CACHE.set(url, val);
+      return val;
     } catch (e) {
       lastErr = e;
       if (attempt < retries) {
@@ -387,9 +417,12 @@ async function fetchJsonRetry(url, opts = {}) {
 function toCensus(url) {
   try {
     const u = new URL(url);
+    const pathAndQuery = u.pathname + (u.search || '');
     if (u.hostname.endsWith('api.census.gov')) {
-      const pathAndQuery = u.pathname + (u.search || '');
       return `${window.location.origin}/proxy/acs${pathAndQuery}`;
+    }
+    if (u.hostname === 'geocoding.geo.census.gov') {
+      return `${window.location.origin}/proxy/geocoder${pathAndQuery}`;
     }
   } catch {}
   return url;
@@ -430,7 +463,7 @@ async function enrichLocation(data = {}) {
   }
   async function fipsFromCensusGeocoder(lat, lon) {
     try {
-      const u = `https://geocoding.geo.census.gov/geocoder/geographies/coordinates?x=${lon}&y=${lat}&benchmark=Public_AR_Current&vintage=Current_Current&format=json`;
+      const u = toCensus(`https://geocoding.geo.census.gov/geocoder/geographies/coordinates?x=${lon}&y=${lat}&benchmark=Public_AR_Current&vintage=Current_Current&format=json`);
       const j = await fetchJsonRetry(u, { retries: 1, timeoutMs: 10000 });
       const tract = j?.result?.geographies?.["Census Tracts"]?.[0];
       const geoid = tract?.GEOID;
@@ -846,6 +879,11 @@ async function aggregateBasicDemographicsForTracts(fipsList = []) {
     if (perCapitaWeighted > 0)
       result.per_capita_income = perCapitaWeighted / totalPop;
     if (povertyCount > 0) result.poverty_rate = (povertyCount / totalPop) * 100;
+    if (result.population && Number.isFinite(result.poverty_rate)) {
+      result.people_below_poverty = Math.round(
+        (Number(result.poverty_rate) / 100) * Number(result.population),
+      );
+    }
   }
   return result;
 }
@@ -1128,7 +1166,7 @@ async function aggregateHousingEducationForTracts(fipsList = []) {
   return out;
 }
 
-// Fetch unemployment rate and population for one or more census tracts
+// Fetch unemployment metrics for tracts. Prefer counts (labor force, unemployed) to compute accurate rates.
 async function fetchUnemploymentForTracts(fipsList = []) {
   const groups = {};
   for (const f of fipsList) {
@@ -1142,44 +1180,58 @@ async function fetchUnemploymentForTracts(fipsList = []) {
     groups[key].tracts.push(tract);
   }
   const results = {};
-  const tasks = [];
+  const jobs = [];
   for (const g of Object.values(groups)) {
-    const tractChunks = chunk(g.tracts, 50);
-    for (const ch of tractChunks) {
-      const url =
+    const chunks = chunk(g.tracts, 50);
+    for (const ch of chunks) {
+      // Primary: counts from detailed table B23025 (labor force, unemployed)
+      const urlCounts =
+        toCensus("https://api.census.gov/data/2022/acs/acs5?get=B23025_003E,B23025_005E&for=tract:") +
+        ch.join(",") +
+        `&in=state:${g.state}%20county:${g.county}`;
+      jobs.push({ type: 'counts', promise: fetchJsonRetryL(urlCounts, 'population', { retries: 2, timeoutMs: 15000 }).catch(() => null) });
+      // Profile: unemployment rate percent and population (fallbacks)
+      const urlProf =
         toCensus("https://api.census.gov/data/2022/acs/acs5/profile?get=DP03_0009PE,DP05_0001E&for=tract:") +
         ch.join(",") +
         `&in=state:${g.state}%20county:${g.county}`;
-      tasks.push(
-        fetchJsonRetryL(url, 'population', { retries: 2, timeoutMs: 15000 })
-          .catch(() => null),
-      );
-      // Fallback: Subject table S2301 (unemployment rate percent)
-      const fb =
+      jobs.push({ type: 'profile', promise: fetchJsonRetryL(urlProf, 'population', { retries: 2, timeoutMs: 15000 }).catch(() => null) });
+      // Subject: unemployment rate percent and a population fallback
+      const urlSubj =
         toCensus("https://api.census.gov/data/2022/acs/acs5/subject?get=S2301_C04_001E,S2301_C01_001E&for=tract:") +
         ch.join(",") +
         `&in=state:${g.state}%20county:${g.county}`;
-      tasks.push(
-        fetchJsonRetryL(fb, 'population', { retries: 2, timeoutMs: 15000 })
-          .catch(() => null),
-      );
+      jobs.push({ type: 'subject', promise: fetchJsonRetryL(urlSubj, 'population', { retries: 2, timeoutMs: 15000 }).catch(() => null) });
     }
   }
-  const responses = await Promise.all(tasks);
-  for (const rows of responses) {
+  const jobResults = await Promise.all(jobs.map((j) => j.promise));
+  for (let j = 0; j < jobResults.length; j++) {
+    const rows = jobResults[j];
+    const type = jobs[j].type;
     if (!Array.isArray(rows) || rows.length < 2) continue;
+    const header = rows[0];
     for (let i = 1; i < rows.length; i++) {
-      const hdr = responses.find(r => Array.isArray(r) && r[0] && Array.isArray(r[0]) && r[0].includes('state') && r[0].includes('county'))?.[0] || rows[0];
-      const header = Array.isArray(hdr) ? hdr : rows[0];
       const rec = {};
       header.forEach((h, idx) => (rec[h] = rows[i][idx]));
       const state = rec.state, county = rec.county, tract = rec.tract;
+      if (!state || !county || !tract) continue;
       const geoid = `${state}${county}${tract}`;
-      const out = results[geoid] || { unemployment_rate: NaN, population: NaN };
-      if (rec.DP03_0009PE) out.unemployment_rate = Number(rec.DP03_0009PE);
-      if (rec.DP05_0001E) out.population = Number(rec.DP05_0001E);
-      if (rec.S2301_C04_001E && !Number.isFinite(out.unemployment_rate)) out.unemployment_rate = Number(rec.S2301_C04_001E);
-      if (rec.S2301_C01_001E && !Number.isFinite(out.population)) out.population = Number(rec.S2301_C01_001E);
+      const out = results[geoid] || { unemployment_rate: NaN, population: NaN, labor_force: NaN, unemployed: NaN };
+      if (type === 'counts') {
+        const lf = Number(rec.B23025_003E);
+        const unemp = Number(rec.B23025_005E);
+        if (Number.isFinite(lf)) out.labor_force = lf;
+        if (Number.isFinite(unemp)) out.unemployed = unemp;
+        if (Number.isFinite(out.labor_force) && out.labor_force > 0 && Number.isFinite(out.unemployed)) {
+          out.unemployment_rate = (out.unemployed / out.labor_force) * 100;
+        }
+      } else if (type === 'profile') {
+        if (rec.DP03_0009PE && !Number.isFinite(out.unemployment_rate)) out.unemployment_rate = Number(rec.DP03_0009PE);
+        if (rec.DP05_0001E && !Number.isFinite(out.population)) out.population = Number(rec.DP05_0001E);
+      } else if (type === 'subject') {
+        if (rec.S2301_C04_001E && !Number.isFinite(out.unemployment_rate)) out.unemployment_rate = Number(rec.S2301_C04_001E);
+        if (rec.S2301_C01_001E && !Number.isFinite(out.population)) out.population = Number(rec.S2301_C01_001E);
+      }
       results[geoid] = out;
     }
   }
@@ -1294,14 +1346,14 @@ async function enrichUnemployment(data = {}) {
   const w = water_district || {};
   const needed = [];
   const localFips = state_fips && county_fips && tract_code ? `${state_fips}${county_fips}${tract_code}` : null;
-  if (isMissing(unemployment_rate) && localFips) needed.push(localFips);
+  if (isMissingOrZero(unemployment_rate) && localFips) needed.push(localFips);
   const sFips = Array.isArray(s.census_tracts_fips) ? s.census_tracts_fips : [];
-  if (s.demographics && isMissing(s.demographics.unemployment_rate) && sFips.length)
+  if (s.demographics && isMissingOrZero(s.demographics.unemployment_rate) && sFips.length)
     needed.push(...sFips);
   const wFips = Array.isArray(w.census_tracts_fips)
     ? w.census_tracts_fips.map(String)
     : [];
-  if (w.demographics && isMissing(w.demographics.unemployment_rate) && wFips.length)
+  if (w.demographics && isMissingOrZero(w.demographics.unemployment_rate) && wFips.length)
     needed.push(...wFips);
 
   const fipsSet = Array.from(new Set(needed));
@@ -1309,41 +1361,132 @@ async function enrichUnemployment(data = {}) {
   const lookup = await fetchUnemploymentForTracts(fipsSet);
 
   const out = { ...data };
-  if (isMissing(unemployment_rate) && localFips && lookup[localFips])
+  if (isMissingOrZero(unemployment_rate) && localFips && lookup[localFips])
     out.unemployment_rate = lookup[localFips].unemployment_rate;
 
-  if (s.demographics && isMissing(s.demographics.unemployment_rate) && sFips.length) {
-    let totPop = 0;
-    let totWeighted = 0;
+  if (s.demographics && isMissingOrZero(s.demographics.unemployment_rate) && sFips.length) {
+    let lfTot = 0, unempTot = 0;
+    let popTot = 0, ratePopWeighted = 0;
     for (const f of sFips) {
       const item = lookup[f];
-      if (item && Number.isFinite(item.unemployment_rate) && Number.isFinite(item.population)) {
-        totPop += item.population;
-        totWeighted += item.unemployment_rate * item.population;
+      if (!item) continue;
+      if (Number.isFinite(item.labor_force) && item.labor_force > 0 && Number.isFinite(item.unemployed)) {
+        lfTot += item.labor_force;
+        unempTot += item.unemployed;
+      }
+      if (Number.isFinite(item.unemployment_rate) && Number.isFinite(item.population) && item.population > 0) {
+        popTot += item.population;
+        ratePopWeighted += item.unemployment_rate * item.population;
       }
     }
-    if (totPop > 0)
+    let rate = NaN;
+    if (lfTot > 0) rate = (unempTot / lfTot) * 100;
+    else if (popTot > 0) rate = ratePopWeighted / popTot;
+    if (Number.isFinite(rate))
       out.surrounding_10_mile = {
         ...s,
-        demographics: { ...s.demographics, unemployment_rate: totWeighted / totPop },
+        demographics: { ...s.demographics, unemployment_rate: rate },
       };
   }
 
-  if (w.demographics && isMissing(w.demographics.unemployment_rate) && wFips.length) {
-    let totPop = 0;
-    let totWeighted = 0;
+  if (w.demographics && isMissingOrZero(w.demographics.unemployment_rate) && wFips.length) {
+    let lfTot = 0, unempTot = 0;
+    let popTot = 0, ratePopWeighted = 0;
     for (const f of wFips) {
       const item = lookup[f];
-      if (item && Number.isFinite(item.unemployment_rate) && Number.isFinite(item.population)) {
-        totPop += item.population;
-        totWeighted += item.unemployment_rate * item.population;
+      if (!item) continue;
+      if (Number.isFinite(item.labor_force) && item.labor_force > 0 && Number.isFinite(item.unemployed)) {
+        lfTot += item.labor_force;
+        unempTot += item.unemployed;
+      }
+      if (Number.isFinite(item.unemployment_rate) && Number.isFinite(item.population) && item.population > 0) {
+        popTot += item.population;
+        ratePopWeighted += item.unemployment_rate * item.population;
       }
     }
-    if (totPop > 0)
+    let rate = NaN;
+    if (lfTot > 0) rate = (unempTot / lfTot) * 100;
+    else if (popTot > 0) rate = ratePopWeighted / popTot;
+    if (Number.isFinite(rate))
       out.water_district = {
         ...w,
-        demographics: { ...w.demographics, unemployment_rate: totWeighted / totPop },
+        demographics: { ...w.demographics, unemployment_rate: rate },
       };
+  }
+
+  return out;
+}
+
+// County-level fallback for tract median gross rent (when tract value suppressed)
+async function fetchCountyMedianRent(state_fips, county_fips) {
+  if (!state_fips || !county_fips) return null;
+  const url = toCensus(
+    `https://api.census.gov/data/2022/acs/acs5?get=B25064_001E&for=county:${county_fips}&in=state:${state_fips}`,
+  );
+  try {
+    const rows = await fetchJsonRetryL(url, 'housing', { retries: 2, timeoutMs: 12000 });
+    if (Array.isArray(rows) && rows.length > 1) {
+      const header = rows[0];
+      const idx = header.indexOf('B25064_001E');
+      if (idx < 0) return null;
+      const val = Number(rows[1][idx]);
+      return Number.isFinite(val) && val > 0 ? val : null;
+    }
+  } catch {}
+  return null;
+}
+
+// Derive counts and fill missing rent using county fallback
+async function enrichDerivedCountsAndRent(data = {}) {
+  const out = { ...data };
+  // Local tract: derive people_below_poverty
+  if (
+    out.people_below_poverty == null &&
+    Number.isFinite(Number(out.population)) &&
+    Number.isFinite(Number(out.poverty_rate))
+  ) {
+    out.people_below_poverty = Math.round(
+      (Number(out.poverty_rate) / 100) * Number(out.population),
+    );
+  }
+  // Regions: derive counts if possible
+  const s = out.surrounding_10_mile || {};
+  if (s.demographics) {
+    const d = { ...s.demographics };
+    if (
+      d.people_below_poverty == null &&
+      Number.isFinite(Number(d.population)) &&
+      Number.isFinite(Number(d.poverty_rate))
+    ) {
+      d.people_below_poverty = Math.round(
+        (Number(d.poverty_rate) / 100) * Number(d.population),
+      );
+      out.surrounding_10_mile = { ...s, demographics: d };
+    }
+  }
+  const w = out.water_district || {};
+  if (w.demographics) {
+    const d = { ...w.demographics };
+    if (
+      d.people_below_poverty == null &&
+      Number.isFinite(Number(d.population)) &&
+      Number.isFinite(Number(d.poverty_rate))
+    ) {
+      d.people_below_poverty = Math.round(
+        (Number(d.poverty_rate) / 100) * Number(d.population),
+      );
+      out.water_district = { ...w, demographics: d };
+    }
+  }
+
+  // Local tract: fallback for median_gross_rent from county
+  if (isMissing(out.median_gross_rent) || !Number.isFinite(Number(out.median_gross_rent)) || Number(out.median_gross_rent) <= 0) {
+    if (out.state_fips && out.county_fips) {
+      const countyRent = await fetchCountyMedianRent(out.state_fips, out.county_fips);
+      if (Number.isFinite(Number(countyRent)) && Number(countyRent) > 0) {
+        out.median_gross_rent = Number(countyRent);
+      }
+    }
   }
 
   return out;
@@ -2764,12 +2907,22 @@ function renderResult(address, data, elapsedMs, selections) {
   const housingRow = buildComparisonRow(
     "Housing &amp; Education (ACS)",
     housingContent({
-      owner_occupied_pct,
-      renter_occupied_pct,
-      median_home_value,
-      median_gross_rent,
-      high_school_or_higher_pct,
-      bachelors_or_higher_pct,
+      housing_units_total: data.housing_units_total,
+      housing_units_occupied: data.housing_units_occupied,
+      housing_units_vacant: data.housing_units_vacant,
+      vacancy_rate_pct: data.vacancy_rate_pct,
+      occupancy_rate_pct: data.occupancy_rate_pct,
+      owner_occupied_pct: data.owner_occupied_pct,
+      renter_occupied_pct: data.renter_occupied_pct,
+      median_home_value: data.median_home_value,
+      median_gross_rent: data.median_gross_rent,
+      high_school_or_higher_pct: data.high_school_or_higher_pct,
+      bachelors_or_higher_pct: data.bachelors_or_higher_pct,
+      less_than_hs_pct: data.less_than_hs_pct,
+      hs_grad_pct: data.hs_grad_pct,
+      some_college_or_assoc_pct: data.some_college_or_assoc_pct,
+      bachelors_pct: data.bachelors_pct,
+      grad_prof_pct: data.grad_prof_pct,
     }),
     housingContent(s.demographics || {}),
     housingContent(w.demographics || {}),
@@ -3005,7 +3158,7 @@ async function lookup(opts = {}) {
       regionTasks.push(enrichRegionHousingEducation(data));
     if ((scopes.radius || scopes.water) && categories.enviroscreen)
       regionTasks.push(enrichRegionHardships(data));
-    if ((scopes.radius || scopes.water) && categories.demographics)
+    if (categories.demographics)
       regionTasks.push(enrichUnemployment(data));
 
     // Quick pass
@@ -3017,6 +3170,8 @@ async function lookup(opts = {}) {
     renderResult(address, data, elapsed, selections);
 
     // Finalize region
+    // Add derived counts/rent enrichment late to leverage upstream + region merges
+    regionTasks.push(enrichDerivedCountsAndRent(data));
     const allRegion = await Promise.allSettled(regionTasks);
     if (signal.aborted) return;
     const regionFinal = allRegion.map((r) => (r.status === 'fulfilled' ? r.value || {} : {}));

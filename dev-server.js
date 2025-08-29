@@ -143,6 +143,24 @@ function createServer(options = {}) {
     }
   });
 
+  // Proxy for Census Geocoder to avoid browser CORS issues in dev
+  app.use('/proxy/geocoder', async (req, res) => {
+    try {
+      if (req.method !== 'GET') return res.status(405).send('Method Not Allowed');
+      const suffix = req.originalUrl.replace(/^\/proxy\/geocoder/, '') || '/';
+      const target = `https://geocoding.geo.census.gov${suffix}`;
+      const upstream = await fetch(target, { headers: { 'accept': req.headers['accept'] || 'application/json', 'user-agent': 'CalWEP-Dev-Server' } });
+      const buf = Buffer.from(await upstream.arrayBuffer());
+      upstream.headers.forEach((value, key) => {
+        if (/^(connection|transfer-encoding|content-length|content-encoding)$/i.test(key)) return;
+        res.setHeader(key, value);
+      });
+      res.status(upstream.status).send(buf);
+    } catch (e) {
+      res.status(502).json({ error: 'Geocoder proxy error', details: String(e) });
+    }
+  });
+
   // Static assets (no aggressive caching in dev)
   app.use(express.static(staticDir, { etag: true, lastModified: true, index: false, cacheControl: false }));
 
