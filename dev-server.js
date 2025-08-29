@@ -2,7 +2,7 @@
 // Env vars:
 // - PORT: port to listen on (default 5173)
 // - STATIC_DIR: directory to serve (default ".")
-// - API_BASE: upstream API base for /api/* proxy (default https://nftapi.cyberwiz.io)
+// - API_BASE: upstream API base for /api/* proxy (default https://api.calwep.org)
 // - ALLOW_ORIGINS: comma-separated list of allowed origin hostnames (regex ok); defaults to localhost
 
 const express = require('express');

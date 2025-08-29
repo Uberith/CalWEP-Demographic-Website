@@ -38,7 +38,7 @@ app.use((req, res, next) => {
 });
 
 app.use(async (req, res) => {
-  const target = `https://nftapi.cyberwiz.io${req.originalUrl}`;
+  const target = `https://api.calwep.org${req.originalUrl}`;
   try {
     const upstream = await fetch(target);
     const body = await upstream.text();

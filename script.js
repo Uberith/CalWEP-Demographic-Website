@@ -1,5 +1,5 @@
 /* script.js — Demographics Lookup (API-base aware)
-   - Reads API base from <meta name="api-base"> (https://nftapi.cyberwiz.io)
+   - Reads API base from <meta name="api-base"> (https://api.calwep.org)
    - Calls GET /demographics?address=...
    - Robust fetch diagnostics, Google Places autocomplete, Enter-to-search, aria-busy
 */
@@ -2612,7 +2612,8 @@ function renderResult(address, data, elapsedMs, selections) {
     const shown = arr.slice(0, 5).join(', ');
     const full = arr.join(', ');
     if (arr.length <= 5) return escapeHTML(full);
-    return `<span id="${id}-tracts">${escapeHTML(shown)} …</span> <button class="link-button" data-expand="${id}" data-full="${escapeHTML(full)}">More…</button>`;
+    const short = `${shown} …`;
+    return `<span id="${id}-tracts">${escapeHTML(short)}</span> <button class="link-button" data-expand="${id}" data-short="${escapeHTML(short)}" data-full="${escapeHTML(full)}">More…</button>`;
   }
   const locSurround = `
     <div class="kv">
@@ -3072,10 +3073,19 @@ function bindExpanders() {
     if (!btn) return;
     const id = btn.getAttribute('data-expand');
     const full = btn.getAttribute('data-full');
+    const short = btn.getAttribute('data-short');
     if (!id || !full) return;
     const span = document.getElementById(`${id}-tracts`);
-    if (span) span.textContent = full;
-    btn.remove();
+    const expanded = btn.getAttribute('data-state') === 'expanded';
+    if (!expanded) {
+      if (span) span.textContent = full;
+      btn.textContent = 'Less';
+      btn.setAttribute('data-state', 'expanded');
+    } else {
+      if (span && short) span.textContent = short;
+      btn.textContent = 'More…';
+      btn.removeAttribute('data-state');
+    }
   });
 }
 
