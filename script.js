@@ -2989,23 +2989,40 @@ function renderResult(address, data, elapsedMs, selections) {
   );
 
   const housingContent = (d = {}) => {
+    // Normalize possible field name variants from aggregate API
+    const dh = { ...d };
+    if (dh.housing_units_total == null && dh.total_housing_units != null) dh.housing_units_total = dh.total_housing_units;
+    if (dh.housing_units_occupied == null && dh.occupied_units != null) dh.housing_units_occupied = dh.occupied_units;
+    if (dh.housing_units_vacant == null && dh.vacant_units != null) dh.housing_units_vacant = dh.vacant_units;
+    if (dh.less_than_hs_pct == null && dh.less_than_high_school_pct != null) dh.less_than_hs_pct = dh.less_than_high_school_pct;
+    if (dh.hs_grad_pct == null && dh.high_school_graduate_pct != null) dh.hs_grad_pct = dh.high_school_graduate_pct;
+    if (dh.some_college_or_assoc_pct == null) {
+      if (dh.some_college_or_associates_pct != null) dh.some_college_or_assoc_pct = dh.some_college_or_associates_pct;
+      else if (dh.some_college_no_degree_pct != null || dh.associates_degree_pct != null) {
+        const a = Number(dh.some_college_no_degree_pct) || 0;
+        const b = Number(dh.associates_degree_pct) || 0;
+        dh.some_college_or_assoc_pct = a + b;
+      }
+    }
+    if (dh.bachelors_pct == null && dh.bachelors_degree_pct != null) dh.bachelors_pct = dh.bachelors_degree_pct;
+    if (dh.grad_prof_pct == null && dh.graduate_or_professional_degree_pct != null) dh.grad_prof_pct = dh.graduate_or_professional_degree_pct;
     const entries = [
-      ["Total housing units", fmtInt(d.housing_units_total)],
-      ["Occupied units", fmtInt(d.housing_units_occupied)],
-      ["Vacant units", fmtInt(d.housing_units_vacant)],
-      ["Vacancy rate", fmtPct(d.vacancy_rate_pct)],
-      ["Occupancy rate", fmtPct(d.occupancy_rate_pct)],
-      ["Owner occupied", fmtPct(d.owner_occupied_pct)],
-      ["Renter occupied", fmtPct(d.renter_occupied_pct)],
-      ["Median home value", fmtCurrency(d.median_home_value)],
-      ["Median gross rent", fmtCurrency(d.median_gross_rent)],
-      ["High school or higher", fmtPct(d.high_school_or_higher_pct)],
-      ["Bachelor's degree or higher", fmtPct(d.bachelors_or_higher_pct)],
-      ["Less than high school", fmtPct(d.less_than_hs_pct)],
-      ["High school graduate (incl. equivalency)", fmtPct(d.hs_grad_pct)],
-      ["Some college or associate's", fmtPct(d.some_college_or_assoc_pct)],
-      ["Bachelor's degree", fmtPct(d.bachelors_pct)],
-      ["Graduate or professional degree", fmtPct(d.grad_prof_pct)],
+      ["Total housing units", fmtInt(dh.housing_units_total)],
+      ["Occupied units", fmtInt(dh.housing_units_occupied)],
+      ["Vacant units", fmtInt(dh.housing_units_vacant)],
+      ["Vacancy rate", fmtPct(dh.vacancy_rate_pct)],
+      ["Occupancy rate", fmtPct(dh.occupancy_rate_pct)],
+      ["Owner occupied", fmtPct(dh.owner_occupied_pct)],
+      ["Renter occupied", fmtPct(dh.renter_occupied_pct)],
+      ["Median home value", fmtCurrency(dh.median_home_value)],
+      ["Median gross rent", fmtCurrency(dh.median_gross_rent)],
+      ["High school or higher", fmtPct(dh.high_school_or_higher_pct)],
+      ["Bachelor's degree or higher", fmtPct(dh.bachelors_or_higher_pct)],
+      ["Less than high school", fmtPct(dh.less_than_hs_pct)],
+      ["High school graduate (incl. equivalency)", fmtPct(dh.hs_grad_pct)],
+      ["Some college or associate's", fmtPct(dh.some_college_or_assoc_pct)],
+      ["Bachelor's degree", fmtPct(dh.bachelors_pct)],
+      ["Graduate or professional degree", fmtPct(dh.grad_prof_pct)],
     ];
     return `<div class="kv">${entries
       .map(([k, v]) => `<div class="key">${k}</div><div class="val">${v}</div>`)
@@ -3013,24 +3030,7 @@ function renderResult(address, data, elapsedMs, selections) {
   };
   const housingRow = buildComparisonRow(
     "Housing &amp; Education (ACS)",
-    housingContent({
-      housing_units_total: data.housing_units_total,
-      housing_units_occupied: data.housing_units_occupied,
-      housing_units_vacant: data.housing_units_vacant,
-      vacancy_rate_pct: data.vacancy_rate_pct,
-      occupancy_rate_pct: data.occupancy_rate_pct,
-      owner_occupied_pct: data.owner_occupied_pct,
-      renter_occupied_pct: data.renter_occupied_pct,
-      median_home_value: data.median_home_value,
-      median_gross_rent: data.median_gross_rent,
-      high_school_or_higher_pct: data.high_school_or_higher_pct,
-      bachelors_or_higher_pct: data.bachelors_or_higher_pct,
-      less_than_hs_pct: data.less_than_hs_pct,
-      hs_grad_pct: data.hs_grad_pct,
-      some_college_or_assoc_pct: data.some_college_or_assoc_pct,
-      bachelors_pct: data.bachelors_pct,
-      grad_prof_pct: data.grad_prof_pct,
-    }),
+    housingContent(data || {}),
     housingContent(s.demographics || {}),
     housingContent(w.demographics || {}),
     '<p class="section-description">This section combines information on housing and educational attainment in the community. It includes the percentage of owner&#8209;occupied and renter&#8209;occupied homes, median home value, and levels of education such as high school completion and bachelor’s degree or higher. These indicators provide insight into community stability, affordability, and educational opportunities, helping inform outreach strategies and program planning.</p><p class="section-description"><em>Values for the surrounding 10-mile area and water district are population-weighted averages.</em></p>' + renderSourceNotesGrouped('housing', data._source_log),
