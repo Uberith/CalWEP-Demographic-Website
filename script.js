@@ -406,6 +406,40 @@ async function fetchJsonWithDiagnostics(url, opts = {}) {
   }
 }
 
+// ---------- DB API Helpers ----------
+async function dbDemographicsByFips(fips11) {
+  if (!fips11 || String(fips11).length !== 11) return {};
+  const url = buildApiUrl('/v1/db/demographics/fips', { fips: String(fips11) });
+  return fetchJsonRetryL(url, 'population', { retries: 1, timeoutMs: 20000 }).catch(() => ({}));
+}
+
+function extractLatLonCandidate(obj) {
+  if (!obj || typeof obj !== 'object') return null;
+  const has = (k) => Object.prototype.hasOwnProperty.call(obj, k);
+  const latKeys = ['lat', 'latitude', 'y'];
+  const lonKeys = ['lon', 'lng', 'longitude', 'x'];
+  let lat = null, lon = null;
+  for (const k of latKeys) if (has(k) && obj[k] != null) { lat = Number(obj[k]); break; }
+  for (const k of lonKeys) if (has(k) && obj[k] != null) { lon = Number(obj[k]); break; }
+  if (Number.isFinite(lat) && Number.isFinite(lon)) return { lat, lon };
+  return null;
+}
+async function dbEnviroscreenByFips(fips11) {
+  if (!fips11 || String(fips11).length !== 11) return {};
+  const url = buildApiUrl('/v1/db/enviroscreen', { fips: String(fips11) });
+  return fetchJsonRetryL(url, 'enviroscreen', { retries: 1, timeoutMs: 20000 }).catch(() => ({}));
+}
+async function dbSurroundingAggregates(lat, lon, miles = 10) {
+  if (lat == null || lon == null) return {};
+  const url = buildApiUrl('/v1/db/aggregates/surrounding', { lat: String(lat), lon: String(lon), miles: String(miles) });
+  return fetchJsonRetryL(url, 'population', { retries: 1, timeoutMs: 30000 }).catch(() => ({}));
+}
+async function dbWaterDistrictAggregates(lat, lon) {
+  if (lat == null || lon == null) return {};
+  const url = buildApiUrl('/v1/db/aggregates/water-district', { lat: String(lat), lon: String(lon) });
+  return fetchJsonRetryL(url, 'population', { retries: 1, timeoutMs: 30000 }).catch(() => ({}));
+}
+
 async function fetchJsonRetry(url, opts = {}) {
   const {
     retries = 2,
@@ -3204,36 +3238,61 @@ async function lookup(opts = {}) {
   let elapsed = 0;
 
   try {
-    const url = buildApiUrl(API_PATH, { address });
     CURRENT_SOURCE_LOG = {};
-    let data = await fetchJsonRetryL(url, 'population', { timeoutMs: 45000, signal });
-    if (!data || typeof data !== "object")
-      throw new Error("Malformed response.");
+    // Resolve lat/lon and basic location info via existing helpers
+    // Prefer API lookup to resolve service area context; fall back to geocoders
+    let data = {};
+    try {
+      const lu = buildApiUrl('/lookup', { address });
+      const j = await fetchJsonRetryL(lu, 'location', { timeoutMs: 30000, signal });
+      if (j && typeof j === 'object') {
+        data = { ...data, ...j };
+        // Try to extract lat/lon from common response shapes
+        const candidates = [j, j.location, j.point, j.coords, j.coordinate, j.center, j.centroid, j.result?.point, j.agency?.center, j.agency?.centroid];
+        for (const c of candidates) {
+          const p = extractLatLonCandidate(c);
+          if (p) { data.lat = p.lat; data.lon = p.lon; break; }
+        }
+      }
+    } catch {}
+    data.address = address;
     data = await enrichLocation(data);
 
     // Start enrichment tasks, but do not block initial render beyond a short budget
     // Primary tasks (local + discover surrounding/district context)
     const primaryTasks = [];
-    primaryTasks.push(categories.language ? fetchLanguageAcs(data) : Promise.resolve({}));
-    primaryTasks.push(categories.race ? (async () => {
+    // Fetch DB-backed tract demographics and enviroscreen once we have FIPS
+    primaryTasks.push((async () => {
       const { state_fips, county_fips, tract_code } = data || {};
       if (state_fips && county_fips && tract_code) {
         const fips = `${state_fips}${county_fips}${tract_code}`;
-        return aggregateRaceForTracts([fips]);
+        const [demo, env] = await Promise.all([
+          dbDemographicsByFips(fips),
+          dbEnviroscreenByFips(fips),
+        ]);
+        const merged = { ...demo };
+        if (env && Object.keys(env).length) merged.enviroscreen = env;
+        return merged;
+      }
+      return {};
+    })());
+    // Aggregates: surrounding radius and water district from DB
+    primaryTasks.push(scopes.radius ? (async () => {
+      const { lat, lon } = data || {};
+      if (lat != null && lon != null) {
+        const agg = await dbSurroundingAggregates(lat, lon, 10);
+        return { surrounding_10_mile: agg };
       }
       return {};
     })() : Promise.resolve({}));
-    primaryTasks.push(categories.housing ? (async () => {
-      const { state_fips, county_fips, tract_code } = data || {};
-      if (state_fips && county_fips && tract_code) {
-        const fips = `${state_fips}${county_fips}${tract_code}`;
-        return aggregateHousingEducationForTracts([fips]);
+    primaryTasks.push(scopes.water ? (async () => {
+      const { lat, lon } = data || {};
+      if (lat != null && lon != null) {
+        const agg = await dbWaterDistrictAggregates(lat, lon);
+        return { water_district: agg };
       }
       return {};
     })() : Promise.resolve({}));
-    primaryTasks.push(scopes.radius ? enrichSurrounding(data, categories) : Promise.resolve({}));
-    primaryTasks.push(scopes.water ? enrichWaterDistrict(data, address, categories) : Promise.resolve({}));
-    primaryTasks.push(categories.language ? enrichEnglishProficiency(data) : Promise.resolve({}));
     primaryTasks.push(categories.alerts ? enrichNwsAlerts(data) : Promise.resolve({}));
     
     // Phase 1: wait briefly for quick results, then render
@@ -3257,20 +3316,8 @@ async function lookup(opts = {}) {
     const finalPrimary = allPrimary.map((r) => (r.status === 'fulfilled' ? r.value || {} : {}));
     deepMerge(data, ...finalPrimary);
 
-    // Now that surrounding/district context is available, run region aggregations
+    // Region aggregations are already provided by DB endpoints; skip client-side ACS aggregations
     const regionTasks = [];
-    if ((scopes.radius || scopes.water) && (categories.demographics || categories.housing || categories.race))
-      regionTasks.push(enrichRegionBasics(data));
-    if ((scopes.radius || scopes.water) && categories.language)
-      regionTasks.push(enrichRegionLanguages(data));
-    if ((scopes.radius || scopes.water) && categories.race)
-      regionTasks.push(enrichRegionRace(data));
-    if ((scopes.radius || scopes.water) && categories.housing)
-      regionTasks.push(enrichRegionHousingEducation(data));
-    if ((scopes.radius || scopes.water) && categories.enviroscreen)
-      regionTasks.push(enrichRegionHardships(data));
-    if (categories.demographics)
-      regionTasks.push(enrichUnemployment(data));
 
     // Quick pass
     const phaseR1 = await Promise.allSettled(
