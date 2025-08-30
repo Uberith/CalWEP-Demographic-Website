@@ -225,6 +225,12 @@ function titleCase(str = "") {
   return str.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
 }
 
+// Remove the words "Census Tract" from a tract name for compact display
+function cleanTractName(value) {
+  if (value == null) return value;
+  return String(value).replace(/\bCensus\s*Tract\b\s*/gi, "").trim();
+}
+
 // Normalize CalEnviroScreen payloads to the renderer's expected shape
 function normalizeEnviroscreenData(data) {
   if (!data || typeof data !== 'object') return null;
@@ -2684,8 +2690,8 @@ function renderResultOld(address, data, elapsedMs) {
     const d = s.demographics || {};
     if (Object.keys(d).length) {
       const tractList = Array.isArray(s.census_tracts)
-        ? s.census_tracts.join(", ")
-        : escapeHTML(s.census_tracts) || "—";
+        ? s.census_tracts.map(cleanTractName).join(", ")
+        : (s.census_tracts ? escapeHTML(cleanTractName(s.census_tracts)) : "—");
       const cityList = Array.isArray(s.cities)
         ? s.cities.join(", ")
         : escapeHTML(s.cities) || "—";
@@ -2736,8 +2742,8 @@ function renderResultOld(address, data, elapsedMs) {
     let html = "";
     const d = w.demographics || {};
     const tractList = Array.isArray(w.census_tracts)
-      ? w.census_tracts.join(", ")
-      : escapeHTML(w.census_tracts) || "—";
+      ? w.census_tracts.map(cleanTractName).join(", ")
+      : (w.census_tracts ? escapeHTML(cleanTractName(w.census_tracts)) : "—");
     const cityList = Array.isArray(w.cities)
       ? w.cities.join(", ")
       : escapeHTML(w.cities) || "—";
@@ -2974,14 +2980,14 @@ function renderResult(address, data, elapsedMs, selections) {
   const w = water_district || {};
   // Environmental hardships section removed
   const sTracts = Array.isArray(s.census_tracts)
-    ? s.census_tracts
-    : escapeHTML(s.census_tracts) || "—";
+    ? s.census_tracts.map(cleanTractName)
+    : [];
   const sCities = Array.isArray(s.cities)
     ? s.cities.join(", ")
     : escapeHTML(s.cities) || "—";
   const wTracts = Array.isArray(w.census_tracts)
-    ? w.census_tracts
-    : escapeHTML(w.census_tracts) || "—";
+    ? w.census_tracts.map(cleanTractName)
+    : [];
   const wCities = Array.isArray(w.cities)
     ? w.cities.join(", ")
     : escapeHTML(w.cities) || "—";
@@ -2989,7 +2995,7 @@ function renderResult(address, data, elapsedMs, selections) {
   const locLocal = `
     <div class="kv">
       <div class="key">City</div><div class="val">${escapeHTML(city) || "—"}</div>
-      <div class="key">Census tract</div><div class="val">${escapeHTML(census_tract) || "—"}</div>
+      <div class="key">Census tract</div><div class="val">${escapeHTML(cleanTractName(census_tract)) || "—"}</div>
       <div class="key">ZIP code</div><div class="val">${escapeHTML(zip) || "—"}</div>
       <div class="key">County</div><div class="val">${escapeHTML(county) || "—"}</div>
       <div class="key">Coordinates</div><div class="val">${coords}</div>
@@ -3010,7 +3016,7 @@ function renderResult(address, data, elapsedMs, selections) {
     <div class="kv">
       <div class="key">Cities</div><div class="val">${sCities}</div>
       <div class="key">Census tracts</div><div class="val">${renderTractList(sTracts, 's')}</div>
-      <div class="key">FIPS used</div><div class="val">${sFipsArr.length ? renderTractList(sFipsArr, 'sF') : '—'}</div>
+      <div class="key">FIPS</div><div class="val">${sFipsArr.length ? renderTractList(sFipsArr, 'sF') : '—'}</div>
     </div>
   `;
   const locDistrict = `
@@ -3018,7 +3024,7 @@ function renderResult(address, data, elapsedMs, selections) {
       <div class="key">District</div><div class="val">${escapeHTML(w.name) || "—"}</div>
       <div class="key">Cities</div><div class="val">${wCities}</div>
       <div class="key">Census tracts</div><div class="val">${renderTractList(wTracts, 'w')}</div>
-      <div class="key">FIPS used</div><div class="val">${wFipsArr.length ? renderTractList(wFipsArr, 'wF') : '—'}</div>
+      <div class="key">FIPS</div><div class="val">${wFipsArr.length ? renderTractList(wFipsArr, 'wF') : '—'}</div>
     </div>
   `;
   const locDescBase = '<p class="section-description">This section lists basic geographic information for the census tract, surrounding 10&#8209;mile area, and water district, such as city, ZIP code, county, and coordinates.</p>' + renderSourceNotesGrouped('location', data._source_log);
@@ -3504,9 +3510,15 @@ async function lookup(opts = {}) {
         const w2 = data.water_district || {};
         let wf = Array.isArray(w2.census_tracts_fips) ? w2.census_tracts_fips.map(String) : [];
         if (!wf.length) wf = await listFipsWaterDistrict(data.lat, data.lon);
-        const fipsParam = wf.length ? { fips: wf.join(',') } : {};
-        const env = await fetchJsonRetryL(buildApiUrl('/v1/enviroscreen/water-district', { lat: String(data.lat), lon: String(data.lon), ...fipsParam }), 'enviroscreen', { retries: 1, timeoutMs: 20000 }).catch(() => ({}));
-        const dac = await fetchJsonRetryL(buildApiUrl('/v1/dac/water-district', { lat: String(data.lat), lon: String(data.lon), ...fipsParam }), 'dac', { retries: 1, timeoutMs: 20000 }).catch(() => ({}));
+        // Prefer FIPS-only call when available
+        let env;
+        if (wf.length) {
+          env = await fetchJsonRetryL(buildApiUrl('/v1/enviroscreen/water-district', { fips: wf.join(',') }), 'enviroscreen', { retries: 1, timeoutMs: 20000 }).catch(() => ({}));
+        } else {
+          env = await fetchJsonRetryL(buildApiUrl('/v1/enviroscreen/water-district', { lat: String(data.lat), lon: String(data.lon) }), 'enviroscreen', { retries: 1, timeoutMs: 20000 }).catch(() => ({}));
+        }
+        const dacParams = wf.length ? { fips: wf.join(',') } : { lat: String(data.lat), lon: String(data.lon) };
+        const dac = await fetchJsonRetryL(buildApiUrl('/v1/dac/water-district', dacParams), 'dac', { retries: 1, timeoutMs: 20000 }).catch(() => ({}));
         const out = { ...w2, environment: env, census_tracts_fips: wf.length ? wf : w2.census_tracts_fips };
         if (dac && typeof dac === 'object') {
           let share = dac.share_dac;
