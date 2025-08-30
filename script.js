@@ -484,16 +484,27 @@ function extractLatLonCandidate(obj) {
 }
 async function dbEnviroscreenByFips(fips11) {
   if (!fips11 || String(fips11).length !== 11) return {};
-  const url = buildApiUrl('/v1/db/enviroscreen', { fips: String(fips11) });
+  const url = buildApiUrl('/v1/enviroscreen', { fips: String(fips11) });
   return fetchJsonRetryL(url, 'enviroscreen', { retries: 1, timeoutMs: 20000 }).catch(() => ({}));
 }
 async function dbEnviroscreenFetch(fips11) {
   if (!fips11 || String(fips11).length !== 11) return false;
-  const url = buildApiUrl('/v1/db/enviroscreen/fetch', { fips: String(fips11) });
+  const url = buildApiUrl('/v1/enviroscreen', { fips: String(fips11) });
   try {
-    const res = await fetch(url, { method: 'POST', headers: { accept: 'application/json' } });
+    const res = await fetch(url, { method: 'GET', headers: { accept: 'application/json' } });
     return res.ok;
   } catch { return false; }
+}
+
+async function enviroscreenSurrounding(lat, lon, miles = 10) {
+  if (lat == null || lon == null) return {};
+  const url = buildApiUrl('/v1/enviroscreen/surrounding', { lat: String(lat), lon: String(lon), miles: String(miles) });
+  return fetchJsonRetryL(url, 'enviroscreen', { retries: 1, timeoutMs: 20000 }).catch(() => ({}));
+}
+async function enviroscreenWaterDistrict(lat, lon) {
+  if (lat == null || lon == null) return {};
+  const url = buildApiUrl('/v1/enviroscreen/water-district', { lat: String(lat), lon: String(lon) });
+  return fetchJsonRetryL(url, 'enviroscreen', { retries: 1, timeoutMs: 20000 }).catch(() => ({}));
 }
 async function dbSurroundingAggregates(lat, lon, miles = 10) {
   if (lat == null || lon == null) return {};
@@ -511,6 +522,74 @@ async function dbTractsWithinRadius(lat, lon, miles = 10) {
   if (lat == null || lon == null) return {};
   const url = buildApiUrl('/v1/db/tracts/within-radius', { lat: String(lat), lon: String(lon), miles: String(miles) });
   return fetchJsonRetryL(url, 'location', { retries: 1, timeoutMs: 20000 }).catch(() => ({}));
+}
+
+// ---------- Typed Endpoints: Population & Income ----------
+async function popIncomeByFips(fips11) {
+  if (!fips11 || String(fips11).length !== 11) return {};
+  const url = buildApiUrl('/v1/population-income', { fips: String(fips11) });
+  return fetchJsonRetryL(url, 'population', { retries: 1, timeoutMs: 20000 }).catch(() => ({}));
+}
+async function popIncomeSurrounding(lat, lon, miles = 10) {
+  if (lat == null || lon == null) return {};
+  const url = buildApiUrl('/v1/population-income/surrounding', { lat: String(lat), lon: String(lon), miles: String(miles) });
+  return fetchJsonRetryL(url, 'population', { retries: 1, timeoutMs: 20000 }).catch(() => ({}));
+}
+async function popIncomeWaterDistrict(lat, lon) {
+  if (lat == null || lon == null) return {};
+  const url = buildApiUrl('/v1/population-income/water-district', { lat: String(lat), lon: String(lon) });
+  return fetchJsonRetryL(url, 'population', { retries: 1, timeoutMs: 20000 }).catch(() => ({}));
+}
+
+// ---------- Typed Endpoints: Race & Ethnicity ----------
+async function raceByFips(fips11) {
+  if (!fips11 || String(fips11).length !== 11) return {};
+  const url = buildApiUrl('/v1/race-ethnicity', { fips: String(fips11) });
+  return fetchJsonRetryL(url, 'race', { retries: 1, timeoutMs: 20000 }).catch(() => ({}));
+}
+async function raceSurrounding(lat, lon, miles = 10) {
+  if (lat == null || lon == null) return {};
+  const url = buildApiUrl('/v1/race-ethnicity/surrounding', { lat: String(lat), lon: String(lon), miles: String(miles) });
+  return fetchJsonRetryL(url, 'race', { retries: 1, timeoutMs: 20000 }).catch(() => ({}));
+}
+async function raceWaterDistrict(lat, lon) {
+  if (lat == null || lon == null) return {};
+  const url = buildApiUrl('/v1/race-ethnicity/water-district', { lat: String(lat), lon: String(lon) });
+  return fetchJsonRetryL(url, 'race', { retries: 1, timeoutMs: 20000 }).catch(() => ({}));
+}
+
+// ---------- Typed Endpoints: Housing & Education ----------
+async function housingByFips(fips11) {
+  if (!fips11 || String(fips11).length !== 11) return {};
+  const url = buildApiUrl('/v1/housing-education', { fips: String(fips11) });
+  return fetchJsonRetryL(url, 'housing', { retries: 1, timeoutMs: 20000 }).catch(() => ({}));
+}
+async function housingSurrounding(lat, lon, miles = 10) {
+  if (lat == null || lon == null) return {};
+  const url = buildApiUrl('/v1/housing-education/surrounding', { lat: String(lat), lon: String(lon), miles: String(miles) });
+  return fetchJsonRetryL(url, 'housing', { retries: 1, timeoutMs: 20000 }).catch(() => ({}));
+}
+async function housingWaterDistrict(lat, lon) {
+  if (lat == null || lon == null) return {};
+  const url = buildApiUrl('/v1/housing-education/water-district', { lat: String(lat), lon: String(lon) });
+  return fetchJsonRetryL(url, 'housing', { retries: 1, timeoutMs: 20000 }).catch(() => ({}));
+}
+
+// ---------- Typed Endpoints: DAC ----------
+async function dacByFips(fips11) {
+  if (!fips11 || String(fips11).length !== 11) return {};
+  const url = buildApiUrl('/v1/dac', { fips: String(fips11) });
+  return fetchJsonRetryL(url, 'dac', { retries: 1, timeoutMs: 20000 }).catch(() => ({}));
+}
+async function dacSurrounding(lat, lon, miles = 10) {
+  if (lat == null || lon == null) return {};
+  const url = buildApiUrl('/v1/dac/surrounding', { lat: String(lat), lon: String(lon), miles: String(miles) });
+  return fetchJsonRetryL(url, 'dac', { retries: 1, timeoutMs: 20000 }).catch(() => ({}));
+}
+async function dacWaterDistrict(lat, lon) {
+  if (lat == null || lon == null) return {};
+  const url = buildApiUrl('/v1/dac/water-district', { lat: String(lat), lon: String(lon) });
+  return fetchJsonRetryL(url, 'dac', { retries: 1, timeoutMs: 20000 }).catch(() => ({}));
 }
 
 // POST aggregate demographics over a list of tracts (FIPS-11)
@@ -826,7 +905,7 @@ async function aggregateLanguageForTracts(fipsList = []) {
   if (!list.length) return {};
   // Prefer CalWEP API aggregate endpoint for languages
   try {
-    const url = buildApiUrl('/v1/acs/languages', { fips: list.join(',') });
+    const url = buildApiUrl('/v1/languages', { fips: list.join(',') });
     const j = await fetchJsonRetryL(url, 'language', { retries: 1, timeoutMs: 20000 });
     if (j && typeof j === 'object') {
       const out = {};
@@ -1666,10 +1745,18 @@ async function enrichRegionLanguages(data = {}) {
   const { surrounding_10_mile, water_district } = data || {};
   const out = { ...data };
   const s = surrounding_10_mile || {};
-  if (
-    Array.isArray(s.census_tracts_fips) &&
-    s.census_tracts_fips.length
-  ) {
+  // Prefer typed endpoint by lat/lon for surrounding
+  if (out.lat != null && out.lon != null) {
+    try {
+      const lang = await fetchJsonRetryL(
+        buildApiUrl('/v1/languages/surrounding', { lat: String(out.lat), lon: String(out.lon), miles: '10' }),
+        'language',
+        { retries: 1, timeoutMs: 20000 },
+      );
+      const d = s.demographics || {};
+      out.surrounding_10_mile = { ...s, demographics: { ...d, ...lang } };
+    } catch {}
+  } else if (Array.isArray(s.census_tracts_fips) && s.census_tracts_fips.length) {
     const lang = await aggregateLanguageForTracts(s.census_tracts_fips);
     const d = s.demographics || {};
     out.surrounding_10_mile = { ...s, demographics: { ...d, ...lang } };
@@ -1678,7 +1765,18 @@ async function enrichRegionLanguages(data = {}) {
   const wFips = Array.isArray(w.census_tracts_fips)
     ? w.census_tracts_fips.map(String)
     : [];
-  if (wFips.length) {
+  // Prefer typed endpoint by lat/lon for water district
+  if (out.lat != null && out.lon != null) {
+    try {
+      const lang = await fetchJsonRetryL(
+        buildApiUrl('/v1/languages/water-district', { lat: String(out.lat), lon: String(out.lon) }),
+        'language',
+        { retries: 1, timeoutMs: 20000 },
+      );
+      const d = w.demographics || {};
+      out.water_district = { ...w, demographics: { ...d, ...lang } };
+    } catch {}
+  } else if (wFips.length) {
     const lang = await aggregateLanguageForTracts(wFips);
     const d = w.demographics || {};
     out.water_district = { ...w, demographics: { ...d, ...lang } };
@@ -1896,7 +1994,7 @@ async function enrichWaterDistrict(data = {}, address = "", categories = {}) {
 
   // Primary lookup using the NFT API (includes service-area shape info)
   if (address) {
-    const url = buildApiUrl("/lookup", { address });
+    const url = buildApiUrl("/v1/lookup", { address });
     tasks.push(
       fetchJsonWithDiagnostics(url)
         .then((j) => {
@@ -1960,7 +2058,7 @@ async function enrichWaterDistrict(data = {}, address = "", categories = {}) {
   // Fetch census tracts from the API if we have a name but no tract list
   if (w.name && (!Array.isArray(w.census_tracts) || !w.census_tracts.length)) {
     try {
-      const url = buildApiUrl("/census-tracts", { agency_name: w.name });
+      const url = buildApiUrl("/v1/census-tracts", { agency_name: w.name });
       const j = await fetchJsonWithDiagnostics(url);
       const tracts = j?.census_tracts;
       if (Array.isArray(tracts)) {
@@ -2046,45 +2144,7 @@ async function enrichWaterDistrict(data = {}, address = "", categories = {}) {
     }
   }
 
-  if (categories.enviroscreen) {
-    // Hard-coded CalEnviroScreen indicators for the water district region
-    w.environment = {
-      percentile: 48.5,
-      overall_percentiles: {
-        pollution_burden: 37.2,
-        population_characteristics: 56.5,
-      },
-      exposures: {
-        ozone: 98.8,
-        pm25: 34.0,
-        diesel: 24.2,
-        toxic_releases: 32.7,
-        traffic: 12.3,
-        pesticides: 22.7,
-        drinking_water: 61.8,
-        lead: 49.1,
-      },
-      environmental_effects: {
-        cleanup_sites: 25.2,
-        groundwater_threats: 20.4,
-        hazardous_waste: 27.8,
-        impaired_waters: 23.0,
-        solid_waste: 45.7,
-      },
-      sensitive_populations: {
-        asthma: 58.9,
-        low_birth_weight: 52.8,
-        cardiovascular_disease: 81.6,
-      },
-      socioeconomic_factors: {
-        education: 45.5,
-        linguistic_isolation: 17.0,
-        poverty: 54.5,
-        unemployment: 63.2,
-        housing_burden: 38.8,
-      },
-    };
-  }
+  // Enviroscreen for water district will be fetched by typed endpoint later in the pipeline
 
   return { ...data, water_district: w };
 }
@@ -3122,12 +3182,8 @@ function renderResult(address, data, elapsedMs, selections) {
   const dacRow = buildComparisonRow(
     "Disadvantaged Community (DAC) Status",
     dacCallout(dac_status),
-    Array.isArray(s.dac_tracts)
-      ? dacCallout(null, s.dac_tracts, s.dac_population_pct, s.dac_tracts_pct)
-      : "",
-    Array.isArray(w.dac_tracts)
-      ? dacCallout(null, w.dac_tracts, w.dac_population_pct, w.dac_tracts_pct)
-      : "",
+    dacCallout(null, s.dac_tracts, s.dac_population_pct, s.dac_tracts_pct),
+    dacCallout(null, w.dac_tracts, w.dac_population_pct, w.dac_tracts_pct),
     '<p class="section-description">This section indicates whether the selected area is designated as a Disadvantaged Community (DAC) using the California Department of Water Resources (DWR) mapping tool. DAC status is determined by household income and is shown as a simple yes/no outcome. This designation is important for identifying areas eligible for certain state and federal funding opportunities and for ensuring that equity considerations are included in outreach and program planning.</p>' + renderSourceNotesGrouped('dac', data._source_log),
     scopes,
   );
@@ -3242,7 +3298,7 @@ async function lookup(opts = {}) {
     // Prefer API lookup to resolve service area context; fall back to geocoders
     let data = {};
     try {
-      const lu = buildApiUrl('/lookup', { address });
+      const lu = buildApiUrl('/v1/lookup', { address });
       const j = await fetchJsonRetryL(lu, 'location', { timeoutMs: 30000, signal });
       if (j && typeof j === 'object') {
         data = { ...data, ...j };
@@ -3275,18 +3331,32 @@ async function lookup(opts = {}) {
       const { state_fips, county_fips, tract_code } = data || {};
       if (state_fips && county_fips && tract_code) {
         const fips = `${state_fips}${county_fips}${tract_code}`;
-        let [demo, env, prof] = await Promise.all([
-          dbDemographicsByFips(fips),
+        let [popInc, race, housing, env, lang, dac] = await Promise.all([
+          popIncomeByFips(fips),
+          raceByFips(fips),
+          housingByFips(fips),
           dbEnviroscreenByFips(fips),
-          dbAcsProfileByFips(fips),
+          aggregateLanguageForTracts([fips]).catch(() => ({})),
+          dacByFips(fips).catch(() => ({})),
         ]);
         if (!env || !Object.keys(env).length) {
           const ok = await dbEnviroscreenFetch(fips);
           if (ok) { try { env = await dbEnviroscreenByFips(fips); } catch {} }
         }
-        const merged = { ...demo };
-        if (prof && typeof prof === 'object') Object.assign(merged, prof);
+        const merged = { ...popInc, ...race, ...housing, ...lang };
         if (env && Object.keys(env).length) merged.enviroscreen = env;
+        // Map DAC result to dac_status if provided
+        if (dac && typeof dac === 'object') {
+          if (merged.dac_status == null) {
+            const share = dac.share_dac;
+            let status = Boolean(dac.is_majority_dac);
+            if (!status && Number.isFinite(Number(share))) {
+              const val = Number(share);
+              status = val > 0 && (val > 1 ? val : val * 100) >= 50 ? true : status;
+            }
+            merged.dac_status = status;
+          }
+        }
         return merged;
       }
       return {};
@@ -3362,28 +3432,32 @@ async function lookup(opts = {}) {
     const finalPrimary = allPrimary.map((r) => (r.status === 'fulfilled' ? r.value || {} : {}));
     deepMerge(data, ...finalPrimary);
 
-    // Region aggregations via DB aggregate-by-FIPS endpoint
+    // Region aggregations via typed endpoints
     const regionTasks = [];
     regionTasks.push((async () => {
-      const s = data.surrounding_10_mile || {};
-      const fips = Array.isArray(s.census_tracts_fips) ? s.census_tracts_fips.map(String) : [];
-      if (!fips.length) return {};
-      const agg = await dbAcsProfileAggregate(fips);
-      const demo = agg && agg.demographics ? agg.demographics : null;
-      const out = { ...s };
-      if (Array.isArray(agg?.fips) && (!Array.isArray(out.census_tracts_fips) || !out.census_tracts_fips.length)) out.census_tracts_fips = agg.fips;
-      if (demo) return { surrounding_10_mile: { ...out, demographics: demo } };
+      if (data.lat != null && data.lon != null && scopes.radius) {
+        const s = data.surrounding_10_mile || {};
+        const [pop, raceD, house] = await Promise.all([
+          popIncomeSurrounding(data.lat, data.lon, 10),
+          raceSurrounding(data.lat, data.lon, 10),
+          housingSurrounding(data.lat, data.lon, 10),
+        ]);
+        const d = { ...(s.demographics || {}), ...pop, ...raceD, ...house };
+        return { surrounding_10_mile: { ...s, demographics: d } };
+      }
       return {};
     })());
     regionTasks.push((async () => {
-      const w = data.water_district || {};
-      const fips = Array.isArray(w.census_tracts_fips) ? w.census_tracts_fips.map(String) : [];
-      if (!fips.length) return {};
-      const agg = await dbAcsProfileAggregate(fips);
-      const demo = agg && agg.demographics ? agg.demographics : null;
-      const out = { ...w };
-      if (Array.isArray(agg?.fips) && (!Array.isArray(out.census_tracts_fips) || !out.census_tracts_fips.length)) out.census_tracts_fips = agg.fips;
-      if (demo) return { water_district: { ...out, demographics: demo } };
+      if (data.lat != null && data.lon != null && scopes.water) {
+        const w = data.water_district || {};
+        const [pop, raceD, house] = await Promise.all([
+          popIncomeWaterDistrict(data.lat, data.lon),
+          raceWaterDistrict(data.lat, data.lon),
+          housingWaterDistrict(data.lat, data.lon),
+        ]);
+        const d = { ...(w.demographics || {}), ...pop, ...raceD, ...house };
+        return { water_district: { ...w, demographics: d } };
+      }
       return {};
     })());
 
@@ -3396,7 +3470,42 @@ async function lookup(opts = {}) {
     renderResult(address, data, elapsed, selections);
 
     // Finalize region
-    // Add language aggregates via API and derived counts/rent after merges
+    // Enviroscreen (typed endpoints) for surrounding and water + DAC
+    regionTasks.push((async () => {
+      if (data.lat != null && data.lon != null && scopes.radius) {
+        const env = await enviroscreenSurrounding(data.lat, data.lon, 10);
+        const s2 = data.surrounding_10_mile || {};
+        const dac = await dacSurrounding(data.lat, data.lon, 10).catch(() => ({}));
+        const out = { ...s2, environment: env };
+        if (dac && typeof dac === 'object') {
+          let share = dac.share_dac;
+          if (Number.isFinite(Number(share))) {
+            const val = Number(share);
+            out.dac_population_pct = val <= 1 ? val * 100 : val;
+          }
+        }
+        return { surrounding_10_mile: out };
+      }
+      return {};
+    })());
+    regionTasks.push((async () => {
+      if (data.lat != null && data.lon != null && scopes.water) {
+        const env = await enviroscreenWaterDistrict(data.lat, data.lon);
+        const w2 = data.water_district || {};
+        const dac = await dacWaterDistrict(data.lat, data.lon).catch(() => ({}));
+        const out = { ...w2, environment: env };
+        if (dac && typeof dac === 'object') {
+          let share = dac.share_dac;
+          if (Number.isFinite(Number(share))) {
+            const val = Number(share);
+            out.dac_population_pct = val <= 1 ? val * 100 : val;
+          }
+        }
+        return { water_district: out };
+      }
+      return {};
+    })());
+    // Add language aggregates via typed API and derived counts/rent after merges
     regionTasks.push(enrichRegionLanguages(data));
     regionTasks.push(enrichDerivedCountsAndRent(data));
     const allRegion = await Promise.allSettled(regionTasks);
