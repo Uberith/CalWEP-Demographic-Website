@@ -164,7 +164,7 @@ function createServer(options = {}) {
   // Static assets (no aggressive caching in dev)
   app.use(express.static(staticDir, { etag: true, lastModified: true, index: false, cacheControl: false }));
 
-  // SPA fallback to index.html; keep API base pointed at api.calwep.org
+  // SPA fallback to index.html; inject api-base to the dev origin for proxying
   const fs = require('fs');
   app.get('*', (req, res, next) => {
     if (!req.headers.accept || !req.headers.accept.includes('text/html')) return next();
@@ -172,13 +172,13 @@ function createServer(options = {}) {
     fs.readFile(indexPath, 'utf8', (err, html) => {
       if (err) return next();
       try {
-        // Ensure there's a meta api-base pointing to api.calwep.org
+        const origin = `${req.protocol}://${req.headers.host}`;
+        // Replace or inject the meta api-base to point at the dev server origin
         let out = html;
-        const desired = '<meta name="api-base" content="https://api.calwep.org">';
         if (out.includes('meta name="api-base"')) {
-          out = out.replace(/<meta[^>]*name=["']api-base["'][^>]*>/i, desired);
+          out = out.replace(/<meta[^>]*name=["']api-base["'][^>]*>/i, `<meta name="api-base" content="${origin}">`);
         } else {
-          out = out.replace(/<head>/i, `<head>\n  ${desired}`);
+          out = out.replace(/<head>/i, `<head>\n  <meta name=\"api-base\" content=\"${origin}\">`);
         }
         res.setHeader('Content-Type', 'text/html; charset=utf-8');
         res.send(out);
