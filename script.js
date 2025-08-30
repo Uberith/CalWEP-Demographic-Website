@@ -494,7 +494,7 @@ function toCensus(url) {
         : `https://api.calwep.org/proxy/acs${pathAndQuery}`;
     }
     if (u.hostname === 'geocoding.geo.census.gov') {
-      const tail = pathAndQuery.replace(/^\/geocoder/, '');
+      const tail = pathAndQuery.replace(/^(\/geocoder)+/, '');
       return isDevOrigin()
         ? `${window.location.origin}/geocoder${tail}`
         : `https://api.calwep.org/geocoder${tail}`;
@@ -2090,9 +2090,13 @@ async function enrichEnglishProficiency(data = {}) {
     // Prefer Census Geocoder → TIGERweb → FCC to derive FIPS
     const fromGeocoder = await (async () => {
       try {
-        const u = `https://geocoding.geo.census.gov/geocoder/geographies/coordinates?x=${lon}&y=${lat}&benchmark=Public_AR_Current&vintage=Current_Current&format=json`;
+        const u = toCensus(`https://geocoding.geo.census.gov/geocoder/geographies/coordinates?x=${lon}&y=${lat}&benchmark=Public_AR_Current&vintage=Current_Current&format=json`);
         const g = await fetchJsonRetry(u, { retries: 1, timeoutMs: 10000 });
-        const ct = g?.result?.geographies?.["Census Tracts"]?.[0];
+        const geos = g?.result?.geographies || {};
+        let ct = null;
+        for (const [k, arr] of Object.entries(geos)) {
+          if (/census\s*tract/i.test(k) && Array.isArray(arr) && arr.length) { ct = arr[0]; break; }
+        }
         const geoid = ct?.GEOID;
         if (geoid && geoid.length >= 11) return { state: geoid.slice(0,2), county: geoid.slice(2,5), tract: geoid.slice(5,11) };
       } catch {}
