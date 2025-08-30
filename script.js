@@ -368,11 +368,7 @@ async function fetchJsonWithDiagnostics(url, opts = {}) {
       const parsed = new URL(u, window.location.origin);
       if (!isDev && parsed.origin === window.location.origin) {
         if (parsed.pathname.startsWith('/proxy/acs')) {
-          return `https://api.calwep.org/proxy/acs${parsed.pathname.replace(/^\/proxy\/acs/, '')}${parsed.search || ''}`;
-        }
-        if (parsed.pathname.startsWith('/proxy/geocoder')) {
-          // No official geocoder proxy on api.calwep.org list; fall back to direct
-          return `https://geocoding.geo.census.gov${parsed.pathname.replace(/^\/proxy\/geocoder/, '')}${parsed.search || ''}`;
+          return `https://api.calwep.org/v1/proxy/acs${parsed.pathname.replace(/^\/proxy\/acs/, '')}${parsed.search || ''}`;
         }
       }
     } catch {}
@@ -491,13 +487,13 @@ function toCensus(url) {
     if (u.hostname.endsWith('api.census.gov')) {
       return isDevOrigin()
         ? `${window.location.origin}/proxy/acs${pathAndQuery}`
-        : `https://api.calwep.org/proxy/acs${pathAndQuery}`;
+        : `https://api.calwep.org/v1/proxy/acs${pathAndQuery}`;
     }
     if (u.hostname === 'geocoding.geo.census.gov') {
       const tail = pathAndQuery.replace(/^(\/geocoder)+/, '');
       return isDevOrigin()
         ? `${window.location.origin}/geocoder${tail}`
-        : `https://api.calwep.org/geocoder${tail}`;
+        : `https://api.calwep.org/v1/api/geocoder${tail}`;
     }
     if (u.hostname.endsWith('tigerweb.geo.census.gov')) {
       const m = u.pathname.match(/\/MapServer\/(.*)$/);
@@ -505,7 +501,7 @@ function toCensus(url) {
       const p = `/tiger/MapServer/${tail}` + (u.search || '');
       return isDevOrigin()
         ? `${window.location.origin}${p}`
-        : `https://api.calwep.org${p}`;
+        : `https://api.calwep.org/v1/api${p}`;
     }
   } catch {}
   return url;
@@ -1852,9 +1848,17 @@ async function enrichWaterDistrict(data = {}, address = "", categories = {}) {
 
   // Fallback: look up a district name from the state water board service
   if (!w.name) {
-    const url =
-      "https://services.arcgis.com/8DFNJhY7CUN8E0bX/ArcGIS/rest/services/Public_Water_System_Boundaries/FeatureServer/0/query" +
-      `?geometry=${lon}%2C${lat}&geometryType=esriGeometryPoint&inSR=4326&spatialRel=esriSpatialRelIntersects&outFields=PWS_NAME&returnGeometry=false&f=json`;
+    const base = "https://services.arcgis.com/8DFNJhY7CUN8E0bX/ArcGIS/rest/services/Public_Water_System_Boundaries/FeatureServer/0/query";
+    const params = new URLSearchParams({
+      geometry: JSON.stringify({ x: Number(lon), y: Number(lat), spatialReference: { wkid: 4326 } }),
+      geometryType: "esriGeometryPoint",
+      inSR: "4326",
+      spatialRel: "esriSpatialRelIntersects",
+      outFields: "PWS_NAME",
+      returnGeometry: "false",
+      f: "json",
+    });
+    const url = `${base}?${params.toString()}`;
     tasks.push(
       fetch(url)
         .then((r) => r.json())
@@ -1888,9 +1892,18 @@ async function enrichWaterDistrict(data = {}, address = "", categories = {}) {
   // Overlay the water district shape to include any intersecting census tracts
   // (be generous and include tracts that only partially overlap the boundary)
   try {
-    const geoUrl =
-      "https://services.arcgis.com/8DFNJhY7CUN8E0bX/ArcGIS/rest/services/Public_Water_System_Boundaries/FeatureServer/0/query" +
-      `?geometry=${lon}%2C${lat}&geometryType=esriGeometryPoint&inSR=4326&spatialRel=esriSpatialRelIntersects&outFields=PWS_NAME&returnGeometry=true&outSR=4326&f=json`;
+    const base = "https://services.arcgis.com/8DFNJhY7CUN8E0bX/ArcGIS/rest/services/Public_Water_System_Boundaries/FeatureServer/0/query";
+    const params = new URLSearchParams({
+      geometry: JSON.stringify({ x: Number(lon), y: Number(lat), spatialReference: { wkid: 4326 } }),
+      geometryType: "esriGeometryPoint",
+      inSR: "4326",
+      spatialRel: "esriSpatialRelIntersects",
+      outFields: "PWS_NAME",
+      returnGeometry: "true",
+      outSR: "4326",
+      f: "json",
+    });
+    const geoUrl = `${base}?${params.toString()}`;
     const j = await fetch(geoUrl).then((r) => r.json());
     const geom = j?.features?.[0]?.geometry;
     if (geom) {
