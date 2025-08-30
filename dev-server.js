@@ -111,6 +111,11 @@ function createServer(options = {}) {
     '/regional-providers',
     '/update-request',
     '/request-update',
+    '/geocoder',
+    '/acs',
+    '/tiger',
+    '/v1/api',
+    '/v1/proxy',
   ], (req, res) => proxyHandler(req, res, '/'));
 
   // Simple in-memory cache for ACS proxy requests during development
