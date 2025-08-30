@@ -494,9 +494,10 @@ function toCensus(url) {
         : `https://api.calwep.org/proxy/acs${pathAndQuery}`;
     }
     if (u.hostname === 'geocoding.geo.census.gov') {
+      const tail = pathAndQuery.replace(/^\/geocoder/, '');
       return isDevOrigin()
-        ? `${window.location.origin}/geocoder${pathAndQuery}`
-        : `https://api.calwep.org/geocoder${pathAndQuery}`;
+        ? `${window.location.origin}/geocoder${tail}`
+        : `https://api.calwep.org/geocoder${tail}`;
     }
     if (u.hostname.endsWith('tigerweb.geo.census.gov')) {
       const m = u.pathname.match(/\/MapServer\/(.*)$/);
@@ -3276,7 +3277,11 @@ async function lookup(opts = {}) {
       }
       return {};
     })());
-    // Aggregates: surrounding radius and water district from DB
+    // Add shape-based context first (census tracts lists, cities, water district from shapefiles)
+    primaryTasks.push(scopes.radius ? enrichSurrounding(data, categories) : Promise.resolve({}));
+    primaryTasks.push(scopes.water ? enrichWaterDistrict(data, address, categories) : Promise.resolve({}));
+
+    // Aggregates: surrounding radius and water district from DB (merge into shape-based objects)
     primaryTasks.push(scopes.radius ? (async () => {
       const { lat, lon } = data || {};
       if (lat != null && lon != null) {
