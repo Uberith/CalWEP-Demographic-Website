@@ -5,12 +5,15 @@ A lightweight, static web app for exploring community demographics, language nee
 This repo contains the static site, a minimal CORS/proxy server for local development, and optional mobile wrappers.
 
 Getting Started
-- Open `index.html` directly in your browser, or serve the folder with a static server: `npx http-server .`
+- Open `index.html` directly in your browser, or run a local server.
+- Hot reload (auto-restart on file changes): `npx live-server .`
+- Simple static server (no reload): `npx http-server .`
 - The app points all app API requests to `https://api.calwep.org` via the `<meta name="api-base">` tag in `index.html`.
 
 Development Options
 - Static only:
-  - `npx http-server .`
+  - Hot reload: `npx live-server .`
+  - No reload: `npx http-server .`
   - Uses production API at `https://api.calwep.org`.
 - Dev server (static + proxy):
   - `node dev-server.js`
@@ -20,6 +23,12 @@ Development Options
   - Install once if needed: `npm init -y && npm i express`
   - Run: `node server.js` (proxies everything to `https://api.calwep.org`)
   - Env vars: `PORT` (default 3000), `ALLOW_ORIGINS` (hostnames or regex)
+
+Hot Reload + Proxy
+- If your feature needs the proxy and live reload:
+  - Start hot reload server in one terminal: `npx live-server .`
+  - Start CORS proxy in another terminal: `node server.js` (or use `node dev-server.js` for static+proxy together; note it does not auto-reload)
+  - Access via the live server URL; API requests still go to `https://api.calwep.org`.
 
 Configuration
 - API base:
@@ -36,7 +45,8 @@ Project Structure
 - No build step; static assets are served directly.
 
 Commands
-- Static site: open `index.html` or `npx http-server .`
+- Static site (hot reload): `npx live-server .`
+- Static site (no reload): `npx http-server .`
 - Dev server: `node dev-server.js`
 - CORS proxy: `node server.js`
 
