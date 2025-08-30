@@ -408,6 +408,11 @@ async function dbDemographicsByFips(fips11) {
   const url = buildApiUrl('/v1/db/demographics/fips', { fips: String(fips11) });
   return fetchJsonRetryL(url, 'population', { retries: 1, timeoutMs: 20000 }).catch(() => ({}));
 }
+async function dbAcsProfileByFips(fips11) {
+  if (!fips11 || String(fips11).length !== 11) return {};
+  const url = buildApiUrl('/v1/db/acs-profile', { fips: String(fips11) });
+  return fetchJsonRetryL(url, 'population', { retries: 1, timeoutMs: 20000 }).catch(() => ({}));
+}
 
 function extractLatLonCandidate(obj) {
   if (!obj || typeof obj !== 'object') return null;
@@ -424,6 +429,14 @@ async function dbEnviroscreenByFips(fips11) {
   if (!fips11 || String(fips11).length !== 11) return {};
   const url = buildApiUrl('/v1/db/enviroscreen', { fips: String(fips11) });
   return fetchJsonRetryL(url, 'enviroscreen', { retries: 1, timeoutMs: 20000 }).catch(() => ({}));
+}
+async function dbEnviroscreenFetch(fips11) {
+  if (!fips11 || String(fips11).length !== 11) return false;
+  const url = buildApiUrl('/v1/db/enviroscreen/fetch', { fips: String(fips11) });
+  try {
+    const res = await fetch(url, { method: 'POST', headers: { accept: 'application/json' } });
+    return res.ok;
+  } catch { return false; }
 }
 async function dbSurroundingAggregates(lat, lon, miles = 10) {
   if (lat == null || lon == null) return {};
@@ -3279,16 +3292,22 @@ async function lookup(opts = {}) {
     // Start enrichment tasks, but do not block initial render beyond a short budget
     // Primary tasks (local + discover surrounding/district context)
     const primaryTasks = [];
-    // Fetch DB-backed tract demographics and enviroscreen once we have FIPS
+    // Fetch DB-backed tract demographics and enviroscreen once we have FIPS (plus ACS profile)
     primaryTasks.push((async () => {
       const { state_fips, county_fips, tract_code } = data || {};
       if (state_fips && county_fips && tract_code) {
         const fips = `${state_fips}${county_fips}${tract_code}`;
-        const [demo, env] = await Promise.all([
+        let [demo, env, prof] = await Promise.all([
           dbDemographicsByFips(fips),
           dbEnviroscreenByFips(fips),
+          dbAcsProfileByFips(fips),
         ]);
+        if (!env || !Object.keys(env).length) {
+          const ok = await dbEnviroscreenFetch(fips);
+          if (ok) { try { env = await dbEnviroscreenByFips(fips); } catch {} }
+        }
         const merged = { ...demo };
+        if (prof && typeof prof === 'object') Object.assign(merged, prof);
         if (env && Object.keys(env).length) merged.enviroscreen = env;
         return merged;
       }
