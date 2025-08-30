@@ -2946,6 +2946,81 @@ function renderResultOld(address, data, elapsedMs) {
       </span>
     </article>
   `;
+
+  // Initialize geometry maps for surrounding and water district
+  try { initGeometryMaps(data, scopes); } catch {}
+}
+
+// ---------- Inline Geometry Maps (Leaflet) ----------
+let LEAFLET_LOADING = null;
+function loadLeafletAssets() {
+  if (window.L) return Promise.resolve();
+  if (LEAFLET_LOADING) return LEAFLET_LOADING;
+  LEAFLET_LOADING = new Promise((resolve, reject) => {
+    try {
+      // CSS
+      if (!document.querySelector('link[data-leaflet]')) {
+        const link = document.createElement('link');
+        link.rel = 'stylesheet';
+        link.href = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.css';
+        link.integrity = 'sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=';
+        link.crossOrigin = '';
+        link.setAttribute('data-leaflet', '1');
+        document.head.appendChild(link);
+      }
+      // JS
+      const script = document.createElement('script');
+      script.src = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.js';
+      script.integrity = 'sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=';
+      script.crossOrigin = '';
+      script.defer = true;
+      script.onload = () => resolve();
+      script.onerror = (e) => reject(new Error('Failed to load Leaflet'));
+      document.head.appendChild(script);
+    } catch (e) {
+      reject(e);
+    }
+  });
+  return LEAFLET_LOADING;
+}
+
+async function renderGeoMapFromEndpoint(elId, url, styleOpts = {}) {
+  const el = document.getElementById(elId);
+  if (!el) return;
+  try {
+    await loadLeafletAssets();
+    const geo = await fetchJsonRetryL(url, 'location', { retries: 1, timeoutMs: 20000 });
+    if (!geo) return;
+    const map = L.map(elId, { zoomControl: true, attributionControl: true });
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      maxZoom: 19,
+      attribution: '&copy; OpenStreetMap contributors'
+    }).addTo(map);
+    const layer = L.geoJSON(geo, {
+      style: Object.assign({ color: '#1d65a6', weight: 2, fillOpacity: 0.15 }, styleOpts),
+    }).addTo(map);
+    try {
+      const b = layer.getBounds();
+      if (b.isValid()) map.fitBounds(b, { padding: [8, 8] });
+    } catch {}
+  } catch {
+    // Ignore map errors to avoid blocking the rest of the report
+  }
+}
+
+function initGeometryMaps(data = {}, scopes = { tract: true, radius: true, water: true }) {
+  const { lat, lon } = data || {};
+  if (lat == null || lon == null) return;
+  // Surrounding 10-mile circle
+  if (scopes.radius && document.getElementById('geom-map-surrounding')) {
+    const sUrl = buildApiUrl('/v1/surrounding/geometry', { lat: String(lat), lon: String(lon), miles: '10', segments: '96' });
+    renderGeoMapFromEndpoint('geom-map-surrounding', sUrl, { color: '#1d65a6' });
+  }
+  // Water district polygon (simplified for performance)
+  if (scopes.water && document.getElementById('geom-map-water')) {
+    const wUrl = buildApiUrl('/v1/water-district/geometry', { lat: String(lat), lon: String(lon), simplify: '0.0005' });
+    renderGeoMapFromEndpoint('geom-map-water', wUrl, { color: '#0f766e' });
+  }
 }
 
 // New row-based renderer
@@ -3051,6 +3126,7 @@ function renderResult(address, data, elapsedMs, selections) {
       <div class="key">Census tracts</div><div class="val">${renderTractList(sTracts, 's')}</div>
       <div class="key">FIPS</div><div class="val">${sFipsArr.length ? renderTractList(sFipsArr, 'sF') : '—'}</div>
     </div>
+    <div id="geom-map-surrounding" class="geom-map" aria-label="10-mile surrounding area map"></div>
   `;
   const locDistrict = `
     <div class="kv">
@@ -3059,6 +3135,7 @@ function renderResult(address, data, elapsedMs, selections) {
       <div class="key">Census tracts</div><div class="val">${renderTractList(wTracts, 'w')}</div>
       <div class="key">FIPS</div><div class="val">${wFipsArr.length ? renderTractList(wFipsArr, 'wF') : '—'}</div>
     </div>
+    <div id="geom-map-water" class="geom-map" aria-label="Water district map"></div>
   `;
   const locDescBase = '<p class="section-description">This section lists basic geographic information for the census tract, surrounding 10&#8209;mile area, and water district, such as city, ZIP code, county, and coordinates.</p>' + renderSourceNotesGrouped('location', data._source_log);
   const fallbackName = geocode_fallback_source === 'tigerweb' ? 'Census TIGERweb' : (geocode_fallback_source === 'fcc' ? 'FCC Block API' : 'Census Geocoder');
