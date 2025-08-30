@@ -2390,7 +2390,6 @@ function renderLoading(address, selections) {
   if (categories.dac) rows.push(makeRow("Disadvantaged Community (DAC) Status"));
   if (categories.enviroscreen) {
     rows.push(makeRow("Environmental Indicators"));
-    rows.push(makeRow("Environmental Hardships"));
   }
   if (categories.alerts)
     rows.push(
@@ -2547,9 +2546,6 @@ function renderResultOld(address, data, elapsedMs) {
     water_district,
   } = data || {};
 
-  const hardshipList = Array.isArray(environmental_hardships)
-    ? Array.from(new Set(environmental_hardships))
-    : [];
   const alertList = Array.isArray(alerts) ? alerts : [];
   const cesSection = renderEnviroscreenSection(
     "Environmental Indicators (CalEPA Enviroscreen)",
@@ -2564,13 +2560,6 @@ function renderResultOld(address, data, elapsedMs) {
     lat != null && lon != null
       ? `<img class="map-image" src="https://maps.googleapis.com/maps/api/staticmap?center=${lat},${lon}&zoom=13&size=600x300&markers=color:red|${lat},${lon}&key=${GOOGLE_MAPS_KEY}" alt="Map of location" />`
       : "";
-
-const hardshipSection = `
-    <section class="section-block">
-      <h3 class="section-header">Environmental hardships</h3>
-      ${hardshipList.length ? `<div class="stats">${hardshipList.map((h) => `<span class="pill">${escapeHTML(h)}</span>`).join("")}</div>` : `<p class="note">No environmental hardships recorded.</p>`}
-    </section>
-  `;
 
   const raceSection = `
     <section class="section-block">
@@ -2788,7 +2777,6 @@ const hardshipSection = `
     </section>
 
     ${cesSection}
-    ${hardshipSection}
     <section class="section-block">
       <h3 class="section-header">Active Alerts (National Weather Service)</h3>
       <p class="section-description">This section displays any current weather alerts issued by the National Weather Service (NWS) for the selected location. Alerts may include warnings for extreme heat, flooding, wildfire smoke, or other hazardous conditions. Having this information alongside demographic and environmental data helps staff anticipate safety concerns for events, tailor outreach, and ensure programs are responsive to current community conditions.</p>
@@ -2902,12 +2890,7 @@ function renderResult(address, data, elapsedMs, selections) {
 
   const s = surrounding_10_mile || {};
   const w = water_district || {};
-  const sHardships = Array.isArray(s.environmental_hardships)
-    ? Array.from(new Set(s.environmental_hardships))
-    : [];
-  const wHardships = Array.isArray(w.environmental_hardships)
-    ? Array.from(new Set(w.environmental_hardships))
-    : [];
+  // Environmental hardships section removed
   const sTracts = Array.isArray(s.census_tracts)
     ? s.census_tracts
     : escapeHTML(s.census_tracts) || "—";
@@ -3160,26 +3143,7 @@ function renderResult(address, data, elapsedMs, selections) {
     scopes,
   );
 
-  const hardshipRow = buildComparisonRow(
-    "Environmental Hardships",
-    hardshipList.length
-      ? `<div class="stats">${hardshipList
-          .map((h) => `<span class="pill">${escapeHTML(h)}</span>`)
-          .join("")}</div>`
-      : "",
-    sHardships.length
-      ? `<div class="stats">${sHardships
-          .map((h) => `<span class="pill">${escapeHTML(h)}</span>`)
-          .join("")}</div>`
-      : "",
-    wHardships.length
-      ? `<div class="stats">${wHardships
-          .map((h) => `<span class="pill">${escapeHTML(h)}</span>`)
-          .join("")}</div>`
-      : "",
-    '<p class="section-description">This section lists environmental hardships reported for the selected location, highlighting challenges that may affect residents and program planning.</p>',
-    scopes,
-  );
+  
 
   const alertsRow = `
     <section class="section-block">
@@ -3202,7 +3166,6 @@ function renderResult(address, data, elapsedMs, selections) {
   if (categories.dac) rows.push(dacRow);
   if (categories.enviroscreen) {
     rows.push(enviroscreenRow);
-    rows.push(hardshipRow);
   }
   document.getElementById("result").innerHTML = `
     <article class="card">
