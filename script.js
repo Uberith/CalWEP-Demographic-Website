@@ -368,9 +368,10 @@ async function fetchJsonWithDiagnostics(url, opts = {}) {
       const parsed = new URL(u, window.location.origin);
       if (!isDev && parsed.origin === window.location.origin) {
         if (parsed.pathname.startsWith('/proxy/acs')) {
-          return `https://api.census.gov${parsed.pathname.replace(/^\/proxy\/acs/, '')}${parsed.search || ''}`;
+          return `https://api.calwep.org/proxy/acs${parsed.pathname.replace(/^\/proxy\/acs/, '')}${parsed.search || ''}`;
         }
         if (parsed.pathname.startsWith('/proxy/geocoder')) {
+          // No official geocoder proxy on api.calwep.org list; fall back to direct
           return `https://geocoding.geo.census.gov${parsed.pathname.replace(/^\/proxy\/geocoder/, '')}${parsed.search || ''}`;
         }
       }
@@ -452,14 +453,16 @@ function toCensus(url) {
   try {
     const u = new URL(url);
     const pathAndQuery = u.pathname + (u.search || '');
-    // Only use local proxy endpoints during local development
-    if (isDevOrigin()) {
-      if (u.hostname.endsWith('api.census.gov')) {
-        return `${window.location.origin}/proxy/acs${pathAndQuery}`;
-      }
-      if (u.hostname === 'geocoding.geo.census.gov') {
-        return `${window.location.origin}/proxy/geocoder${pathAndQuery}`;
-      }
+    // Route ACS calls through api.calwep.org proxy; use local /proxy in dev for same-origin
+    if (u.hostname.endsWith('api.census.gov')) {
+      return isDevOrigin()
+        ? `${window.location.origin}/proxy/acs${pathAndQuery}`
+        : `https://api.calwep.org/proxy/acs${pathAndQuery}`;
+    }
+    if (u.hostname === 'geocoding.geo.census.gov') {
+      return isDevOrigin()
+        ? `${window.location.origin}/proxy/geocoder${pathAndQuery}`
+        : url; // direct in prod
     }
   } catch {}
   return url;
