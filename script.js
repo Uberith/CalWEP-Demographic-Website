@@ -177,9 +177,7 @@ const API_BASE = (() => {
   const meta = document.querySelector('meta[name="api-base"]')?.content || 'https://api.calwep.org';
   try {
     const u = new URL(meta, window.location.origin);
-    // Allow dev to call the local origin (dev-server proxies upstream to api.calwep.org)
-    if (u.origin === window.location.origin) return u.origin;
-    // Prefer the production API host
+    // Always use api.calwep.org for app endpoints (even in local dev)
     if (u.hostname === 'api.calwep.org') return u.origin;
   } catch {}
   return 'https://api.calwep.org';
@@ -454,6 +452,24 @@ async function dbTractsWithinRadius(lat, lon, miles = 10) {
   if (lat == null || lon == null) return {};
   const url = buildApiUrl('/v1/db/tracts/within-radius', { lat: String(lat), lon: String(lon), miles: String(miles) });
   return fetchJsonRetryL(url, 'location', { retries: 1, timeoutMs: 20000 }).catch(() => ({}));
+}
+
+// POST aggregate demographics over a list of tracts (FIPS-11)
+async function dbAcsProfileAggregate(fipsList = []) {
+  const f = Array.isArray(fipsList) ? fipsList.map(String).filter((s) => /^\d{11}$/.test(s)) : [];
+  if (!f.length) return {};
+  const url = buildApiUrl('/v1/db/acs-profile/aggregate');
+  try {
+    const res = await fetch(url, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', accept: 'application/json' },
+      body: JSON.stringify({ fips: f }),
+    });
+    if (!res.ok) return {};
+    return await res.json();
+  } catch {
+    return {};
+  }
 }
 
 async function fetchJsonRetry(url, opts = {}) {
@@ -1880,86 +1896,7 @@ async function enrichWaterDistrict(data = {}, address = "", categories = {}) {
     }
   }
 
-  // Overlay the water district shape to include any intersecting census tracts
-  // (be generous and include tracts that only partially overlap the boundary)
-  try {
-    const base = "https://services.arcgis.com/8DFNJhY7CUN8E0bX/ArcGIS/rest/services/Public_Water_System_Boundaries/FeatureServer/0/query";
-    const params = new URLSearchParams({
-      geometry: JSON.stringify({ x: Number(lon), y: Number(lat), spatialReference: { wkid: 4326 } }),
-      geometryType: "esriGeometryPoint",
-      inSR: "4326",
-      spatialRel: "esriSpatialRelIntersects",
-      outFields: "PWS_NAME",
-      returnGeometry: "true",
-      outSR: "4326",
-      f: "json",
-    });
-    const geoUrl = `${base}?${params.toString()}`;
-    const j = await fetch(geoUrl).then((r) => r.json());
-    const geom = j?.features?.[0]?.geometry;
-    if (geom) {
-      const tractUrl =
-        "https://tigerweb.geo.census.gov/arcgis/rest/services/TIGERweb/Tracts_Blocks/MapServer/10/query";
-      const tractParams = new URLSearchParams({
-        where: "1=1",
-        geometry: JSON.stringify(geom),
-        geometryType: "esriGeometryPolygon",
-        inSR: "4326",
-        spatialRel: "esriSpatialRelIntersects",
-        outFields: "NAME,GEOID",
-        returnGeometry: "false",
-        f: "json",
-      });
-      let t;
-      try {
-        t = await fetch(tractUrl, {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/x-www-form-urlencoded",
-          },
-          body: tractParams.toString(),
-        }).then((r) => r.json());
-      } catch {
-        const fallbackUrl = `${tractUrl}?${tractParams.toString()}`;
-        t = await fetch(fallbackUrl).then((r) => r.json());
-      }
-      const names = [];
-      const fips = [];
-      const map = {};
-      for (const f of t.features || []) {
-        const attrs = f.attributes || {};
-        let name = null;
-        if (attrs.NAME) {
-          name = attrs.NAME.replace(/^Census Tract\s+/i, "");
-          names.push(name);
-        }
-        if (attrs.GEOID) {
-          const geoid = String(attrs.GEOID);
-          fips.push(geoid);
-          if (name) map[geoid] = name;
-        }
-      }
-      if (names.length || fips.length) {
-        const existing = Array.isArray(w.census_tracts)
-          ? w.census_tracts.map(String)
-          : [];
-        const existingFips = Array.isArray(w.census_tracts_fips)
-          ? w.census_tracts_fips.map(String)
-          : [];
-        const existingMap = w.census_tract_map || {};
-        if (names.length)
-          w.census_tracts = [...new Set([...existing, ...names])];
-        if (fips.length)
-          w.census_tracts_fips = [
-            ...new Set([...existingFips, ...fips]),
-          ];
-        if (Object.keys(map).length)
-          w.census_tract_map = { ...existingMap, ...map };
-      }
-    }
-  } catch {
-    // ignore errors
-  }
+  // Water district tract list should come from CalWEP API; external overlay removed
 
   let tracts = [];
   if (Array.isArray(w.census_tracts)) tracts = w.census_tracts.map(String);
@@ -3362,8 +3299,26 @@ async function lookup(opts = {}) {
     const finalPrimary = allPrimary.map((r) => (r.status === 'fulfilled' ? r.value || {} : {}));
     deepMerge(data, ...finalPrimary);
 
-    // Region aggregations are already provided by DB endpoints; skip client-side ACS aggregations
+    // Region aggregations via DB aggregate-by-FIPS endpoint
     const regionTasks = [];
+    regionTasks.push((async () => {
+      const s = data.surrounding_10_mile || {};
+      const fips = Array.isArray(s.census_tracts_fips) ? s.census_tracts_fips.map(String) : [];
+      if (!fips.length) return {};
+      const agg = await dbAcsProfileAggregate(fips);
+      const demo = agg && agg.demographics ? agg.demographics : null;
+      if (demo) return { surrounding_10_mile: { ...s, demographics: demo } };
+      return {};
+    })());
+    regionTasks.push((async () => {
+      const w = data.water_district || {};
+      const fips = Array.isArray(w.census_tracts_fips) ? w.census_tracts_fips.map(String) : [];
+      if (!fips.length) return {};
+      const agg = await dbAcsProfileAggregate(fips);
+      const demo = agg && agg.demographics ? agg.demographics : null;
+      if (demo) return { water_district: { ...w, demographics: demo } };
+      return {};
+    })());
 
     // Quick pass
     const phaseR1 = await Promise.allSettled(
