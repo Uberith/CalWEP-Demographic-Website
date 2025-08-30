@@ -57,7 +57,7 @@ function createServer(options = {}) {
     apiBase,
   }));
 
-  // Proxy /api/* and /demographics* to API_BASE
+  // Proxy /api/* and core app endpoints to API_BASE
   const proxyHandler = async (req, res, targetPathBase = '/api') => {
     const targetUrl = new URL(req.originalUrl.replace(new RegExp(`^${targetPathBase}`), ''), apiBase).toString();
     try {
@@ -94,8 +94,24 @@ function createServer(options = {}) {
   app.use('/demographics', (req, res) => proxyHandler(req, res, '/'));
   app.use('/lookup', (req, res) => proxyHandler(req, res, '/'));
   app.use('/census-tracts', (req, res) => proxyHandler(req, res, '/'));
+  // Additional passthroughs to API_BASE per provided routes
+  app.use([
+    '/v1',
+    '/auth',
+    '/admin',
+    '/files',
+    '/healthz',
+    '/__routes',
+    '/__diag',
+    '/docs',
+    '/redoc',
+    '/water-agencies',
+    '/regional-providers',
+    '/update-request',
+    '/request-update',
+  ], (req, res) => proxyHandler(req, res, '/'));
 
-  // Simple in-memory cache for ACS (api.census.gov) requests during development
+  // Simple in-memory cache for ACS proxy requests during development
   const acsCache = new Map(); // key -> { status, headers, body: Buffer, expiresAt }
   const ACS_TTL_MS = Number(process.env.ACS_CACHE_TTL_MS || 10 * 60 * 1000); // 10 minutes default
   const ACS_MAX_ENTRIES = Number(process.env.ACS_CACHE_MAX || 500);
@@ -117,11 +133,12 @@ function createServer(options = {}) {
     acsCache.set(key, { ...value, expiresAt: Date.now() + ACS_TTL_MS });
   }
 
+  // Route local /proxy/acs to API_BASE /proxy/acs (not directly to api.census.gov)
   app.use('/proxy/acs', async (req, res) => {
     try {
       if (req.method !== 'GET') return res.status(405).send('Method Not Allowed');
       const suffix = req.originalUrl.replace(/^\/proxy\/acs/, '') || '/';
-      const target = `https://api.census.gov${suffix}`;
+      const target = new URL(`/proxy/acs${suffix}`, apiBase).toString();
       const key = target;
       const cached = acsCacheGet(key);
       if (cached) {
@@ -164,7 +181,7 @@ function createServer(options = {}) {
   // Static assets (no aggressive caching in dev)
   app.use(express.static(staticDir, { etag: true, lastModified: true, index: false, cacheControl: false }));
 
-  // SPA fallback to index.html; keep API base pointed at api.calwep.org
+  // SPA fallback to index.html; inject api-base to the dev origin for proxying
   const fs = require('fs');
   app.get('*', (req, res, next) => {
     if (!req.headers.accept || !req.headers.accept.includes('text/html')) return next();
@@ -172,13 +189,13 @@ function createServer(options = {}) {
     fs.readFile(indexPath, 'utf8', (err, html) => {
       if (err) return next();
       try {
-        // Ensure there's a meta api-base pointing to api.calwep.org
+        const origin = `${req.protocol}://${req.headers.host}`;
+        // Replace or inject the meta api-base to point at the dev server origin
         let out = html;
-        const desired = '<meta name="api-base" content="https://api.calwep.org">';
         if (out.includes('meta name="api-base"')) {
-          out = out.replace(/<meta[^>]*name=["']api-base["'][^>]*>/i, desired);
+          out = out.replace(/<meta[^>]*name=["']api-base["'][^>]*>/i, `<meta name="api-base" content="${origin}">`);
         } else {
-          out = out.replace(/<head>/i, `<head>\n  ${desired}`);
+          out = out.replace(/<head>/i, `<head>\n  <meta name=\"api-base\" content=\"${origin}\">`);
         }
         res.setHeader('Content-Type', 'text/html; charset=utf-8');
         res.send(out);

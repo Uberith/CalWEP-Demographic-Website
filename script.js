@@ -177,10 +177,12 @@ const API_BASE = (() => {
   const meta = document.querySelector('meta[name="api-base"]')?.content || 'https://api.calwep.org';
   try {
     const u = new URL(meta, window.location.origin);
-    return u.hostname === 'api.calwep.org' ? u.origin : 'https://api.calwep.org';
-  } catch {
-    return 'https://api.calwep.org';
-  }
+    // Allow dev to call the local origin (dev-server proxies upstream to api.calwep.org)
+    if (u.origin === window.location.origin) return u.origin;
+    // Prefer the production API host
+    if (u.hostname === 'api.calwep.org') return u.origin;
+  } catch {}
+  return 'https://api.calwep.org';
 })();
 const API_PATH = "/demographics"; // see section 2 for why '/api' is safest
 
@@ -359,6 +361,24 @@ function withTimeout(promise, ms, fallbackValue, onTimeout) {
 
 async function fetchJsonWithDiagnostics(url, opts = {}) {
   const { timeoutMs = 15000, signal, headers = {} } = opts;
+  // Normalize dev/prod URL routing to avoid broken /proxy calls in production
+  function normalizeUrlForEnv(u) {
+    try {
+      const isDev = isDevOrigin();
+      const parsed = new URL(u, window.location.origin);
+      if (!isDev && parsed.origin === window.location.origin) {
+        if (parsed.pathname.startsWith('/proxy/acs')) {
+          return `https://api.calwep.org/proxy/acs${parsed.pathname.replace(/^\/proxy\/acs/, '')}${parsed.search || ''}`;
+        }
+        if (parsed.pathname.startsWith('/proxy/geocoder')) {
+          // No official geocoder proxy on api.calwep.org list; fall back to direct
+          return `https://geocoding.geo.census.gov${parsed.pathname.replace(/^\/proxy\/geocoder/, '')}${parsed.search || ''}`;
+        }
+      }
+    } catch {}
+    return u;
+  }
+  url = normalizeUrlForEnv(url);
   let res;
   try {
     const p = fetch(url, {
@@ -420,15 +440,29 @@ async function fetchJsonRetry(url, opts = {}) {
   throw lastErr;
 }
 
+function isDevOrigin() {
+  try {
+    const h = window.location.hostname;
+    return (
+      h === 'localhost' || h === '127.0.0.1' || h === '[::1]'
+    );
+  } catch { return false; }
+}
+
 function toCensus(url) {
   try {
     const u = new URL(url);
     const pathAndQuery = u.pathname + (u.search || '');
+    // Route ACS calls through api.calwep.org proxy; use local /proxy in dev for same-origin
     if (u.hostname.endsWith('api.census.gov')) {
-      return `${window.location.origin}/proxy/acs${pathAndQuery}`;
+      return isDevOrigin()
+        ? `${window.location.origin}/proxy/acs${pathAndQuery}`
+        : `https://api.calwep.org/proxy/acs${pathAndQuery}`;
     }
     if (u.hostname === 'geocoding.geo.census.gov') {
-      return `${window.location.origin}/proxy/geocoder${pathAndQuery}`;
+      return isDevOrigin()
+        ? `${window.location.origin}/proxy/geocoder${pathAndQuery}`
+        : url; // direct in prod
     }
   } catch {}
   return url;
