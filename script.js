@@ -173,9 +173,15 @@ function shareReport() {
 }
 
 // ---------- Config ----------
-const API_BASE =
-  document.querySelector('meta[name="api-base"]')?.content ||
-  window.location.origin;
+const API_BASE = (() => {
+  const meta = document.querySelector('meta[name="api-base"]')?.content || 'https://api.calwep.org';
+  try {
+    const u = new URL(meta, window.location.origin);
+    return u.hostname === 'api.calwep.org' ? u.origin : 'https://api.calwep.org';
+  } catch {
+    return 'https://api.calwep.org';
+  }
+})();
 const API_PATH = "/demographics"; // see section 2 for why '/api' is safest
 
 // ---------- Utilities ----------
