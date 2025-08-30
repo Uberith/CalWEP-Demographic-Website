@@ -1340,37 +1340,8 @@ async function fetchUnemploymentForTracts(fipsList = []) {
 }
 
 // Fetch a list of census tract FIPS codes flagged as disadvantaged communities
-async function fetchDacFips(fipsList = []) {
-  const baseUrl =
-    "https://gis.water.ca.gov/arcgis/rest/services/Society/i16_Census_Tract_DisadvantagedCommunities_2020/MapServer/0/query";
-  const out = new Set();
-  const chunkSize = 50;
-  const tasks = [];
-  for (let i = 0; i < fipsList.length; i += chunkSize) {
-    const chunk = fipsList.slice(i, i + chunkSize);
-    if (!chunk.length) continue;
-    const where = `GEOID20 IN (${chunk.map((f) => `'${f}'`).join(",")})`;
-    const url =
-      baseUrl +
-      `?where=${encodeURIComponent(where)}&outFields=GEOID20,DAC20&returnGeometry=false&f=json`;
-    tasks.push(
-      fetch(url)
-        .then((r) => r.json())
-        .catch(() => null),
-    );
-  }
-  const results = await Promise.all(tasks);
-  for (const j of results) {
-    if (!j) continue;
-    for (const f of j.features || []) {
-      const attrs = f.attributes || {};
-      const geoid = String(attrs.GEOID20);
-      const status = String(attrs.DAC20 || "").toUpperCase();
-      if (status === "Y") out.add(geoid);
-    }
-  }
-  return Array.from(out);
-}
+// DAC status now comes from DB aggregates. External GIS lookup removed.
+async function fetchDacFips(fipsList = []) { return []; }
 
 // Fetch environmental hardships for one or more census tracts and merge them
 async function aggregateHardshipsForTracts(fipsList = []) {
@@ -3313,9 +3284,8 @@ async function lookup(opts = {}) {
       }
       return {};
     })());
-    // Add shape-based context first (census tracts lists, cities, water district from shapefiles)
-    primaryTasks.push(scopes.radius ? enrichSurrounding(data, categories) : Promise.resolve({}));
-    primaryTasks.push(scopes.water ? enrichWaterDistrict(data, address, categories) : Promise.resolve({}));
+  // Prefer DB endpoints over external TIGER/ArcGIS for surrounding and water
+    // (Shape-based enrichers are skipped to avoid external dependencies)
 
     // Aggregates: surrounding radius and water district from DB (merge into shape-based objects)
     primaryTasks.push(scopes.radius ? (async () => {
