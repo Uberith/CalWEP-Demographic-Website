@@ -2953,6 +2953,7 @@ function renderResult(address, data, elapsedMs, selections) {
     high_school_or_higher_pct,
     bachelors_or_higher_pct,
     alerts,
+    alerts_meta,
     enviroscreen,
     surrounding_10_mile,
     water_district,
@@ -3233,7 +3234,7 @@ function renderResult(address, data, elapsedMs, selections) {
     <section class="section-block">
       <h3 class="section-header">Active Alerts (National Weather Service)</h3>
       <p class="section-description">This section displays any current weather alerts issued by the National Weather Service (NWS) for the selected location. Alerts may include warnings for extreme heat, flooding, wildfire smoke, or other hazardous conditions. Having this information alongside demographic and environmental data helps staff anticipate safety concerns for events, tailor outreach, and ensure programs are responsive to current community conditions.</p>
-      ${alertsUpdated ? `<p class="note">Updated: ${escapeHTML(alertsUpdated)}</p>` : ''}
+      ${(alerts_meta && alerts_meta.updated) ? `<p class="note">Updated: ${escapeHTML(alerts_meta.updated)}</p>` : ''}
       ${
         alertList.length
           ? `<div class="stats">${alertList
