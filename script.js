@@ -17,7 +17,7 @@ function isCacheableUrl(url) {
     return (
       /api\.census\.gov$/i.test(u.hostname) ||
       (u.origin === window.location.origin && /^\/proxy\/(acs|geocoder)\b/.test(u.pathname)) ||
-      (u.origin === window.location.origin && /^(?:\/demographics|\/lookup|\/census-tracts)\b/.test(u.pathname))
+      (u.origin === window.location.origin && /^\/v1\//.test(u.pathname))
     );
   } catch {
     return false;
@@ -48,7 +48,7 @@ function sourceDomainLabel(u) {
     const isLocal = host === 'localhost' || host === '127.0.0.1' || host === '[::1]' || host === window.location.hostname;
     const path = url.pathname || '';
     if (isLocal) {
-      if (/^\/(demographics|lookup|census-tracts)/.test(path)) return 'api.calwep.org';
+      if (/^\/v1\//.test(path)) return 'api.calwep.org';
       return null;
     }
     return host;
@@ -3364,51 +3364,7 @@ async function lookup(opts = {}) {
   // Prefer DB endpoints over external TIGER/ArcGIS for surrounding and water
     // (Shape-based enrichers are skipped to avoid external dependencies)
 
-    // Surrounding tracts list (DB): populate census_tracts and census_tracts_fips
-    primaryTasks.push(scopes.radius ? (async () => {
-      const { lat, lon } = data || {};
-      if (lat != null && lon != null) {
-        const res = await dbTractsWithinRadius(lat, lon, 10);
-        const out = {};
-        if (res && Array.isArray(res.tracts)) {
-          const names = [];
-          const fips = [];
-          const map = {};
-          for (const t of res.tracts) {
-            const f = String(t.fips11 || t.fips || '').trim();
-            const n = String(t.tract || '').trim();
-            if (f) fips.push(f);
-            if (n) names.push(n);
-            if (f && n) map[f] = n;
-          }
-          out.surrounding_10_mile = {
-            census_tracts: Array.from(new Set(names)),
-            census_tracts_fips: Array.from(new Set(fips)),
-            census_tract_map: map,
-          };
-        }
-        return out;
-      }
-      return {};
-    })() : Promise.resolve({}));
-
-    // Aggregates: surrounding radius and water district from DB (merge into objects)
-    primaryTasks.push(scopes.radius ? (async () => {
-      const { lat, lon } = data || {};
-      if (lat != null && lon != null) {
-        const agg = await dbSurroundingAggregates(lat, lon, 10);
-        return { surrounding_10_mile: agg };
-      }
-      return {};
-    })() : Promise.resolve({}));
-    primaryTasks.push(scopes.water ? (async () => {
-      const { lat, lon } = data || {};
-      if (lat != null && lon != null) {
-        const agg = await dbWaterDistrictAggregates(lat, lon);
-        return { water_district: agg };
-      }
-      return {};
-    })() : Promise.resolve({}));
+    // Note: Do not call legacy DB aggregate endpoints. Typed endpoints below will populate regions.
     primaryTasks.push(categories.alerts ? enrichNwsAlerts(data) : Promise.resolve({}));
     
     // Phase 1: wait briefly for quick results, then render
