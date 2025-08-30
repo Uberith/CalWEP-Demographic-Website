@@ -119,6 +119,39 @@ function getSelections() {
   return { scopes, categories };
 }
 
+// Persist user selections across refresh
+const PREFS_KEY = 'calwep_prefs_v1';
+function savePreferences() {
+  try {
+    const { scopes, categories } = getSelections();
+    const prefs = { scopes, categories };
+    localStorage.setItem(PREFS_KEY, JSON.stringify(prefs));
+  } catch {}
+}
+function restorePreferences() {
+  try {
+    const raw = localStorage.getItem(PREFS_KEY);
+    if (!raw) return;
+    const prefs = JSON.parse(raw);
+    const apply = (id, val) => {
+      const el = document.getElementById(id);
+      if (el && typeof val === 'boolean') el.checked = val;
+    };
+    const s = prefs.scopes || {};
+    apply('scope-tract', s.tract);
+    apply('scope-radius', s.radius);
+    apply('scope-water', s.water);
+    const c = prefs.categories || {};
+    apply('cat-demographics', c.demographics);
+    apply('cat-language', c.language);
+    apply('cat-housing', c.housing);
+    apply('cat-enviroscreen', c.enviroscreen);
+    apply('cat-dac', c.dac);
+    apply('cat-race', c.race);
+    apply('cat-alerts', c.alerts);
+  } catch {}
+}
+
 function printReport() {
   window.print();
 }
@@ -3631,6 +3664,7 @@ function bindOptionToggles() {
   const handler = debounce(() => {
     const input = document.getElementById("autocomplete");
     const addr = (input?.value || "").trim();
+    savePreferences();
     if (addr.length >= 4) lookup({ force: true }).catch(console.error);
   }, 200);
   document
@@ -3673,6 +3707,8 @@ function loadGoogleMaps() {
 getLanguageMeta().catch(() => {});
 
 window.onload = () => {
+  // Restore saved preferences before binding and lookup
+  restorePreferences();
   loadGoogleMaps();
   bindLookupTrigger();
   bindOptionToggles();
