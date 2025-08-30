@@ -2197,7 +2197,7 @@ function initAutocomplete() {
 
   // Prefer the new PlaceAutocompleteElement when available
   const NewAutocomplete = google.maps.places && google.maps.places.PlaceAutocompleteElement;
-  const USE_NEW_ELEMENT = true; // Use new Places Autocomplete web component
+  const USE_NEW_ELEMENT = false; // Revert to legacy Autocomplete for compatibility
   if (USE_NEW_ELEMENT && NewAutocomplete) {
     try {
       const elem = new NewAutocomplete();
