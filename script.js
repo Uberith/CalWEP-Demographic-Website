@@ -2197,10 +2197,22 @@ function initAutocomplete() {
 
   // Prefer the new PlaceAutocompleteElement when available
   const NewAutocomplete = google.maps.places && google.maps.places.PlaceAutocompleteElement;
-  const USE_NEW_ELEMENT = false; // Temporarily disabled for consistent styling/theme
+  const USE_NEW_ELEMENT = true; // Use new Places Autocomplete web component
   if (USE_NEW_ELEMENT && NewAutocomplete) {
     try {
       const elem = new NewAutocomplete();
+      // Match our layout and theme
+      elem.id = 'autocomplete';
+      elem.style.display = 'block';
+      elem.style.width = '100%';
+      // Apply theme via Google Maps component CSS variables
+      try {
+        elem.style.setProperty('--gmpx-font-family', 'Inter, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, "Noto Sans", sans-serif');
+        elem.style.setProperty('--gmpx-color-surface', 'var(--surface)');
+        elem.style.setProperty('--gmpx-color-on-surface', 'var(--ink)');
+        elem.style.setProperty('--gmpx-color-outline', 'var(--border)');
+        elem.style.setProperty('--gmpx-color-primary', 'var(--brand)');
+      } catch {}
       elem.setAttribute('aria-label', input.getAttribute('aria-label') || 'Address search');
       elem.placeholder = input.getAttribute('placeholder') || '';
       // Restrict to US addresses and request minimal fields
@@ -2229,9 +2241,8 @@ function initAutocomplete() {
           if (m) zip = m[0];
         }
         const finalVal = (street || city || state || zip) ? [street.trim(), city, state, zip].filter(Boolean).join(', ') : (fa || elem.value || '');
-        // Trigger lookup immediately
-        const field = document.getElementById('autocomplete');
-        if (field) field.value = finalVal;
+        // Populate the element's value and trigger lookup
+        try { elem.value = finalVal; } catch {}
         document.getElementById("lookupBtn")?.click();
       };
       // Try both common event names for the new element

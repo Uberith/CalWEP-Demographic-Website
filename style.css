@@ -178,6 +178,17 @@ h1 {
   width: 100%;
 }
 
+/* Ensure new Places Autocomplete element fills the row and adopts theme */
+#autocomplete {
+  flex: 1;
+  width: 100%;
+  display: block;
+}
+#autocomplete:focus-within {
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(29, 101, 166, 0.15);
+}
+
 .selections {
   margin-top: var(--space-4);
   display: grid;
