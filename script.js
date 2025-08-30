@@ -359,15 +359,22 @@ function withTimeout(promise, ms, fallbackValue, onTimeout) {
 
 async function fetchJsonWithDiagnostics(url, opts = {}) {
   const { timeoutMs = 15000, signal, headers = {} } = opts;
-  // Normalize dev/prod URL routing to avoid broken /proxy calls in production
+  // Normalize URL routing so static servers (no proxy) work
   function normalizeUrlForEnv(u) {
     try {
-      const isDev = isDevOrigin();
       const parsed = new URL(u, window.location.origin);
-      if (!isDev && parsed.origin === window.location.origin) {
-        if (parsed.pathname.startsWith('/proxy/acs')) {
-          return `https://api.calwep.org/v1/proxy/acs${parsed.pathname.replace(/^\/proxy\/acs/, '')}${parsed.search || ''}`;
-        }
+      const sameOrigin = parsed.origin === window.location.origin;
+      // Rewrite same-origin proxy paths to public API equivalents
+      if (sameOrigin && /^\/(proxy\/acs|api\/acs|acs)\b/.test(parsed.pathname)) {
+        const tail = parsed.pathname.replace(/^\/(proxy\/acs|api\/acs|acs)/, '');
+        return `https://api.calwep.org/acs${tail}${parsed.search || ''}`;
+      }
+      if (sameOrigin && /^\/geocoder\b/.test(parsed.pathname)) {
+        const tail = parsed.pathname.replace(/^\/geocoder/, '');
+        return `https://api.calwep.org/v1/api/geocoder${tail}${parsed.search || ''}`;
+      }
+      if (sameOrigin && /^\/tiger\b/.test(parsed.pathname)) {
+        return `https://api.calwep.org/v1/api${parsed.pathname}${parsed.search || ''}`;
       }
     } catch {}
     return u;
@@ -519,25 +526,19 @@ function toCensus(url) {
   try {
     const u = new URL(url);
     const pathAndQuery = u.pathname + (u.search || '');
-    // Route ACS calls through api.calwep.org proxy; use local /proxy in dev for same-origin
+    // Always route ACS through api.calwep.org browser-friendly alias
     if (u.hostname.endsWith('api.census.gov')) {
-      return isDevOrigin()
-        ? `${window.location.origin}/proxy/acs${pathAndQuery}`
-        : `https://api.calwep.org/v1/proxy/acs${pathAndQuery}`;
+      return `https://api.calwep.org/acs${pathAndQuery}`;
     }
     if (u.hostname === 'geocoding.geo.census.gov') {
       const tail = pathAndQuery.replace(/^(\/geocoder)+/, '');
-      return isDevOrigin()
-        ? `${window.location.origin}/geocoder${tail}`
-        : `https://api.calwep.org/v1/api/geocoder${tail}`;
+      return `https://api.calwep.org/v1/api/geocoder${tail}`;
     }
     if (u.hostname.endsWith('tigerweb.geo.census.gov')) {
       const m = u.pathname.match(/\/MapServer\/(.*)$/);
       const tail = m ? m[1] : '';
       const p = `/tiger/MapServer/${tail}` + (u.search || '');
-      return isDevOrigin()
-        ? `${window.location.origin}${p}`
-        : `https://api.calwep.org/v1/api${p}`;
+      return `https://api.calwep.org/v1/api${p}`;
     }
   } catch {}
   return url;
