@@ -2710,7 +2710,6 @@ function renderResultOld(address, data, elapsedMs) {
           <div class="key">Second most common</div><div class="val">${escapeHTML(d.secondary_language) || "—"}</div>
           <div class="key">People who speak a language other than English at home</div><div class="val">${fmtPct(d.language_other_than_english_pct)}</div>
           <div class="key">People who speak English less than \"very well\"</div><div class="val">${fmtPct(d.english_less_than_very_well_pct)}</div>
-          <div class="key">People who speak Spanish at home</div><div class="val">${fmtPct(d.spanish_at_home_pct)}</div>
           <div class="key">White</div><div class="val">${fmtPct(d.white_pct)}</div>
           <div class="key">Black or African American</div><div class="val">${fmtPct(d.black_pct)}</div>
           <div class="key">American Indian / Alaska Native</div><div class="val">${fmtPct(d.native_pct)}</div>
@@ -2772,7 +2771,6 @@ function renderResultOld(address, data, elapsedMs) {
           <div class="key">Primary language</div><div class="val">${escapeHTML(d.primary_language) || "—"}</div>
           <div class="key">Second most common</div><div class="val">${escapeHTML(d.secondary_language) || "—"}</div>
           <div class="key">People who speak a language other than English at home</div><div class="val">${fmtPct(d.language_other_than_english_pct)}</div>
-          <div class="key">People who speak Spanish at home</div><div class="val">${fmtPct(d.spanish_at_home_pct)}</div>
           <div class="key">Speak English less than \"very well\"</div><div class="val">${fmtPct(d.english_less_than_very_well_pct)}</div>
           <div class="key">White</div><div class="val">${fmtPct(d.white_pct)}</div>
           <div class="key">Black or African American</div><div class="val">${fmtPct(d.black_pct)}</div>
@@ -2843,7 +2841,6 @@ function renderResultOld(address, data, elapsedMs) {
         <div class="key">Second most common</div><div class="val">${escapeHTML(secondary_language) || "—"}</div>
         <div class="key">People who speak a language other than English at home</div><div class="val">${fmtPct(language_other_than_english_pct)}</div>
         <div class="key">People who speak English less than \"very well\"</div><div class="val">${fmtPct(english_less_than_very_well_pct)}</div>
-        <div class="key">People who speak Spanish at home</div><div class="val">${fmtPct(spanish_at_home_pct)}</div>
       </div>
       <p class="note">Source: Latest ACS 5-Year Estimates<br>Data Profiles/Social Characteristics</p>
     </section>
@@ -3078,7 +3075,6 @@ function renderResult(address, data, elapsedMs, selections) {
         'People who speak English less than "very well"',
         fmtPct(d.english_less_than_very_well_pct),
       ],
-      ["People who speak Spanish at home", fmtPct(d.spanish_at_home_pct)],
     ];
     return `<div class="kv">${entries
       .map(([k, v]) => `<div class="key">${k}</div><div class="val">${v}</div>`)
@@ -3091,7 +3087,6 @@ function renderResult(address, data, elapsedMs, selections) {
       secondary_language,
       language_other_than_english_pct,
       english_less_than_very_well_pct,
-      spanish_at_home_pct,
     }),
     languageFields(s.demographics || {}),
     languageFields(w.demographics || {}),
