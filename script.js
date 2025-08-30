@@ -3463,9 +3463,30 @@ async function lookup(opts = {}) {
         const s2 = data.surrounding_10_mile || {};
         let sFips = Array.isArray(s2.census_tracts_fips) ? s2.census_tracts_fips.map(String) : [];
         if (!sFips.length) sFips = await listFipsSurrounding(data.lat, data.lon, 10);
-        const fipsParam = sFips.length ? { fips: sFips.join(',') } : {};
-        const env = await fetchJsonRetryL(buildApiUrl('/v1/enviroscreen/surrounding', { lat: String(data.lat), lon: String(data.lon), miles: '10', ...fipsParam }), 'enviroscreen', { retries: 1, timeoutMs: 20000 }).catch(() => ({}));
-        const dac = await fetchJsonRetryL(buildApiUrl('/v1/dac/surrounding', { lat: String(data.lat), lon: String(data.lon), miles: '10', ...fipsParam }), 'dac', { retries: 1, timeoutMs: 20000 }).catch(() => ({}));
+        // Prefer FIPS-only call for Enviroscreen if we have them (backend aggregates & weights by population)
+        let env;
+        if (sFips.length) {
+          env = await fetchJsonRetryL(
+            buildApiUrl('/v1/enviroscreen/surrounding', { fips: sFips.join(',') }),
+            'enviroscreen',
+            { retries: 1, timeoutMs: 20000 },
+          ).catch(() => ({}));
+        } else {
+          env = await fetchJsonRetryL(
+            buildApiUrl('/v1/enviroscreen/surrounding', { lat: String(data.lat), lon: String(data.lon), miles: '10' }),
+            'enviroscreen',
+            { retries: 1, timeoutMs: 20000 },
+          ).catch(() => ({}));
+        }
+        // DAC still accepts FIPS as an optimization, but lat/lon+miles also works; pass both where possible
+        const dacParams = sFips.length
+          ? { fips: sFips.join(',') }
+          : { lat: String(data.lat), lon: String(data.lon), miles: '10' };
+        const dac = await fetchJsonRetryL(
+          buildApiUrl('/v1/dac/surrounding', dacParams),
+          'dac',
+          { retries: 1, timeoutMs: 20000 },
+        ).catch(() => ({}));
         const out = { ...s2, environment: env, census_tracts_fips: sFips.length ? sFips : s2.census_tracts_fips };
         if (dac && typeof dac === 'object') {
           let share = dac.share_dac;
