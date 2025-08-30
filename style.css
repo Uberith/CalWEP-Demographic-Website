@@ -410,6 +410,13 @@ button:focus-visible {
   gap: var(--space-6);
   margin-top: var(--space-5);
 }
+.comparison-grid.column-headers {
+  margin-top: 0; /* no top margin for header row */
+  margin-bottom: 0; /* remove space below header labels */
+}
+.section-block .comparison-grid.column-headers + .comparison-grid {
+  margin-top: 0; /* remove gap between header labels and content boxes */
+}
 .comparison-grid .col {
   background: var(--accent-bg);
   border: 1px solid var(--border);

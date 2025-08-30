@@ -225,6 +225,58 @@ function titleCase(str = "") {
   return str.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
 }
 
+// Normalize CalEnviroScreen payloads to the renderer's expected shape
+function normalizeEnviroscreenData(data) {
+  if (!data || typeof data !== 'object') return null;
+  // Already in normalized shape
+  if (data.percentile != null || data.overall_percentiles) return data;
+  const hasFlat = (
+    data.ci_percentile != null ||
+    data.ci_score != null ||
+    'ozone_pct' in data || 'pm25_pct' in data
+  );
+  if (!hasFlat) return data;
+  const num = (v) => (v == null ? null : Number(v));
+  return {
+    score: num(data.ci_score),
+    percentile: num(data.ci_percentile),
+    overall_percentiles: {
+      calenviroscreen: num(data.ci_percentile),
+      pollution_burden: num(data.pollution_percentile),
+      population_characteristics: num(data.pop_char_percentile),
+    },
+    exposures: {
+      ozone: num(data.ozone_pct),
+      pm25: num(data.pm25_pct),
+      diesel: num(data.diesel_pct),
+      toxic_releases: num(data.toxic_releases_pct),
+      traffic: num(data.traffic_pct),
+      pesticides: num(data.pesticides_pct),
+      drinking_water: num(data.drinking_water_pct),
+      lead: num(data.lead_pct),
+    },
+    environmental_effects: {
+      cleanup_sites: num(data.cleanup_sites_pct),
+      groundwater_threats: num(data.groundwater_threats_pct),
+      hazardous_waste: num(data.hazardous_waste_pct),
+      impaired_waters: num(data.impaired_waters_pct),
+      solid_waste: num(data.solid_waste_pct),
+    },
+    sensitive_populations: {
+      asthma: num(data.asthma_pct),
+      low_birth_weight: num(data.low_birth_weight_pct),
+      cardiovascular_disease: num(data.cardiovascular_disease_pct),
+    },
+    socioeconomic_factors: {
+      education: num(data.education_pct),
+      linguistic_isolation: num(data.linguistic_isolation_pct),
+      poverty: num(data.poverty_pct),
+      unemployment: num(data.unemployment_pct),
+      housing_burden: num(data.housing_burden_pct),
+    },
+  };
+}
+
 function deepMerge(target = {}, ...sources) {
   const isObj = (v) => v && typeof v === "object" && !Array.isArray(v);
   for (const src of sources) {
@@ -770,6 +822,27 @@ async function getLanguageMeta() {
 }
 
 async function aggregateLanguageForTracts(fipsList = []) {
+  const list = Array.isArray(fipsList) ? fipsList.map(String).filter((s) => /^\d{11}$/.test(s)) : [];
+  if (!list.length) return {};
+  // Prefer CalWEP API aggregate endpoint for languages
+  try {
+    const url = buildApiUrl('/v1/acs/languages', { fips: list.join(',') });
+    const j = await fetchJsonRetryL(url, 'language', { retries: 1, timeoutMs: 20000 });
+    if (j && typeof j === 'object') {
+      const out = {};
+      if (j.primary_language != null) out.primary_language = j.primary_language;
+      if (j.secondary_language != null) out.secondary_language = j.secondary_language;
+      if (j.language_other_than_english_pct != null) out.language_other_than_english_pct = j.language_other_than_english_pct;
+      if (j.english_less_than_very_well_pct != null) out.english_less_than_very_well_pct = j.english_less_than_very_well_pct;
+      if (j.spanish_at_home_pct != null) out.spanish_at_home_pct = j.spanish_at_home_pct;
+      // If API includes additional helpful fields, pass them through as well
+      for (const k of Object.keys(j)) {
+        if (out[k] == null && /_language$|_pct$|_at_home$/.test(k)) out[k] = j[k];
+      }
+      return out;
+    }
+  } catch {}
+  // Fallback to direct ACS aggregation if API is unavailable
   const { codes, names } = await getLanguageMeta();
   if (!codes.length) return {};
   const groups = {};
@@ -2323,7 +2396,6 @@ function renderLoading(address, selections) {
     rows.push(
       `<section class="section-block"><h3 class="section-header">Active Alerts</h3><p class="note">Loading…</p></section>`,
     );
-  const columnHeaders = buildColumnHeaders(scopes);
   document.getElementById("result").innerHTML = `
     <div class="card">
       <div class="card__header">
@@ -2331,7 +2403,6 @@ function renderLoading(address, selections) {
         <span class="updated">Started ${nowStamp()}</span>
       </div>
       ${address ? `<p class="note">Address: <strong>${escapeHTML(address)}</strong></p>` : ""}
-      ${columnHeaders}
       ${rows.join("")}
       <p class="note">Elapsed: <span id="searchTimer">0m 00s</span></p>
     </div>
@@ -2369,35 +2440,38 @@ function buildComparisonRow(
   if (scopes.radius)
     cols.push(`<div class="col surrounding">${cell(surroundingHtml)}</div>`);
   if (scopes.water) cols.push(`<div class="col district">${cell(districtHtml)}</div>`);
+  // Per-section column headers
+  const headerCols = [];
+  if (scopes.tract) headerCols.push('<div class="col">Census tract</div>');
+  if (scopes.radius) headerCols.push('<div class="col">10 mile radius</div>');
+  if (scopes.water) headerCols.push('<div class="col">Water district</div>');
+  const headers = headerCols.length
+    ? `<div class="comparison-grid column-headers">${headerCols.join("")}</div>`
+    : "";
   return `
     <section class="section-block">
       <h3 class="section-header">${title}</h3>
       ${descriptionHtml}
+      ${headers}
       <div class="comparison-grid">${cols.join("")}</div>
     </section>
   `;
 }
 
-function buildColumnHeaders(scopes = { tract: true, radius: true, water: true }) {
-  const cols = [];
-  if (scopes.tract) cols.push('<div class="col">Census tract</div>');
-  if (scopes.radius) cols.push('<div class="col">10 mile radius</div>');
-  if (scopes.water) cols.push('<div class="col">Water district</div>');
-  if (!cols.length) return "";
-  return `<div class="comparison-grid column-headers">${cols.join("")}</div>`;
-}
+// No longer need a global column header; per-section headers are rendered above each section
 
 function renderEnviroscreenContent(data) {
-  if (!data || typeof data !== "object")
+  const norm = normalizeEnviroscreenData(data);
+  if (!norm || typeof norm !== "object")
     return "<p class=\"note\">No data</p>";
   const badge = (v) => {
     const { bg, fg } = cesColor(v);
     const val = Number.isFinite(Number(v)) ? Number(v).toFixed(1) : "—";
     return `<span class="ces-badge" style="background:${bg};color:${fg};">${val}</span>`;
   };
-  const overall = data.percentile;
-  const pb = data.overall_percentiles?.pollution_burden;
-  const pc = data.overall_percentiles?.population_characteristics;
+  const overall = norm.percentile;
+  const pb = norm.overall_percentiles?.pollution_burden;
+  const pc = norm.overall_percentiles?.population_characteristics;
   const renderGroup = (title, obj, order = []) => {
     if (!obj || typeof obj !== "object") return "";
     const entries = Object.entries(obj).sort(([a], [b]) => {
@@ -2424,10 +2498,10 @@ function renderEnviroscreenContent(data) {
       <div class="key">Pollution burden</div><div class="val">${badge(pb)}</div>
       <div class="key">Population characteristics</div><div class="val">${badge(pc)}</div>
     </div>
-    ${renderGroup("Exposures", data.exposures, CES_GROUP_ORDER.exposures)}
-    ${renderGroup("Environmental effects", data.environmental_effects, CES_GROUP_ORDER.environmental_effects)}
-    ${renderGroup("Sensitive populations", data.sensitive_populations, CES_GROUP_ORDER.sensitive_populations)}
-    ${renderGroup("Socioeconomic factors", data.socioeconomic_factors, CES_GROUP_ORDER.socioeconomic_factors)}
+    ${renderGroup("Exposures", norm.exposures, CES_GROUP_ORDER.exposures)}
+    ${renderGroup("Environmental effects", norm.environmental_effects, CES_GROUP_ORDER.environmental_effects)}
+    ${renderGroup("Sensitive populations", norm.sensitive_populations, CES_GROUP_ORDER.sensitive_populations)}
+    ${renderGroup("Socioeconomic factors", norm.socioeconomic_factors, CES_GROUP_ORDER.socioeconomic_factors)}
   `;
 }
 function renderResultOld(address, data, elapsedMs) {
@@ -3120,7 +3194,6 @@ function renderResult(address, data, elapsedMs, selections) {
       }
     </section>
   `;
-  const columnHeaders = buildColumnHeaders(scopes);
   const rows = [locationRow];
   if (categories.demographics) rows.push(populationRow);
   if (categories.language) rows.push(languageRow);
@@ -3145,7 +3218,6 @@ function renderResult(address, data, elapsedMs, selections) {
         </div>
         <span class="updated">Updated ${nowStamp()}</span>
       </div>
-      ${columnHeaders}
       ${rows.join("")}
       ${categories.alerts ? alertsRow : ""}
       <p class="note">Search took ${formatDuration(elapsedMs)}.</p>
@@ -3211,6 +3283,16 @@ async function lookup(opts = {}) {
       const j = await fetchJsonRetryL(lu, 'location', { timeoutMs: 30000, signal });
       if (j && typeof j === 'object') {
         data = { ...data, ...j };
+        // Map DAC status from lookup → local flag used by renderer
+        if (data.dac_status == null && j.is_disadvantaged_community != null) {
+          data.dac_status = Boolean(j.is_disadvantaged_community);
+        }
+        // Seed water district display name from lookup agency info
+        const agency = j.agency || {};
+        const agencyDisplay = agency.display_name || agency.agency_name || agency.name || null;
+        if (agencyDisplay) {
+          data.water_district = { ...(data.water_district || {}), name: agencyDisplay };
+        }
         // Try to extract lat/lon from common response shapes
         const candidates = [j, j.location, j.point, j.coords, j.coordinate, j.center, j.centroid, j.result?.point, j.agency?.center, j.agency?.centroid];
         for (const c of candidates) {
@@ -3351,7 +3433,8 @@ async function lookup(opts = {}) {
     renderResult(address, data, elapsed, selections);
 
     // Finalize region
-    // Add derived counts/rent enrichment late to leverage upstream + region merges
+    // Add language aggregates via API and derived counts/rent after merges
+    regionTasks.push(enrichRegionLanguages(data));
     regionTasks.push(enrichDerivedCountsAndRent(data));
     const allRegion = await Promise.allSettled(regionTasks);
     if (signal.aborted) return;
