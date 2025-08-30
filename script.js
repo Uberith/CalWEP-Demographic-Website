@@ -462,6 +462,7 @@ async function dbTractsWithinRadius(lat, lon, miles = 10) {
 }
 
 // POST aggregate demographics over a list of tracts (FIPS-11)
+// Uses stable legacy endpoint at /v1/db/acs-profile/aggregate
 async function dbAcsProfileAggregate(fipsList = []) {
   const f = Array.isArray(fipsList) ? fipsList.map(String).filter((s) => /^\d{11}$/.test(s)) : [];
   if (!f.length) return {};
@@ -3322,7 +3323,9 @@ async function lookup(opts = {}) {
       if (!fips.length) return {};
       const agg = await dbAcsProfileAggregate(fips);
       const demo = agg && agg.demographics ? agg.demographics : null;
-      if (demo) return { surrounding_10_mile: { ...s, demographics: demo } };
+      const out = { ...s };
+      if (Array.isArray(agg?.fips) && (!Array.isArray(out.census_tracts_fips) || !out.census_tracts_fips.length)) out.census_tracts_fips = agg.fips;
+      if (demo) return { surrounding_10_mile: { ...out, demographics: demo } };
       return {};
     })());
     regionTasks.push((async () => {
@@ -3331,7 +3334,9 @@ async function lookup(opts = {}) {
       if (!fips.length) return {};
       const agg = await dbAcsProfileAggregate(fips);
       const demo = agg && agg.demographics ? agg.demographics : null;
-      if (demo) return { water_district: { ...w, demographics: demo } };
+      const out = { ...w };
+      if (Array.isArray(agg?.fips) && (!Array.isArray(out.census_tracts_fips) || !out.census_tracts_fips.length)) out.census_tracts_fips = agg.fips;
+      if (demo) return { water_district: { ...out, demographics: demo } };
       return {};
     })());
 
