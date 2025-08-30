@@ -449,6 +449,13 @@ async function dbWaterDistrictAggregates(lat, lon) {
   return fetchJsonRetryL(url, 'population', { retries: 1, timeoutMs: 30000 }).catch(() => ({}));
 }
 
+// List census tracts within a radius (DB-backed)
+async function dbTractsWithinRadius(lat, lon, miles = 10) {
+  if (lat == null || lon == null) return {};
+  const url = buildApiUrl('/v1/db/tracts/within-radius', { lat: String(lat), lon: String(lon), miles: String(miles) });
+  return fetchJsonRetryL(url, 'location', { retries: 1, timeoutMs: 20000 }).catch(() => ({}));
+}
+
 async function fetchJsonRetry(url, opts = {}) {
   const {
     retries = 2,
@@ -3287,7 +3294,35 @@ async function lookup(opts = {}) {
   // Prefer DB endpoints over external TIGER/ArcGIS for surrounding and water
     // (Shape-based enrichers are skipped to avoid external dependencies)
 
-    // Aggregates: surrounding radius and water district from DB (merge into shape-based objects)
+    // Surrounding tracts list (DB): populate census_tracts and census_tracts_fips
+    primaryTasks.push(scopes.radius ? (async () => {
+      const { lat, lon } = data || {};
+      if (lat != null && lon != null) {
+        const res = await dbTractsWithinRadius(lat, lon, 10);
+        const out = {};
+        if (res && Array.isArray(res.tracts)) {
+          const names = [];
+          const fips = [];
+          const map = {};
+          for (const t of res.tracts) {
+            const f = String(t.fips11 || t.fips || '').trim();
+            const n = String(t.tract || '').trim();
+            if (f) fips.push(f);
+            if (n) names.push(n);
+            if (f && n) map[f] = n;
+          }
+          out.surrounding_10_mile = {
+            census_tracts: Array.from(new Set(names)),
+            census_tracts_fips: Array.from(new Set(fips)),
+            census_tract_map: map,
+          };
+        }
+        return out;
+      }
+      return {};
+    })() : Promise.resolve({}));
+
+    // Aggregates: surrounding radius and water district from DB (merge into objects)
     primaryTasks.push(scopes.radius ? (async () => {
       const { lat, lon } = data || {};
       if (lat != null && lon != null) {
