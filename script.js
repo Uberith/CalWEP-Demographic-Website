@@ -3075,9 +3075,11 @@ function renderResult(address, data, elapsedMs, selections) {
     scopes,
   );
 
+  // Normalize local enviroscreen source: accept either `enviroscreen` or `environment`
+  const localEnv = (data && (data.enviroscreen || data.environment)) || enviroscreen;
   const enviroscreenRow = buildComparisonRow(
     "Environmental Indicators (CalEPA Enviroscreen)",
-    renderEnviroscreenContent(enviroscreen),
+    renderEnviroscreenContent(localEnv),
     renderEnviroscreenContent(s.environment),
     renderEnviroscreenContent(w.environment),
     '<p class="section-description">This section shows environmental and community health indicators from California’s Enviroscreen tool. Results are presented as percentiles, with higher numbers (and darker colors) indicating greater environmental burdens compared to other areas in the state. These measures include factors such as air quality, traffic pollution, and access to safe drinking water.</p><p class="section-description">Staff can use this information to understand potential environmental challenges facing a neighborhood, strengthen grant applications that require equity or environmental justice considerations, and design outreach that addresses local concerns. For example, if an event is planned in an area with a high Enviroscreen percentile, staff may want to highlight programs or benefits related to clean water, pollution reduction, or community health.</p><p class="section-description"><strong>How to Read This</strong><br>Green = Low burden (fewer environmental and health challenges)<br>Yellow/Orange = Moderate burden<br>Red = High burden (greater environmental and health challenges)<br>Percentile score shows how the community compares to others across California.</p>' + renderSourceNotesGrouped('enviroscreen', data._source_log),
