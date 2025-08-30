@@ -175,6 +175,7 @@ h1 {
   display: flex;
   gap: var(--space-3);
   align-items: center;
+  width: 100%;
 }
 
 .selections {
@@ -237,6 +238,27 @@ input[type="text"]:focus {
   outline: none;
   border-color: var(--brand);
   box-shadow: 0 0 0 3px rgba(29, 101, 166, 0.15);
+}
+
+/* Google Places Autocomplete dropdown (legacy widget) */
+.pac-container {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  box-shadow: var(--shadow-elev);
+  z-index: 10000;
+}
+.pac-item {
+  padding: 10px 12px;
+  color: var(--ink);
+  font-size: 14px;
+}
+.pac-item:hover,
+.pac-item-selected {
+  background: var(--accent-bg);
+}
+.pac-matched {
+  color: var(--brand-700);
 }
 
 button {

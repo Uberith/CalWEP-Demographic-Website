@@ -2197,7 +2197,8 @@ function initAutocomplete() {
 
   // Prefer the new PlaceAutocompleteElement when available
   const NewAutocomplete = google.maps.places && google.maps.places.PlaceAutocompleteElement;
-  if (NewAutocomplete) {
+  const USE_NEW_ELEMENT = false; // Temporarily disabled for consistent styling/theme
+  if (USE_NEW_ELEMENT && NewAutocomplete) {
     try {
       const elem = new NewAutocomplete();
       elem.setAttribute('aria-label', input.getAttribute('aria-label') || 'Address search');
@@ -2275,6 +2276,8 @@ function initAutocomplete() {
     }
     const parts = [street.trim(), city, state, zip].filter(Boolean);
     if (parts.length) input.value = parts.join(", ");
+    // Auto-trigger lookup after selection for smoother UX
+    document.getElementById("lookupBtn")?.click();
   });
 
   // Enter triggers lookup
