@@ -461,8 +461,16 @@ function toCensus(url) {
     }
     if (u.hostname === 'geocoding.geo.census.gov') {
       return isDevOrigin()
-        ? `${window.location.origin}/proxy/geocoder${pathAndQuery}`
-        : url; // direct in prod
+        ? `${window.location.origin}/geocoder${pathAndQuery}`
+        : `https://api.calwep.org/geocoder${pathAndQuery}`;
+    }
+    if (u.hostname.endsWith('tigerweb.geo.census.gov')) {
+      const m = u.pathname.match(/\/MapServer\/(.*)$/);
+      const tail = m ? m[1] : '';
+      const p = `/tiger/MapServer/${tail}` + (u.search || '');
+      return isDevOrigin()
+        ? `${window.location.origin}${p}`
+        : `https://api.calwep.org${p}`;
     }
   } catch {}
   return url;
@@ -505,7 +513,14 @@ async function enrichLocation(data = {}) {
     try {
       const u = toCensus(`https://geocoding.geo.census.gov/geocoder/geographies/coordinates?x=${lon}&y=${lat}&benchmark=Public_AR_Current&vintage=Current_Current&format=json`);
       const j = await fetchJsonRetry(u, { retries: 1, timeoutMs: 10000 });
-      const tract = j?.result?.geographies?.["Census Tracts"]?.[0];
+      const geos = j?.result?.geographies || {};
+      let tract = null;
+      for (const [k, arr] of Object.entries(geos)) {
+        if (/census\s*tract/i.test(k) && Array.isArray(arr) && arr.length) {
+          tract = arr[0];
+          break;
+        }
+      }
       const geoid = tract?.GEOID;
       const name = tract?.NAME;
       if (geoid && geoid.length >= 11) {
@@ -525,8 +540,9 @@ async function enrichLocation(data = {}) {
   }
   async function fipsFromTigerWeb(lat, lon) {
     try {
-      const tractUrl =
-        "https://tigerweb.geo.census.gov/arcgis/rest/services/TIGERweb/Tracts_Blocks/MapServer/10/query";
+      const tractUrl = toCensus(
+        "https://tigerweb.geo.census.gov/arcgis/rest/services/TIGERweb/Tracts_Blocks/MapServer/10/query",
+      );
       const params = new URLSearchParams({
         where: "1=1",
         geometry: JSON.stringify({ x: Number(lon), y: Number(lat), spatialReference: { wkid: 4326 } }),
@@ -546,8 +562,9 @@ async function enrichLocation(data = {}) {
       // Also fetch county name from TIGERweb Counties layer (9)
       let countyName = null;
       try {
-        const countyUrl =
-          "https://tigerweb.geo.census.gov/arcgis/rest/services/TIGERweb/Tracts_Blocks/MapServer/9/query";
+        const countyUrl = toCensus(
+          "https://tigerweb.geo.census.gov/arcgis/rest/services/TIGERweb/Tracts_Blocks/MapServer/9/query",
+        );
         const cparams = new URLSearchParams({
           where: "1=1",
           geometry: JSON.stringify({ x: Number(lon), y: Number(lat), spatialReference: { wkid: 4326 } }),
@@ -566,7 +583,7 @@ async function enrichLocation(data = {}) {
       const placeLayers = [7, 8];
       for (const layer of placeLayers) {
         try {
-          const placeUrl = `https://tigerweb.geo.census.gov/arcgis/rest/services/TIGERweb/Tracts_Blocks/MapServer/${layer}/query`;
+          const placeUrl = toCensus(`https://tigerweb.geo.census.gov/arcgis/rest/services/TIGERweb/Tracts_Blocks/MapServer/${layer}/query`);
           const pparams = new URLSearchParams({
             where: "1=1",
             geometry: JSON.stringify({ x: Number(lon), y: Number(lat), spatialReference: { wkid: 4326 } }),
@@ -1656,8 +1673,9 @@ async function enrichSurrounding(data = {}, categories = {}) {
   const existingTracts = Array.isArray(s.census_tracts) ? s.census_tracts.map(String) : [];
   const existingFips = Array.isArray(s.census_tracts_fips) ? s.census_tracts_fips.map(String) : [];
   const existingMap = { ...(s.census_tract_map || {}) };
-  const tractUrl =
-    "https://tigerweb.geo.census.gov/arcgis/rest/services/TIGERweb/Tracts_Blocks/MapServer/10/query" +
+  const tractUrl = toCensus(
+    "https://tigerweb.geo.census.gov/arcgis/rest/services/TIGERweb/Tracts_Blocks/MapServer/10/query",
+  ) +
     `?where=1=1&geometry=${lon},${lat}&geometryType=esriGeometryPoint&inSR=4326&spatialRel=esriSpatialRelIntersects&distance=${radiusMeters}&units=esriSRUnit_Meter&outFields=NAME,GEOID&f=json`;
   tasks.push(
     fetch(tractUrl)
@@ -2047,7 +2065,7 @@ async function enrichEnglishProficiency(data = {}) {
     })();
     const fromTiger = !fromGeocoder ? await (async () => {
       try {
-        const tractUrl = "https://tigerweb.geo.census.gov/arcgis/rest/services/TIGERweb/Tracts_Blocks/MapServer/10/query";
+        const tractUrl = toCensus("https://tigerweb.geo.census.gov/arcgis/rest/services/TIGERweb/Tracts_Blocks/MapServer/10/query");
         const params = new URLSearchParams({
           where: "1=1",
           geometry: JSON.stringify({ x: Number(lon), y: Number(lat), spatialReference: { wkid: 4326 } }),
@@ -2197,6 +2215,59 @@ function initAutocomplete() {
   const input = document.getElementById("autocomplete");
   if (!input || typeof google === "undefined" || !google.maps) return;
 
+  // Prefer the new PlaceAutocompleteElement when available
+  const NewAutocomplete = google.maps.places && google.maps.places.PlaceAutocompleteElement;
+  if (NewAutocomplete) {
+    try {
+      const elem = new NewAutocomplete();
+      elem.setAttribute('aria-label', input.getAttribute('aria-label') || 'Address search');
+      elem.placeholder = input.getAttribute('placeholder') || '';
+      // Restrict to US addresses and request minimal fields
+      if (elem.setComponentRestrictions) elem.setComponentRestrictions({ country: ['us'] });
+      if (elem.setFields) elem.setFields(["address_components", "formatted_address"]);
+      // Replace input in DOM to preserve layout/styles
+      input.parentNode.replaceChild(elem, input);
+
+      const handle = () => {
+        let place = null;
+        if (typeof elem.getPlace === 'function') place = elem.getPlace();
+        // Fallback: try to use value if no structured place
+        const fa = place && place.formatted_address;
+        const ac = place && place.address_components;
+        let street = "", city = "", state = "", zip = "";
+        for (const comp of ac || []) {
+          const t = comp.types || [];
+          if (t.includes("street_number")) street = comp.long_name + " ";
+          else if (t.includes("route")) street += comp.long_name;
+          else if (t.includes("locality")) city = comp.long_name;
+          else if (t.includes("administrative_area_level_1")) state = comp.short_name;
+          else if (t.includes("postal_code")) zip = comp.long_name;
+        }
+        if (!zip && fa) {
+          const m = fa.match(/\b\d{5}(?:-\d{4})?\b/);
+          if (m) zip = m[0];
+        }
+        const finalVal = (street || city || state || zip) ? [street.trim(), city, state, zip].filter(Boolean).join(', ') : (fa || elem.value || '');
+        // Trigger lookup immediately
+        const field = document.getElementById('autocomplete');
+        if (field) field.value = finalVal;
+        document.getElementById("lookupBtn")?.click();
+      };
+      // Try both common event names for the new element
+      elem.addEventListener('placechange', handle);
+      elem.addEventListener('gmp-placeselect', handle);
+      // Also submit on Enter
+      elem.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') {
+          e.preventDefault();
+          handle();
+        }
+      });
+      return;
+    } catch {}
+  }
+
+  // Fallback to legacy Autocomplete widget
   autocomplete = new google.maps.places.Autocomplete(input, {
     types: ["address"],
     componentRestrictions: { country: "us" },
@@ -3286,8 +3357,10 @@ function bindExpanders() {
 
 function loadGoogleMaps() {
   const script = document.createElement("script");
-  script.src = `https://maps.googleapis.com/maps/api/js?key=${GOOGLE_MAPS_KEY}&libraries=places&callback=initAutocomplete`;
+  // Add loading=async for best-practice and keep defer to avoid blocking
+  script.src = `https://maps.googleapis.com/maps/api/js?key=${GOOGLE_MAPS_KEY}&libraries=places&loading=async&callback=initAutocomplete`;
   script.async = true;
+  script.defer = true;
   document.head.appendChild(script);
 }
 
