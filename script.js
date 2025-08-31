@@ -3039,194 +3039,8 @@ function renderResultOld(address, data, elapsedMs) {
       </span>
     </article>
   `;
-
-  // Initialize geometry maps for surrounding and water district
-  try { initGeometryMaps(data, scopes); } catch {}
 }
 
-// ---------- Inline Geometry Maps (Leaflet) ----------
-let LEAFLET_LOADING = null;
-function loadLeafletAssets() {
-  if (window.L) return Promise.resolve();
-  if (LEAFLET_LOADING) return LEAFLET_LOADING;
-  LEAFLET_LOADING = new Promise((resolve, reject) => {
-    try {
-      // CSS
-      if (!document.querySelector('link[data-leaflet]')) {
-        const link = document.createElement('link');
-        link.rel = 'stylesheet';
-        link.href = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.css';
-        link.integrity = 'sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=';
-        link.crossOrigin = '';
-        link.setAttribute('data-leaflet', '1');
-        document.head.appendChild(link);
-      }
-      // JS
-      const script = document.createElement('script');
-      script.src = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.js';
-      script.integrity = 'sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=';
-      script.crossOrigin = '';
-      script.defer = true;
-      script.onload = () => resolve();
-      script.onerror = (e) => reject(new Error('Failed to load Leaflet'));
-      document.head.appendChild(script);
-    } catch (e) {
-      reject(e);
-    }
-  });
-  return LEAFLET_LOADING;
-}
-
-function drawGeoJSONOnMap(elId, geo, styleOpts = {}) {
-  const map = L.map(elId, { zoomControl: true, attributionControl: true });
-  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-    maxZoom: 19,
-    attribution: '&copy; OpenStreetMap contributors'
-  }).addTo(map);
-  const layer = L.geoJSON(geo, {
-    style: Object.assign({ color: '#1d65a6', weight: 2, fillOpacity: 0.15 }, styleOpts),
-  }).addTo(map);
-  try {
-    const b = layer.getBounds();
-    if (b.isValid()) map.fitBounds(b, { padding: [8, 8] });
-  } catch {}
-  try { setTimeout(() => map.invalidateSize(), 0); } catch {}
-  return true;
-}
-
-async function renderGeoMapFromEndpoint(elId, url, styleOpts = {}) {
-  const el = document.getElementById(elId);
-  if (!el) return;
-  try {
-    await loadLeafletAssets();
-    const geo = await fetchJsonRetryL(url, 'location', { retries: 1, timeoutMs: 20000 });
-    if (!geo) return false;
-    return drawGeoJSONOnMap(elId, geo, styleOpts);
-  } catch {
-    return false;
-  }
-}
-
-function initGeometryMaps(data = {}, scopes = { tract: true, radius: true, water: true }) {
-  const { lat, lon } = data || {};
-  if (lat == null || lon == null) return;
-  // Census tract polygon (if local scope is shown)
-  if (scopes.tract && document.getElementById('geom-map-tract')) {
-    renderTractGeometry('geom-map-tract', lat, lon);
-  }
-  // Surrounding 10-mile circle
-  if (scopes.radius && document.getElementById('geom-map-surrounding')) {
-    const sUrl = buildApiUrl('/v1/surrounding/geometry', { lat: String(lat), lon: String(lon), miles: '10', segments: '96' });
-    renderSurroundingGeometry('geom-map-surrounding', sUrl, lat, lon, 10);
-  }
-  // Water district polygon (simplified for performance)
-  if (scopes.water && document.getElementById('geom-map-water')) {
-    const wUrl = buildApiUrl('/v1/water-district/geometry', { lat: String(lat), lon: String(lon), simplify: '0.0005' });
-    renderWaterGeometry('geom-map-water', wUrl, lat, lon);
-  }
-}
-
-async function renderTractGeometry(elId, lat, lon) {
-  const el = document.getElementById(elId);
-  if (!el) return;
-  await loadLeafletAssets();
-  // Try CalWEP API first
-  const apiUrl = buildApiUrl('/v1/tract/geometry', { lat: String(lat), lon: String(lon), simplify: '0.0005' });
-  try {
-    const geo = await fetchJsonRetryL(apiUrl, 'location', { retries: 1, timeoutMs: 20000 });
-    if (geo) { drawGeoJSONOnMap(elId, geo, { color: '#ef4444' }); return; }
-  } catch {}
-  // Fallback: TIGERweb polygon
-  try {
-    const base = toCensus('https://tigerweb.geo.census.gov/arcgis/rest/services/TIGERweb/Tracts_Blocks/MapServer/10/query');
-    const params = new URLSearchParams({
-      where: '1=1',
-      geometry: JSON.stringify({ x: Number(lon), y: Number(lat), spatialReference: { wkid: 4326 } }),
-      geometryType: 'esriGeometryPoint',
-      inSR: '4326',
-      spatialRel: 'esriSpatialRelIntersects',
-      outFields: 'NAME,GEOID',
-      returnGeometry: 'true',
-      outSR: '4326',
-      f: 'json',
-    });
-    const j = await fetchJsonRetryL(`${base}?${params.toString()}`, 'location', { retries: 1, timeoutMs: 20000 });
-    const rings = j?.features?.[0]?.geometry?.rings;
-    if (!Array.isArray(rings) || !rings.length) return;
-    // Convert ESRI rings -> GeoJSON Polygon
-    const coords = rings.map((ring) => ring.map(([x, y]) => [x, y]));
-    const geo = { type: 'Feature', properties: {}, geometry: { type: 'Polygon', coordinates: coords } };
-    drawGeoJSONOnMap(elId, geo, { color: '#ef4444' });
-  } catch {}
-}
-
-async function renderSurroundingGeometry(elId, apiUrl, lat, lon, miles) {
-  const ok = await renderGeoMapFromEndpoint(elId, apiUrl, { color: '#1d65a6' });
-  if (ok) return;
-  try {
-    await loadLeafletAssets();
-    // Fallback: generate circle polygon
-    const R = 6371008.8; // Earth radius (m)
-    const meters = miles * 1609.34;
-    const segments = 96;
-    const coords = [];
-    const latRad = (lat * Math.PI) / 180;
-    const lonRad = (lon * Math.PI) / 180;
-    for (let i = 0; i <= segments; i++) {
-      const theta = (i / segments) * 2 * Math.PI;
-      const dByR = meters / R;
-      const lat2 = Math.asin(
-        Math.sin(latRad) * Math.cos(dByR) +
-          Math.cos(latRad) * Math.sin(dByR) * Math.cos(theta),
-      );
-      const lon2 =
-        lonRad +
-        Math.atan2(
-          Math.sin(theta) * Math.sin(dByR) * Math.cos(latRad),
-          Math.cos(dByR) - Math.sin(latRad) * Math.sin(lat2),
-        );
-      coords.push([(lon2 * 180) / Math.PI, (lat2 * 180) / Math.PI]);
-    }
-    const geo = { type: 'Feature', properties: {}, geometry: { type: 'Polygon', coordinates: [coords] } };
-    drawGeoJSONOnMap(elId, geo, { color: '#1d65a6' });
-  } catch {}
-}
-
-async function renderWaterGeometry(elId, apiUrl, lat, lon) {
-  const ok = await renderGeoMapFromEndpoint(elId, apiUrl, { color: '#0f766e' });
-  if (ok) return;
-  try {
-    await loadLeafletAssets();
-    // Fallback: State Water Board PWS boundaries (FeatureServer/0)
-    const base = 'https://services.arcgis.com/8DFNJhY7CUN8E0bX/ArcGIS/rest/services/Public_Water_System_Boundaries/FeatureServer/0/query';
-    const params = new URLSearchParams({
-      geometry: JSON.stringify({ x: Number(lon), y: Number(lat), spatialReference: { wkid: 4326 } }),
-      geometryType: 'esriGeometryPoint',
-      inSR: '4326',
-      spatialRel: 'esriSpatialRelIntersects',
-      outFields: 'PWS_NAME',
-      returnGeometry: 'true',
-      outSR: '4326',
-      f: 'json',
-    });
-    const j = await fetchJsonRetry(`${base}?${params.toString()}`, { retries: 1, timeoutMs: 20000 });
-    const geom = j?.features?.[0]?.geometry;
-    if (!geom) return;
-    // geometry can be polygon (rings) or multipolygon (rings array of arrays)
-    const toCoords = (rings) => rings.map((ring) => ring.map(([x, y]) => [x, y]));
-    let coordinates = [];
-    if (Array.isArray(geom?.rings)) {
-      coordinates = toCoords(geom.rings);
-      const geo = { type: 'Feature', properties: {}, geometry: { type: 'Polygon', coordinates } };
-      drawGeoJSONOnMap(elId, geo, { color: '#0f766e' });
-    } else if (Array.isArray(geom)) {
-      // unlikely path; keep as best-effort
-      coordinates = geom.flatMap((g) => toCoords(g.rings || []));
-      const geo = { type: 'Feature', properties: {}, geometry: { type: 'MultiPolygon', coordinates } };
-      drawGeoJSONOnMap(elId, geo, { color: '#0f766e' });
-    }
-  } catch {}
-}
 
 // New row-based renderer
 function renderResult(address, data, elapsedMs, selections) {
@@ -3320,7 +3134,6 @@ function renderResult(address, data, elapsedMs, selections) {
       <div class="key">Coordinates</div><div class="val">${coords}</div>
     </div>
     ${mapImgHtml}
-    <div id="geom-map-tract" class="geom-map" aria-label="Census tract map"></div>
   `;
   function renderTractList(arr, id) {
     if (!Array.isArray(arr) || !arr.length) return '—';
@@ -3339,7 +3152,6 @@ function renderResult(address, data, elapsedMs, selections) {
       <div class="key">Census tracts</div><div class="val">${renderTractList(sTracts, 's')}</div>
       <div class="key">FIPS</div><div class="val">${sFipsArr.length ? renderTractList(sFipsArr, 'sF') : '—'}</div>
     </div>
-    <div id="geom-map-surrounding" class="geom-map" aria-label="10-mile surrounding area map"></div>
   `;
   const locDistrict = `
     <div class="kv">
@@ -3349,7 +3161,6 @@ function renderResult(address, data, elapsedMs, selections) {
       <div class="key">Census tracts</div><div class="val">${renderTractList(wTracts, 'w')}</div>
       <div class="key">FIPS</div><div class="val">${wFipsArr.length ? renderTractList(wFipsArr, 'wF') : '—'}</div>
     </div>
-    <div id="geom-map-water" class="geom-map" aria-label="Water district map"></div>
   `;
   const locDescBase = '<p class="section-description">This section lists basic geographic information for the census tract, surrounding 10&#8209;mile area, and water district, such as city, ZIP code, county, and coordinates.</p>' + renderSourceNotesGrouped('location', data._source_log);
   const fallbackName = geocode_fallback_source === 'tigerweb' ? 'Census TIGERweb' : (geocode_fallback_source === 'fcc' ? 'FCC Block API' : 'Census Geocoder');
@@ -3719,6 +3530,8 @@ async function lookup(opts = {}) {
     })());
     // Populate surrounding (tract labels, counties, cities, FIPS) using new FIPS endpoint
     primaryTasks.push(enrichSurrounding(data, categories));
+    // Populate water district (tract labels, counties, cities, FIPS) using water FIPS endpoint
+    primaryTasks.push(enrichWaterDistrict(data, address, categories));
 
   // Prefer DB endpoints over external TIGER/ArcGIS for surrounding and water
     // (Shape-based enrichers are skipped to avoid external dependencies)
