@@ -636,7 +636,11 @@ async function listFipsSurrounding(lat, lon, miles = 10) {
   if (lat == null || lon == null) return [];
   const url = buildApiUrl('/v1/fips/surrounding', { lat: String(lat), lon: String(lon), miles: String(miles) });
   const j = await fetchJsonRetryL(url, 'location', { retries: 1, timeoutMs: 15000 }).catch(() => null);
-  // Back-compat: older shape returned { fips: [] }
+  // New shape: { tracts: [{ fips, ...}] }
+  if (Array.isArray(j?.tracts)) {
+    return j.tracts.map((r) => String(r?.fips || '')).filter((s) => /^\d{11}$/.test(s));
+  }
+  // Back-compat: older shape returned { fips: [] } or array of objects
   const arr = Array.isArray(j?.fips) ? j.fips.map(String) : Array.isArray(j) ? j.map((o) => String(o?.fips)).filter(Boolean) : [];
   return arr.filter((s) => /^\d{11}$/.test(s));
 }
@@ -3249,6 +3253,9 @@ function renderResult(address, data, elapsedMs, selections) {
   const sCities = Array.isArray(s.cities)
     ? s.cities.join(", ")
     : escapeHTML(s.cities) || "—";
+  const sCounties = Array.isArray(s.counties) && s.counties.length
+    ? Array.from(new Set(s.counties.map(String))).join(', ')
+    : (s.county ? escapeHTML(String(s.county)) : '—');
   const wTracts = Array.isArray(w.census_tracts)
     ? w.census_tracts.map(cleanTractName)
     : [];
@@ -3280,6 +3287,7 @@ function renderResult(address, data, elapsedMs, selections) {
   const locSurround = `
     <div class="kv">
       <div class="key">Cities</div><div class="val">${sCities}</div>
+      <div class="key">Counties</div><div class="val">${sCounties}</div>
       <div class="key">Census tracts</div><div class="val">${renderTractList(sTracts, 's')}</div>
       <div class="key">FIPS</div><div class="val">${sFipsArr.length ? renderTractList(sFipsArr, 'sF') : '—'}</div>
     </div>
