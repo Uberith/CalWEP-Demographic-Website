@@ -636,8 +636,43 @@ async function listFipsSurrounding(lat, lon, miles = 10) {
   if (lat == null || lon == null) return [];
   const url = buildApiUrl('/v1/fips/surrounding', { lat: String(lat), lon: String(lon), miles: String(miles) });
   const j = await fetchJsonRetryL(url, 'location', { retries: 1, timeoutMs: 15000 }).catch(() => null);
-  const arr = Array.isArray(j?.fips) ? j.fips.map(String) : [];
+  // Back-compat: older shape returned { fips: [] }
+  const arr = Array.isArray(j?.fips) ? j.fips.map(String) : Array.isArray(j) ? j.map((o) => String(o?.fips)).filter(Boolean) : [];
   return arr.filter((s) => /^\d{11}$/.test(s));
+}
+
+async function fetchSurroundingMeta(lat, lon, miles = 10, includeCity = true) {
+  if (lat == null || lon == null) return [];
+  const url = buildApiUrl('/v1/fips/surrounding', { lat: String(lat), lon: String(lon), miles: String(miles), include_city: includeCity ? 'true' : undefined });
+  const j = await fetchJsonRetryL(url, 'location', { retries: 1, timeoutMs: 20000 }).catch(() => null);
+  // New shape: { count, tracts: [{ fips, tract, county, city }] }
+  if (Array.isArray(j?.tracts)) {
+    return j.tracts.map((r) => ({
+      fips: r?.fips ? String(r.fips) : null,
+      tract: r?.tract != null ? String(r.tract) : null,
+      county: r?.county != null ? String(r.county) : null,
+      city: r?.city != null ? String(r.city) : null,
+    })).filter((r) => /^\d{11}$/.test(r.fips || ''));
+  }
+  if (Array.isArray(j)) {
+    return j.map((r) => ({
+      fips: r?.fips ? String(r.fips) : null,
+      tract: r?.tract != null ? String(r.tract) : null,
+      county: r?.county != null ? String(r.county) : null,
+      city: r?.city != null ? String(r.city) : null,
+    })).filter((r) => /^\d{11}$/.test(r.fips || ''));
+  }
+  // Back-compat minimal shape { fips: [] }
+  const arr = Array.isArray(j?.fips) ? j.fips.map(String) : [];
+  return arr.filter((s) => /^\d{11}$/.test(s)).map((f) => ({ fips: f, tract: null, county: null, city: null }));
+}
+
+async function fetchCountyFromSurrounding(lat, lon) {
+  const rows = await fetchSurroundingMeta(lat, lon, 0.1, false).catch(() => []);
+  for (const r of rows) {
+    if (r && r.county) return String(r.county);
+  }
+  return null;
 }
 async function listFipsWaterDistrict(lat, lon) {
   if (lat == null || lon == null) return [];
@@ -924,6 +959,13 @@ async function enrichLocation(data = {}) {
     })());
   }
   if (tasks.length) await Promise.all(tasks);
+  // If county still missing, prefer CalWEP FIPS meta (fast, DB-cached)
+  if (!county && lat != null && lon != null) {
+    try {
+      const c = await fetchCountyFromSurrounding(lat, lon);
+      if (c) county = c;
+    } catch {}
+  }
   // Final county fallback using TIGERweb Counties layer if still missing
   if (!county && lat != null && lon != null) {
     try {
@@ -1945,62 +1987,35 @@ async function enrichRegionHardships(data = {}) {
 async function enrichSurrounding(data = {}, categories = {}) {
   const { lat, lon, census_tract, surrounding_10_mile } = data || {};
   if (lat == null || lon == null) return data;
-  const radiusMeters = 1609.34 * 10; // 10 miles
   const s = { ...(surrounding_10_mile || {}) };
-  const tasks = [];
-  if (!Array.isArray(s.cities) || !s.cities.length) {
-    const query = `[out:json];(node[place=city](around:${radiusMeters},${lat},${lon});node[place=town](around:${radiusMeters},${lat},${lon}););out;`;
-    const url =
-      "https://overpass-api.de/api/interpreter?data=" +
-      encodeURIComponent(query);
-    tasks.push(
-      fetch(url)
-        .then((r) => r.json())
-        .then((j) => {
-          const names = (j.elements || [])
-            .map((e) => e.tags?.name)
-            .filter(Boolean);
-          s.cities = Array.from(new Set(names)).slice(0, 10);
-        })
-        .catch(() => {}),
-    );
+  // Prefer the new FIPS meta endpoint which returns tract labels, county, and optional city
+  try {
+    const rows = await fetchSurroundingMeta(lat, lon, 10, true);
+    const fips = [];
+    const names = [];
+    const map = {};
+    const cities = new Set(Array.isArray(s.cities) ? s.cities.map(String) : []);
+    const counties = new Set(Array.isArray(s.counties) ? s.counties.map(String) : []);
+    for (const r of rows) {
+      const f = String(r.fips);
+      if (/^\d{11}$/.test(f)) fips.push(f);
+      const label = r.tract != null ? String(r.tract) : null;
+      if (label) {
+        names.push(label);
+        map[f] = label;
+      }
+      if (r.city) cities.add(String(r.city));
+      if (r.county) counties.add(String(r.county));
+    }
+    if (fips.length) s.census_tracts_fips = Array.from(new Set([...(s.census_tracts_fips || []), ...fips]));
+    if (names.length) s.census_tracts = Array.from(new Set([...(s.census_tracts || []), ...names]));
+    if (Object.keys(map).length) s.census_tract_map = { ...(s.census_tract_map || {}), ...map };
+    s.cities = Array.from(cities).slice(0, 10);
+    s.counties = Array.from(counties);
+  } catch {
+    // Keep previous best-effort values if endpoint fails
   }
-  const existingTracts = Array.isArray(s.census_tracts) ? s.census_tracts.map(String) : [];
-  const existingFips = Array.isArray(s.census_tracts_fips) ? s.census_tracts_fips.map(String) : [];
-  const existingMap = { ...(s.census_tract_map || {}) };
-  const tractUrl = toCensus(
-    "https://tigerweb.geo.census.gov/arcgis/rest/services/TIGERweb/Tracts_Blocks/MapServer/10/query",
-  ) +
-    `?where=1=1&geometry=${lon},${lat}&geometryType=esriGeometryPoint&inSR=4326&spatialRel=esriSpatialRelIntersects&distance=${radiusMeters}&units=esriSRUnit_Meter&outFields=NAME,GEOID&f=json`;
-  tasks.push(
-    fetch(tractUrl)
-      .then((r) => r.json())
-      .then((j) => {
-        const features = j.features || [];
-        const names = [];
-        const fips = [];
-        const map = {};
-        for (const f of features) {
-          const attrs = f.attributes || {};
-          let name = null;
-          if (attrs.NAME) {
-            name = attrs.NAME.replace(/^Census Tract\s+/i, "");
-            names.push(name);
-          }
-          if (attrs.GEOID) {
-            const geoid = String(attrs.GEOID);
-            fips.push(geoid);
-            if (name) map[geoid] = name;
-          }
-        }
-        s.census_tracts = Array.from(new Set([...existingTracts, ...names]));
-        s.census_tracts_fips = Array.from(new Set([...existingFips, ...fips]));
-        s.census_tract_map = { ...existingMap, ...map };
-      })
-      .catch(() => {}),
-  );
-  if (tasks.length) await Promise.all(tasks);
-  if (!Array.isArray(s.cities)) s.cities = [];
+  // Always include the local tract in the lists if known
   const tractSet = new Set(Array.isArray(s.census_tracts) ? s.census_tracts : []);
   if (census_tract) tractSet.add(String(census_tract));
   s.census_tracts = Array.from(tractSet);
