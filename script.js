@@ -2582,14 +2582,13 @@ function renderLoading(address, selections) {
   const makeRow = (title) =>
     buildComparisonRow(title, loadingCell, loadingCell, loadingCell, "", scopes);
   rows.push(makeRow("Location Summary"));
+  // Order to match UI categories: Demographics, Language, Housing & Education, Enviroscreen, DAC, Race & Ethnicity, Alerts
   if (categories.demographics) rows.push(makeRow("Population &amp; Income"));
   if (categories.language) rows.push(makeRow("Language"));
-  if (categories.race) rows.push(makeRow("Race &amp; Ethnicity"));
   if (categories.housing) rows.push(makeRow("Housing &amp; Education"));
+  if (categories.enviroscreen) rows.push(makeRow("Environmental Indicators"));
   if (categories.dac) rows.push(makeRow("Disadvantaged Community (DAC) Status"));
-  if (categories.enviroscreen) {
-    rows.push(makeRow("Environmental Indicators"));
-  }
+  if (categories.race) rows.push(makeRow("Race &amp; Ethnicity"));
   if (categories.alerts)
     rows.push(
       `<section class="section-block"><h3 class="section-header">Active Alerts</h3><p class="note">Loading…</p></section>`,
@@ -3375,14 +3374,13 @@ function renderResult(address, data, elapsedMs, selections) {
     </section>
   `;
   const rows = [locationRow];
+  // Order: Demographics, Language, Housing & Education, Enviroscreen, DAC, Race & Ethnicity, Alerts
   if (categories.demographics) rows.push(populationRow);
   if (categories.language) rows.push(languageRow);
-  if (categories.race) rows.push(raceRow);
   if (categories.housing) rows.push(housingRow);
+  if (categories.enviroscreen) rows.push(enviroscreenRow);
   if (categories.dac) rows.push(dacRow);
-  if (categories.enviroscreen) {
-    rows.push(enviroscreenRow);
-  }
+  if (categories.race) rows.push(raceRow);
   document.getElementById("result").innerHTML = `
     <article class="card">
       <div class="card__header">
