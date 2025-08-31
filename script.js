@@ -3011,6 +3011,10 @@ async function renderGeoMapFromEndpoint(elId, url, styleOpts = {}) {
 function initGeometryMaps(data = {}, scopes = { tract: true, radius: true, water: true }) {
   const { lat, lon } = data || {};
   if (lat == null || lon == null) return;
+  // Census tract polygon (if local scope is shown)
+  if (scopes.tract && document.getElementById('geom-map-tract')) {
+    renderTractGeometry('geom-map-tract', lat, lon);
+  }
   // Surrounding 10-mile circle
   if (scopes.radius && document.getElementById('geom-map-surrounding')) {
     const sUrl = buildApiUrl('/v1/surrounding/geometry', { lat: String(lat), lon: String(lon), miles: '10', segments: '96' });
@@ -3021,6 +3025,55 @@ function initGeometryMaps(data = {}, scopes = { tract: true, radius: true, water
     const wUrl = buildApiUrl('/v1/water-district/geometry', { lat: String(lat), lon: String(lon), simplify: '0.0005' });
     renderGeoMapFromEndpoint('geom-map-water', wUrl, { color: '#0f766e' });
   }
+}
+
+async function renderTractGeometry(elId, lat, lon) {
+  const el = document.getElementById(elId);
+  if (!el) return;
+  await loadLeafletAssets();
+  // Try CalWEP API first
+  const apiUrl = buildApiUrl('/v1/tract/geometry', { lat: String(lat), lon: String(lon), simplify: '0.0005' });
+  try {
+    const geo = await fetchJsonRetryL(apiUrl, 'location', { retries: 1, timeoutMs: 20000 });
+    if (geo) {
+      const map = L.map(elId, { zoomControl: true, attributionControl: true });
+      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        maxZoom: 19,
+        attribution: '&copy; OpenStreetMap contributors'
+      }).addTo(map);
+      const layer = L.geoJSON(geo, { style: { color: '#ef4444', weight: 2, fillOpacity: 0.15 } }).addTo(map);
+      try { const b = layer.getBounds(); if (b.isValid()) map.fitBounds(b, { padding: [8,8] }); } catch {}
+      return;
+    }
+  } catch {}
+  // Fallback: TIGERweb polygon
+  try {
+    const base = toCensus('https://tigerweb.geo.census.gov/arcgis/rest/services/TIGERweb/Tracts_Blocks/MapServer/10/query');
+    const params = new URLSearchParams({
+      where: '1=1',
+      geometry: JSON.stringify({ x: Number(lon), y: Number(lat), spatialReference: { wkid: 4326 } }),
+      geometryType: 'esriGeometryPoint',
+      inSR: '4326',
+      spatialRel: 'esriSpatialRelIntersects',
+      outFields: 'NAME,GEOID',
+      returnGeometry: 'true',
+      outSR: '4326',
+      f: 'json',
+    });
+    const j = await fetchJsonRetryL(`${base}?${params.toString()}`, 'location', { retries: 1, timeoutMs: 20000 });
+    const rings = j?.features?.[0]?.geometry?.rings;
+    if (!Array.isArray(rings) || !rings.length) return;
+    // Convert ESRI rings -> GeoJSON Polygon
+    const coords = rings.map((ring) => ring.map(([x, y]) => [x, y]));
+    const geo = { type: 'Feature', properties: {}, geometry: { type: 'Polygon', coordinates: coords } };
+    const map = L.map(elId, { zoomControl: true, attributionControl: true });
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      maxZoom: 19,
+      attribution: '&copy; OpenStreetMap contributors'
+    }).addTo(map);
+    const layer = L.geoJSON(geo, { style: { color: '#ef4444', weight: 2, fillOpacity: 0.15 } }).addTo(map);
+    try { const b = layer.getBounds(); if (b.isValid()) map.fitBounds(b, { padding: [8,8] }); } catch {}
+  } catch {}
 }
 
 // New row-based renderer
@@ -3109,6 +3162,7 @@ function renderResult(address, data, elapsedMs, selections) {
       <div class="key">Coordinates</div><div class="val">${coords}</div>
     </div>
     ${mapImgHtml}
+    <div id="geom-map-tract" class="geom-map" aria-label="Census tract map"></div>
   `;
   function renderTractList(arr, id) {
     if (!Array.isArray(arr) || !arr.length) return '—';
