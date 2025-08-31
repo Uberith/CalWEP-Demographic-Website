@@ -282,6 +282,16 @@ function cleanTractName(value) {
   return String(value).replace(/\bCensus\s*Tract\b\s*/gi, "").trim();
 }
 
+// Convert 11-digit tract FIPS to a compact label like 87.10
+function fipsToTractLabel(fips11) {
+  const f = String(fips11 || '').replace(/[^0-9]/g, '').padStart(11, '0');
+  if (f.length !== 11) return String(fips11 || '');
+  const tract6 = f.slice(5);
+  const left = String(Number(tract6.slice(0, 4))); // strip leading zeros
+  const right = tract6.slice(4);
+  return right === '00' ? left : `${left}.${right}`;
+}
+
 // Normalize CalEnviroScreen payloads to the renderer's expected shape
 function normalizeEnviroscreenData(data) {
   if (!data || typeof data !== 'object') return null;
@@ -3340,7 +3350,7 @@ function renderResult(address, data, elapsedMs, selections) {
     scopes,
   );
 
-  const dacCallout = (status, tracts, popPct, tractPct) => {
+  const dacCallout = (status, tracts, popPct, tractPct, fipsList, idPrefix) => {
     const hasRegional = Number.isFinite(popPct) || Number.isFinite(tractPct) || Array.isArray(tracts);
     let isMajority = !!status;
     if (hasRegional) {
@@ -3369,12 +3379,24 @@ function renderResult(address, data, elapsedMs, selections) {
       stats.push(`<li><strong>${fmtPct(tractPct)}</strong> of tracts are DAC</li>`);
     if (stats.length) lines.push(`<ul class="dac-stats">${stats.join("")}</ul>`);
 
-    if (Array.isArray(tracts) && tracts.length)
+    // Show DAC tracts with FIPS and a More/Less toggle if long
+    if (Array.isArray(fipsList) && fipsList.length) {
+      const pairs = fipsList.map((f, i) => {
+        const label = Array.isArray(tracts) && tracts[i] ? String(tracts[i]) : fipsToTractLabel(f);
+        return `${escapeHTML(label)} — ${escapeHTML(String(f))}`;
+      });
+      const maxShow = 6;
+      const full = pairs.join(", ");
+      const short = pairs.length > maxShow ? pairs.slice(0, maxShow).join(", ") + `, +${pairs.length - maxShow} more` : full;
+      const toggleId = `${idPrefix}-dac`;
       lines.push(
-        `<div class="dac-tracts">Tracts ${tracts
-          .map((t) => escapeHTML(t))
-          .join(", ")}</div>`,
+        `<div class="dac-tracts">DAC tracts: <span id="${toggleId}-tracts">${short}</span>${
+          pairs.length > maxShow
+            ? ` <button class="toggle-tracts" data-expand="${toggleId}" data-full="${escapeHTML(full)}" data-short="${escapeHTML(short)}">More…</button>`
+            : ""
+        }</div>`,
       );
+    }
 
     return `<div class="callout" style="border-left-color:${border}">${lines.join("")}</div>`;
   };
@@ -3382,8 +3404,8 @@ function renderResult(address, data, elapsedMs, selections) {
   const dacRow = buildComparisonRow(
     "Disadvantaged Community (DAC) Status",
     dacCallout(dac_status),
-    dacCallout(null, s.dac_tracts, s.dac_population_pct, s.dac_tracts_pct),
-    dacCallout(null, w.dac_tracts, w.dac_population_pct, w.dac_tracts_pct),
+    dacCallout(null, s.dac_tracts, s.dac_population_pct, s.dac_tracts_pct, s.dac_tracts_fips, 'surrounding'),
+    dacCallout(null, w.dac_tracts, w.dac_population_pct, w.dac_tracts_pct, w.dac_tracts_fips, 'water'),
     '<p class="section-description">This section summarizes Disadvantaged Community (DAC) status. For the selected census tract, we show whether the tract itself is designated DAC. For the 10‑mile radius and the water district, we show whether the region is <strong>Majority DAC</strong>, which means more than 50% of the population in the included tracts lives in DAC tracts. We also show the share of tracts that are DAC to provide additional context.</p>' + renderSourceNotesGrouped('dac', data._source_log),
     scopes,
   );
@@ -3704,19 +3726,30 @@ async function lookup(opts = {}) {
         if (!sFips.length) sFips = await listFipsSurrounding(data.lat, data.lon, 10);
         const dacParams = sFips.length ? { fips: sFips.join(',') } : { lat: String(data.lat), lon: String(data.lon), miles: '10' };
         const dac = await fetchJsonRetryL(buildApiUrl('/v1/dac/surrounding', dacParams), 'dac', { retries: 1, timeoutMs: 20000 }).catch(() => ({}));
-        if (dac && typeof dac === 'object') {
-          const patch = {};
-          const share = Number(dac.share_dac);
-          if (Number.isFinite(share)) patch.dac_population_pct = share <= 1 ? share * 100 : share;
-          const shareTracts = Number(dac.share_tracts);
-          if (Number.isFinite(shareTracts)) patch.dac_tracts_pct = shareTracts <= 1 ? shareTracts * 100 : shareTracts;
-          const dCount = Number(dac.tracts_dac ?? dac.count_dac);
-          const tCount = Number(dac.tracts_total ?? dac.total_tracts ?? (Array.isArray(s2.census_tracts_fips) ? s2.census_tracts_fips.length : NaN));
-          if (!Number.isFinite(patch.dac_tracts_pct) && Number.isFinite(dCount) && Number.isFinite(tCount) && tCount > 0) {
-            patch.dac_tracts_pct = (dCount / tCount) * 100;
-          }
-          if (Object.keys(patch).length) out.surrounding_10_mile = { ...(s2 || {}), ...patch };
-        }
+    if (dac && typeof dac === 'object') {
+      const patch = {};
+      const share = Number(dac.share_dac);
+      if (Number.isFinite(share)) patch.dac_population_pct = share <= 1 ? share * 100 : share;
+      const shareTracts = Number(dac.share_tracts);
+      if (Number.isFinite(shareTracts)) patch.dac_tracts_pct = shareTracts <= 1 ? shareTracts * 100 : shareTracts;
+      // Capture DAC tracts list (FIPS) if provided
+      const list = (() => {
+        const cands = [dac.tracts_dac, dac.dac_tracts, dac.dac_fips, dac.tracts, dac.fips_dac];
+        for (const v of cands) if (Array.isArray(v) && v.length) return v.map(String);
+        return [];
+      })().filter((x) => /^\d{11}$/.test(x));
+      if (list.length) {
+        patch.dac_tracts_fips = Array.from(new Set(list));
+        const map = (s2 && s2.census_tract_map) || {};
+        patch.dac_tracts = patch.dac_tracts_fips.map((f) => map[f] || fipsToTractLabel(f));
+      }
+      const dCount = Number(dac.tracts_dac ?? dac.count_dac);
+      const tCount = Number(dac.tracts_total ?? dac.total_tracts ?? (Array.isArray(s2.census_tracts_fips) ? s2.census_tracts_fips.length : NaN));
+      if (!Number.isFinite(patch.dac_tracts_pct) && Number.isFinite(dCount) && Number.isFinite(tCount) && tCount > 0) {
+        patch.dac_tracts_pct = (dCount / tCount) * 100;
+      }
+      if (Object.keys(patch).length) out.surrounding_10_mile = { ...(s2 || {}), ...patch };
+    }
       }
       if (data.lat != null && data.lon != null && scopes.water) {
         const w2 = data.water_district || {};
@@ -3724,19 +3757,30 @@ async function lookup(opts = {}) {
         if (!wf.length) wf = await listFipsWaterDistrict(data.lat, data.lon);
         const dacParams = wf.length ? { fips: wf.join(',') } : { lat: String(data.lat), lon: String(data.lon) };
         const dac = await fetchJsonRetryL(buildApiUrl('/v1/dac/water-district', dacParams), 'dac', { retries: 1, timeoutMs: 20000 }).catch(() => ({}));
-        if (dac && typeof dac === 'object') {
-          const patch = {};
-          const share = Number(dac.share_dac);
-          if (Number.isFinite(share)) patch.dac_population_pct = share <= 1 ? share * 100 : share;
-          const shareTracts = Number(dac.share_tracts);
-          if (Number.isFinite(shareTracts)) patch.dac_tracts_pct = shareTracts <= 1 ? shareTracts * 100 : shareTracts;
-          const dCount = Number(dac.tracts_dac ?? dac.count_dac);
-          const tCount = Number(dac.tracts_total ?? dac.total_tracts ?? (Array.isArray(w2.census_tracts_fips) ? w2.census_tracts_fips.length : NaN));
-          if (!Number.isFinite(patch.dac_tracts_pct) && Number.isFinite(dCount) && Number.isFinite(tCount) && tCount > 0) {
-            patch.dac_tracts_pct = (dCount / tCount) * 100;
-          }
-          if (Object.keys(patch).length) out.water_district = { ...(w2 || {}), ...patch };
-        }
+    if (dac && typeof dac === 'object') {
+      const patch = {};
+      const share = Number(dac.share_dac);
+      if (Number.isFinite(share)) patch.dac_population_pct = share <= 1 ? share * 100 : share;
+      const shareTracts = Number(dac.share_tracts);
+      if (Number.isFinite(shareTracts)) patch.dac_tracts_pct = shareTracts <= 1 ? shareTracts * 100 : shareTracts;
+      // Capture DAC tracts list (FIPS) if provided
+      const list = (() => {
+        const cands = [dac.tracts_dac, dac.dac_tracts, dac.dac_fips, dac.tracts, dac.fips_dac];
+        for (const v of cands) if (Array.isArray(v) && v.length) return v.map(String);
+        return [];
+      })().filter((x) => /^\d{11}$/.test(x));
+      if (list.length) {
+        patch.dac_tracts_fips = Array.from(new Set(list));
+        const map = (w2 && w2.census_tract_map) || {};
+        patch.dac_tracts = patch.dac_tracts_fips.map((f) => map[f] || fipsToTractLabel(f));
+      }
+      const dCount = Number(dac.tracts_dac ?? dac.count_dac);
+      const tCount = Number(dac.tracts_total ?? dac.total_tracts ?? (Array.isArray(w2.census_tracts_fips) ? w2.census_tracts_fips.length : NaN));
+      if (!Number.isFinite(patch.dac_tracts_pct) && Number.isFinite(dCount) && Number.isFinite(tCount) && tCount > 0) {
+        patch.dac_tracts_pct = (dCount / tCount) * 100;
+      }
+      if (Object.keys(patch).length) out.water_district = { ...(w2 || {}), ...patch };
+    }
       }
       return out;
     })());
