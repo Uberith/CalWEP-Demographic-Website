@@ -5,15 +5,28 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <meta name="description" content="Community Insights Tool helps water agency staff explore demographics, languages, and environmental conditions." />
   <title>Community Insights Tool</title>
+  <meta http-equiv="x-dns-prefetch-control" content="on">
+  <link rel="dns-prefetch" href="https://api.calwep.org">
+  <link rel="dns-prefetch" href="https://maps.googleapis.com">
+  <link rel="dns-prefetch" href="https://maps.gstatic.com">
+  <link rel="dns-prefetch" href="https://api.census.gov">
+  <link rel="dns-prefetch" href="https://tigerweb.geo.census.gov">
+  <link rel="dns-prefetch" href="https://geo.fcc.gov">
+  <link rel="dns-prefetch" href="https://api.bigdatacloud.net">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="preconnect" href="https://api.calwep.org" crossorigin>
+  <link rel="preconnect" href="https://maps.googleapis.com" crossorigin>
+  <link rel="preconnect" href="https://maps.gstatic.com" crossorigin>
+  <link rel="preconnect" href="https://api.census.gov" crossorigin>
+  <link rel="preconnect" href="https://tigerweb.geo.census.gov" crossorigin>
+  <link rel="preconnect" href="https://geo.fcc.gov" crossorigin>
+  <link rel="preconnect" href="https://api.bigdatacloud.net" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="style.css" />
   <!-- Point the frontend at the correct API host -->
   <meta name="api-base" content="https://api.calwep.org">
-  <script src="config.js"></script>
-  <!-- Client-side PDF generation -->
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+  <script src="config.js" defer></script>
 </head>
 <body>
   <div class="container">

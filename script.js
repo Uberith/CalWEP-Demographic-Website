@@ -174,21 +174,39 @@ function downloadRawData() {
   URL.revokeObjectURL(url);
 }
 
-function downloadPdf() {
+async function ensureHtml2PdfLoaded() {
+  if (typeof window.html2pdf !== 'undefined') return true;
+  return new Promise((resolve, reject) => {
+    const s = document.createElement('script');
+    s.src = 'https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js';
+    s.async = true;
+    s.onload = () => resolve(true);
+    s.onerror = () => reject(new Error('Failed to load pdf library'));
+    document.head.appendChild(s);
+  });
+}
+
+async function downloadPdf() {
   if (!lastReport) return;
   const safe = (lastReport.address || "report")
     .replace(/[^a-z0-9]+/gi, "_")
     .toLowerCase();
   const element = document.querySelector("#result .card");
   if (!element) return;
+  try {
+    await ensureHtml2PdfLoaded();
+  } catch {
+    alert('Unable to load PDF generator. Please try again.');
+    return;
+  }
   const opt = {
     margin: 0.5,
     filename: `calwep_report_${safe}.pdf`,
-    image: { type: "jpeg", quality: 0.98 },
+    image: { type: "jpeg", quality: 0.92 },
     html2canvas: { scale: 2 },
     jsPDF: { unit: "in", format: "letter", orientation: "portrait" },
   };
-  html2pdf().set(opt).from(element).save();
+  window.html2pdf().set(opt).from(element).save();
 }
 
 function shareReport() {
@@ -2758,7 +2776,7 @@ function renderResultOld(address, data, elapsedMs) {
       : "—";
   const mapImgHtml =
     lat != null && lon != null
-      ? `<img class="map-image" src="https://maps.googleapis.com/maps/api/staticmap?center=${lat},${lon}&zoom=13&size=600x300&markers=color:red|${lat},${lon}&key=${GOOGLE_MAPS_KEY}" alt="Map of location" />`
+            ? `<img class="map-image" loading="lazy" decoding="async" src="https://maps.googleapis.com/maps/api/staticmap?center=${lat},${lon}&zoom=13&size=600x300&markers=color:red|${lat},${lon}&key=${GOOGLE_MAPS_KEY}" alt="Map of location" />`
       : "";
 
   const raceSection = `
@@ -3084,7 +3102,7 @@ function renderResult(address, data, elapsedMs, selections) {
       : "—";
   const mapImgHtml =
     lat != null && lon != null
-      ? `<img class="map-image" src="https://maps.googleapis.com/maps/api/staticmap?center=${lat},${lon}&zoom=13&size=600x300&markers=color:red|${lat},${lon}&key=${GOOGLE_MAPS_KEY}" alt="Map of location" />`
+      ? `<img class="map-image" loading="lazy" decoding="async" src="https://maps.googleapis.com/maps/api/staticmap?center=${lat},${lon}&zoom=13&size=600x300&markers=color:red|${lat},${lon}&key=${GOOGLE_MAPS_KEY}" alt="Map of location" />`
       : "";
 
   const s = surrounding_10_mile || {};
@@ -3811,9 +3829,11 @@ function bindExpanders() {
   });
 }
 
+let googleMapsRequested = false;
 function loadGoogleMaps() {
+  if (googleMapsRequested || typeof window.google?.maps !== 'undefined') return;
+  googleMapsRequested = true;
   const script = document.createElement("script");
-  // Add loading=async for best-practice and keep defer to avoid blocking
   script.src = `https://maps.googleapis.com/maps/api/js?key=${GOOGLE_MAPS_KEY}&libraries=places&loading=async&callback=initAutocomplete`;
   script.async = true;
   script.defer = true;
@@ -3826,10 +3846,23 @@ getLanguageMeta().catch(() => {});
 window.onload = () => {
   // Restore saved preferences before binding and lookup
   restorePreferences();
-  loadGoogleMaps();
+  // Defer Google Maps until idle or first intent
+  if ('requestIdleCallback' in window) {
+    try { window.requestIdleCallback(() => loadGoogleMaps(), { timeout: 3000 }); } catch { setTimeout(loadGoogleMaps, 1500); }
+  } else {
+    setTimeout(loadGoogleMaps, 1500);
+  }
   bindLookupTrigger();
   bindOptionToggles();
   bindExpanders();
+  // Load Maps immediately when user focuses/types in the search box
+  const input = document.getElementById("autocomplete");
+  if (input) {
+    const eagerLoad = () => loadGoogleMaps();
+    input.addEventListener('focus', eagerLoad, { passive: true, once: true });
+    input.addEventListener('keydown', eagerLoad, { once: true });
+    input.addEventListener('pointerdown', eagerLoad, { passive: true, once: true });
+  }
   const params = new URLSearchParams(window.location.search);
   const addr = params.get("address");
   if (addr) {
