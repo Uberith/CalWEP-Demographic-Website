@@ -732,7 +732,7 @@ function toCensus(url) {
 }
 // Attempt to fill in missing city or census tract using public geocoders
 async function enrichLocation(data = {}) {
-  let { city, census_tract, lat, lon, state_fips, county_fips, tract_code } =
+  let { city, county, census_tract, lat, lon, state_fips, county_fips, tract_code } =
     data;
   let usedGeocoderFallback = false;
   let geocodeFallbackSource = null;
@@ -754,7 +754,7 @@ async function enrichLocation(data = {}) {
           const adminCounty = Array.isArray(j?.localityInfo?.administrative)
             ? j.localityInfo.administrative.find((a) => a.order === 6 || a.adminLevel === 6)?.name
             : null;
-          if (!data.county && adminCounty) data.county = adminCounty;
+          if (!county && adminCounty) county = adminCounty;
           // FIPS codes if available
           const sFips = j?.fips?.state;
           const cFips = j?.fips?.county;
@@ -913,13 +913,36 @@ async function enrichLocation(data = {}) {
           lon = alt.lon;
         }
         if (alt.city && !city) city = alt.city;
+        if (alt.county && !county) county = alt.county;
       }
     })());
   }
   if (tasks.length) await Promise.all(tasks);
+  // Final county fallback using TIGERweb Counties layer if still missing
+  if (!county && lat != null && lon != null) {
+    try {
+      const countyUrl = toCensus(
+        "https://tigerweb.geo.census.gov/arcgis/rest/services/TIGERweb/Tracts_Blocks/MapServer/9/query",
+      );
+      const cparams = new URLSearchParams({
+        where: "1=1",
+        geometry: JSON.stringify({ x: Number(lon), y: Number(lat), spatialReference: { wkid: 4326 } }),
+        geometryType: "esriGeometryPoint",
+        inSR: "4326",
+        spatialRel: "esriSpatialRelIntersects",
+        outFields: "NAME,GEOID",
+        returnGeometry: "false",
+        f: "json",
+      });
+      const cj = await fetchJsonRetryL(`${countyUrl}?${cparams.toString()}`, 'location', { retries: 1, timeoutMs: 10000 });
+      const n = cj?.features?.[0]?.attributes?.NAME;
+      if (n) county = n;
+    } catch {}
+  }
   return {
     ...data,
     city,
+    county,
     census_tract,
     state_fips,
     county_fips,
@@ -2984,27 +3007,32 @@ function loadLeafletAssets() {
   return LEAFLET_LOADING;
 }
 
+function drawGeoJSONOnMap(elId, geo, styleOpts = {}) {
+  const map = L.map(elId, { zoomControl: true, attributionControl: true });
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    maxZoom: 19,
+    attribution: '&copy; OpenStreetMap contributors'
+  }).addTo(map);
+  const layer = L.geoJSON(geo, {
+    style: Object.assign({ color: '#1d65a6', weight: 2, fillOpacity: 0.15 }, styleOpts),
+  }).addTo(map);
+  try {
+    const b = layer.getBounds();
+    if (b.isValid()) map.fitBounds(b, { padding: [8, 8] });
+  } catch {}
+  return true;
+}
+
 async function renderGeoMapFromEndpoint(elId, url, styleOpts = {}) {
   const el = document.getElementById(elId);
   if (!el) return;
   try {
     await loadLeafletAssets();
     const geo = await fetchJsonRetryL(url, 'location', { retries: 1, timeoutMs: 20000 });
-    if (!geo) return;
-    const map = L.map(elId, { zoomControl: true, attributionControl: true });
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-      maxZoom: 19,
-      attribution: '&copy; OpenStreetMap contributors'
-    }).addTo(map);
-    const layer = L.geoJSON(geo, {
-      style: Object.assign({ color: '#1d65a6', weight: 2, fillOpacity: 0.15 }, styleOpts),
-    }).addTo(map);
-    try {
-      const b = layer.getBounds();
-      if (b.isValid()) map.fitBounds(b, { padding: [8, 8] });
-    } catch {}
+    if (!geo) return false;
+    return drawGeoJSONOnMap(elId, geo, styleOpts);
   } catch {
-    // Ignore map errors to avoid blocking the rest of the report
+    return false;
   }
 }
 
@@ -3018,12 +3046,12 @@ function initGeometryMaps(data = {}, scopes = { tract: true, radius: true, water
   // Surrounding 10-mile circle
   if (scopes.radius && document.getElementById('geom-map-surrounding')) {
     const sUrl = buildApiUrl('/v1/surrounding/geometry', { lat: String(lat), lon: String(lon), miles: '10', segments: '96' });
-    renderGeoMapFromEndpoint('geom-map-surrounding', sUrl, { color: '#1d65a6' });
+    renderSurroundingGeometry('geom-map-surrounding', sUrl, lat, lon, 10);
   }
   // Water district polygon (simplified for performance)
   if (scopes.water && document.getElementById('geom-map-water')) {
     const wUrl = buildApiUrl('/v1/water-district/geometry', { lat: String(lat), lon: String(lon), simplify: '0.0005' });
-    renderGeoMapFromEndpoint('geom-map-water', wUrl, { color: '#0f766e' });
+    renderWaterGeometry('geom-map-water', wUrl, lat, lon);
   }
 }
 
@@ -3035,16 +3063,7 @@ async function renderTractGeometry(elId, lat, lon) {
   const apiUrl = buildApiUrl('/v1/tract/geometry', { lat: String(lat), lon: String(lon), simplify: '0.0005' });
   try {
     const geo = await fetchJsonRetryL(apiUrl, 'location', { retries: 1, timeoutMs: 20000 });
-    if (geo) {
-      const map = L.map(elId, { zoomControl: true, attributionControl: true });
-      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-        maxZoom: 19,
-        attribution: '&copy; OpenStreetMap contributors'
-      }).addTo(map);
-      const layer = L.geoJSON(geo, { style: { color: '#ef4444', weight: 2, fillOpacity: 0.15 } }).addTo(map);
-      try { const b = layer.getBounds(); if (b.isValid()) map.fitBounds(b, { padding: [8,8] }); } catch {}
-      return;
-    }
+    if (geo) { drawGeoJSONOnMap(elId, geo, { color: '#ef4444' }); return; }
   } catch {}
   // Fallback: TIGERweb polygon
   try {
@@ -3066,13 +3085,75 @@ async function renderTractGeometry(elId, lat, lon) {
     // Convert ESRI rings -> GeoJSON Polygon
     const coords = rings.map((ring) => ring.map(([x, y]) => [x, y]));
     const geo = { type: 'Feature', properties: {}, geometry: { type: 'Polygon', coordinates: coords } };
-    const map = L.map(elId, { zoomControl: true, attributionControl: true });
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-      maxZoom: 19,
-      attribution: '&copy; OpenStreetMap contributors'
-    }).addTo(map);
-    const layer = L.geoJSON(geo, { style: { color: '#ef4444', weight: 2, fillOpacity: 0.15 } }).addTo(map);
-    try { const b = layer.getBounds(); if (b.isValid()) map.fitBounds(b, { padding: [8,8] }); } catch {}
+    drawGeoJSONOnMap(elId, geo, { color: '#ef4444' });
+  } catch {}
+}
+
+async function renderSurroundingGeometry(elId, apiUrl, lat, lon, miles) {
+  const ok = await renderGeoMapFromEndpoint(elId, apiUrl, { color: '#1d65a6' });
+  if (ok) return;
+  try {
+    await loadLeafletAssets();
+    // Fallback: generate circle polygon
+    const R = 6371008.8; // Earth radius (m)
+    const meters = miles * 1609.34;
+    const segments = 96;
+    const coords = [];
+    const latRad = (lat * Math.PI) / 180;
+    const lonRad = (lon * Math.PI) / 180;
+    for (let i = 0; i <= segments; i++) {
+      const theta = (i / segments) * 2 * Math.PI;
+      const dByR = meters / R;
+      const lat2 = Math.asin(
+        Math.sin(latRad) * Math.cos(dByR) +
+          Math.cos(latRad) * Math.sin(dByR) * Math.cos(theta),
+      );
+      const lon2 =
+        lonRad +
+        Math.atan2(
+          Math.sin(theta) * Math.sin(dByR) * Math.cos(latRad),
+          Math.cos(dByR) - Math.sin(latRad) * Math.sin(lat2),
+        );
+      coords.push([(lon2 * 180) / Math.PI, (lat2 * 180) / Math.PI]);
+    }
+    const geo = { type: 'Feature', properties: {}, geometry: { type: 'Polygon', coordinates: [coords] } };
+    drawGeoJSONOnMap(elId, geo, { color: '#1d65a6' });
+  } catch {}
+}
+
+async function renderWaterGeometry(elId, apiUrl, lat, lon) {
+  const ok = await renderGeoMapFromEndpoint(elId, apiUrl, { color: '#0f766e' });
+  if (ok) return;
+  try {
+    await loadLeafletAssets();
+    // Fallback: State Water Board PWS boundaries (FeatureServer/0)
+    const base = 'https://services.arcgis.com/8DFNJhY7CUN8E0bX/ArcGIS/rest/services/Public_Water_System_Boundaries/FeatureServer/0/query';
+    const params = new URLSearchParams({
+      geometry: JSON.stringify({ x: Number(lon), y: Number(lat), spatialReference: { wkid: 4326 } }),
+      geometryType: 'esriGeometryPoint',
+      inSR: '4326',
+      spatialRel: 'esriSpatialRelIntersects',
+      outFields: 'PWS_NAME',
+      returnGeometry: 'true',
+      outSR: '4326',
+      f: 'json',
+    });
+    const j = await fetchJsonRetry(`${base}?${params.toString()}`, { retries: 1, timeoutMs: 20000 });
+    const geom = j?.features?.[0]?.geometry;
+    if (!geom) return;
+    // geometry can be polygon (rings) or multipolygon (rings array of arrays)
+    const toCoords = (rings) => rings.map((ring) => ring.map(([x, y]) => [x, y]));
+    let coordinates = [];
+    if (Array.isArray(geom?.rings)) {
+      coordinates = toCoords(geom.rings);
+      const geo = { type: 'Feature', properties: {}, geometry: { type: 'Polygon', coordinates } };
+      drawGeoJSONOnMap(elId, geo, { color: '#0f766e' });
+    } else if (Array.isArray(geom)) {
+      // unlikely path; keep as best-effort
+      coordinates = geom.flatMap((g) => toCoords(g.rings || []));
+      const geo = { type: 'Feature', properties: {}, geometry: { type: 'MultiPolygon', coordinates } };
+      drawGeoJSONOnMap(elId, geo, { color: '#0f766e' });
+    }
   } catch {}
 }
 
