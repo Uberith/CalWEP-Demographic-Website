@@ -682,8 +682,27 @@ async function listFipsWaterDistrict(lat, lon) {
   if (lat == null || lon == null) return [];
   const url = buildApiUrl('/v1/fips/water-district', { lat: String(lat), lon: String(lon) });
   const j = await fetchJsonRetryL(url, 'location', { retries: 1, timeoutMs: 15000 }).catch(() => null);
+  if (Array.isArray(j?.tracts)) {
+    return j.tracts.map((r) => String(r?.fips || '')).filter((s) => /^\d{11}$/.test(s));
+  }
   const arr = Array.isArray(j?.fips) ? j.fips.map(String) : [];
   return arr.filter((s) => /^\d{11}$/.test(s));
+}
+
+async function fetchWaterMeta(lat, lon) {
+  if (lat == null || lon == null) return [];
+  const url = buildApiUrl('/v1/fips/water-district', { lat: String(lat), lon: String(lon) });
+  const j = await fetchJsonRetryL(url, 'location', { retries: 1, timeoutMs: 20000 }).catch(() => null);
+  if (Array.isArray(j?.tracts)) {
+    return j.tracts.map((r) => ({
+      fips: r?.fips ? String(r.fips) : null,
+      tract: r?.tract != null ? String(r.tract) : null,
+      county: r?.county != null ? String(r.county) : null,
+      city: r?.city != null ? String(r.city) : null,
+    })).filter((r) => /^\d{11}$/.test(r.fips || ''));
+  }
+  const arr = Array.isArray(j?.fips) ? j.fips.map(String) : [];
+  return arr.filter((s) => /^\d{11}$/.test(s)).map((f) => ({ fips: f, tract: null, county: null, city: null }));
 }
 
 // POST aggregate demographics over a list of tracts (FIPS-11)
@@ -2003,7 +2022,8 @@ async function enrichSurrounding(data = {}, categories = {}) {
     for (const r of rows) {
       const f = String(r.fips);
       if (/^\d{11}$/.test(f)) fips.push(f);
-      const label = r.tract != null ? String(r.tract) : null;
+      const labelRaw = r.tract != null ? String(r.tract) : null;
+      const label = labelRaw ? cleanTractName(labelRaw) : null;
       if (label) {
         names.push(label);
         map[f] = label;
@@ -2020,8 +2040,8 @@ async function enrichSurrounding(data = {}, categories = {}) {
     // Keep previous best-effort values if endpoint fails
   }
   // Always include the local tract in the lists if known
-  const tractSet = new Set(Array.isArray(s.census_tracts) ? s.census_tracts : []);
-  if (census_tract) tractSet.add(String(census_tract));
+  const tractSet = new Set(Array.isArray(s.census_tracts) ? s.census_tracts.map((t) => cleanTractName(String(t))) : []);
+  if (census_tract) tractSet.add(cleanTractName(String(census_tract)));
   s.census_tracts = Array.from(tractSet);
   if (Array.isArray(s.census_tracts_fips)) {
     const fipsSet = new Set(s.census_tracts_fips);
@@ -2174,12 +2194,37 @@ async function enrichWaterDistrict(data = {}, address = "", categories = {}) {
 
   // Water district tract list should come from CalWEP API; external overlay removed
 
+  // Prefer new FIPS meta endpoint for water district to populate labels, counties, cities
+  try {
+    const rows = await fetchWaterMeta(lat, lon);
+    const fips = [];
+    const names = [];
+    const map = {};
+    const cities = new Set(Array.isArray(w.cities) ? w.cities.map(String) : []);
+    const counties = new Set(Array.isArray(w.counties) ? w.counties.map(String) : []);
+    for (const r of rows) {
+      const f = String(r.fips);
+      if (/^\d{11}$/.test(f)) fips.push(f);
+      const labelRaw = r.tract != null ? String(r.tract) : null;
+      const label = labelRaw ? cleanTractName(labelRaw) : null;
+      if (label) { names.push(label); map[f] = label; }
+      if (r.city) cities.add(String(r.city));
+      if (r.county) counties.add(String(r.county));
+    }
+    if (fips.length) w.census_tracts_fips = Array.from(new Set([...(w.census_tracts_fips || []), ...fips]));
+    if (names.length) w.census_tracts = Array.from(new Set([...(w.census_tracts || []), ...names]));
+    if (Object.keys(map).length) w.census_tract_map = { ...(w.census_tract_map || {}), ...map };
+    w.cities = Array.from(cities).slice(0, 10);
+    w.counties = Array.from(counties);
+  } catch {}
+
   let tracts = [];
   if (Array.isArray(w.census_tracts)) tracts = w.census_tracts.map(String);
   else if (typeof w.census_tracts === "string")
     tracts = w.census_tracts.split(/\s*,\s*/).filter(Boolean);
   if (census_tract) tracts.unshift(String(census_tract));
-  w.census_tracts = [...new Set(tracts)];
+  // Normalize and dedupe labels
+  w.census_tracts = Array.from(new Set(tracts.map((t) => cleanTractName(String(t)))));
 
   let fipsList = Array.isArray(w.census_tracts_fips)
     ? w.census_tracts_fips.map(String)
@@ -3248,7 +3293,7 @@ function renderResult(address, data, elapsedMs, selections) {
   const w = water_district || {};
   // Environmental hardships section removed
   const sTracts = Array.isArray(s.census_tracts)
-    ? s.census_tracts.map(cleanTractName)
+    ? Array.from(new Set(s.census_tracts.map((t) => cleanTractName(String(t)))))
     : [];
   const sCities = Array.isArray(s.cities)
     ? s.cities.join(", ")
@@ -3257,11 +3302,14 @@ function renderResult(address, data, elapsedMs, selections) {
     ? Array.from(new Set(s.counties.map(String))).join(', ')
     : (s.county ? escapeHTML(String(s.county)) : '—');
   const wTracts = Array.isArray(w.census_tracts)
-    ? w.census_tracts.map(cleanTractName)
+    ? Array.from(new Set(w.census_tracts.map((t) => cleanTractName(String(t)))))
     : [];
   const wCities = Array.isArray(w.cities)
     ? w.cities.join(", ")
     : escapeHTML(w.cities) || "—";
+  const wCounties = Array.isArray(w.counties) && w.counties.length
+    ? Array.from(new Set(w.counties.map(String))).join(', ')
+    : (w.county ? escapeHTML(String(w.county)) : '—');
 
   const locLocal = `
     <div class="kv">
@@ -3297,6 +3345,7 @@ function renderResult(address, data, elapsedMs, selections) {
     <div class="kv">
       <div class="key">District</div><div class="val">${escapeHTML(w.name) || "—"}</div>
       <div class="key">Cities</div><div class="val">${wCities}</div>
+      <div class="key">Counties</div><div class="val">${wCounties}</div>
       <div class="key">Census tracts</div><div class="val">${renderTractList(wTracts, 'w')}</div>
       <div class="key">FIPS</div><div class="val">${wFipsArr.length ? renderTractList(wFipsArr, 'wF') : '—'}</div>
     </div>
@@ -3668,6 +3717,9 @@ async function lookup(opts = {}) {
       }
       return {};
     })());
+    // Populate surrounding (tract labels, counties, cities, FIPS) using new FIPS endpoint
+    primaryTasks.push(enrichSurrounding(data, categories));
+
   // Prefer DB endpoints over external TIGER/ArcGIS for surrounding and water
     // (Shape-based enrichers are skipped to avoid external dependencies)
 
