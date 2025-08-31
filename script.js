@@ -541,12 +541,22 @@ function extractLatLonCandidate(obj) {
 }
 async function dbEnviroscreenByFips(fips11) {
   if (!fips11 || String(fips11).length !== 11) return {};
-  const url = buildApiUrl('/v1/enviroscreen', { fips: String(fips11) });
+  const f = String(fips11);
+  const tract6 = f.slice(5);
+  const tractLeft = String(Number(tract6.slice(0, 4))); // strip leading zeros
+  const tractRight = tract6.slice(4);
+  const tract = tractRight === '00' ? tractLeft : `${tractLeft}.${tractRight}`;
+  const url = buildApiUrl('/v1/enviroscreen', { fips: f, tract });
   return fetchJsonRetryL(url, 'enviroscreen', { retries: 1, timeoutMs: 20000 }).catch(() => ({}));
 }
 async function dbEnviroscreenFetch(fips11) {
   if (!fips11 || String(fips11).length !== 11) return false;
-  const url = buildApiUrl('/v1/enviroscreen', { fips: String(fips11) });
+  const f = String(fips11);
+  const tract6 = f.slice(5);
+  const tractLeft = String(Number(tract6.slice(0, 4)));
+  const tractRight = tract6.slice(4);
+  const tract = tractRight === '00' ? tractLeft : `${tractLeft}.${tractRight}`;
+  const url = buildApiUrl('/v1/enviroscreen', { fips: f, tract });
   try {
     const res = await fetch(url, { method: 'GET', headers: { accept: 'application/json' } });
     return res.ok;
