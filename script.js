@@ -3775,11 +3775,17 @@ function debounce(fn, wait = 250) {
 
 function bindOptionToggles() {
   const handler = debounce(() => {
-    const input = document.getElementById("autocomplete");
-    const addr = (input?.value || "").trim();
+    // Persist the user's preference changes without re-querying the API.
     savePreferences();
-    if (addr.length >= 4) lookup({ force: true }).catch(console.error);
-  }, 200);
+    // If we have data already, just re-render the view using the existing results
+    // and the updated selections (no network requests).
+    try {
+      if (lastReport && lastReport.address && lastReport.data) {
+        const selections = getSelections();
+        renderResult(lastReport.address, lastReport.data, 0, selections);
+      }
+    } catch {}
+  }, 150);
   document
     .querySelectorAll('.scope-options input[type="checkbox"], .category-options input[type="checkbox"]')
     .forEach((el) => el.addEventListener("change", handler));
