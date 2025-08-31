@@ -174,21 +174,39 @@ function downloadRawData() {
   URL.revokeObjectURL(url);
 }
 
-function downloadPdf() {
+async function ensureHtml2PdfLoaded() {
+  if (typeof window.html2pdf !== 'undefined') return true;
+  return new Promise((resolve, reject) => {
+    const s = document.createElement('script');
+    s.src = 'https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js';
+    s.async = true;
+    s.onload = () => resolve(true);
+    s.onerror = () => reject(new Error('Failed to load pdf library'));
+    document.head.appendChild(s);
+  });
+}
+
+async function downloadPdf() {
   if (!lastReport) return;
   const safe = (lastReport.address || "report")
     .replace(/[^a-z0-9]+/gi, "_")
     .toLowerCase();
   const element = document.querySelector("#result .card");
   if (!element) return;
+  try {
+    await ensureHtml2PdfLoaded();
+  } catch {
+    alert('Unable to load PDF generator. Please try again.');
+    return;
+  }
   const opt = {
     margin: 0.5,
     filename: `calwep_report_${safe}.pdf`,
-    image: { type: "jpeg", quality: 0.98 },
+    image: { type: "jpeg", quality: 0.92 },
     html2canvas: { scale: 2 },
     jsPDF: { unit: "in", format: "letter", orientation: "portrait" },
   };
-  html2pdf().set(opt).from(element).save();
+  window.html2pdf().set(opt).from(element).save();
 }
 
 function shareReport() {
@@ -262,6 +280,16 @@ function titleCase(str = "") {
 function cleanTractName(value) {
   if (value == null) return value;
   return String(value).replace(/\bCensus\s*Tract\b\s*/gi, "").trim();
+}
+
+// Convert 11-digit tract FIPS to a compact label like 87.10
+function fipsToTractLabel(fips11) {
+  const f = String(fips11 || '').replace(/[^0-9]/g, '').padStart(11, '0');
+  if (f.length !== 11) return String(fips11 || '');
+  const tract6 = f.slice(5);
+  const left = String(Number(tract6.slice(0, 4))); // strip leading zeros
+  const right = tract6.slice(4);
+  return right === '00' ? left : `${left}.${right}`;
 }
 
 // Normalize CalEnviroScreen payloads to the renderer's expected shape
@@ -523,12 +551,22 @@ function extractLatLonCandidate(obj) {
 }
 async function dbEnviroscreenByFips(fips11) {
   if (!fips11 || String(fips11).length !== 11) return {};
-  const url = buildApiUrl('/v1/enviroscreen', { fips: String(fips11) });
+  const f = String(fips11);
+  const tract6 = f.slice(5);
+  const tractLeft = String(Number(tract6.slice(0, 4))); // strip leading zeros
+  const tractRight = tract6.slice(4);
+  const tract = tractRight === '00' ? tractLeft : `${tractLeft}.${tractRight}`;
+  const url = buildApiUrl('/v1/enviroscreen', { fips: f, tract });
   return fetchJsonRetryL(url, 'enviroscreen', { retries: 1, timeoutMs: 20000 }).catch(() => ({}));
 }
 async function dbEnviroscreenFetch(fips11) {
   if (!fips11 || String(fips11).length !== 11) return false;
-  const url = buildApiUrl('/v1/enviroscreen', { fips: String(fips11) });
+  const f = String(fips11);
+  const tract6 = f.slice(5);
+  const tractLeft = String(Number(tract6.slice(0, 4)));
+  const tractRight = tract6.slice(4);
+  const tract = tractRight === '00' ? tractLeft : `${tractLeft}.${tractRight}`;
+  const url = buildApiUrl('/v1/enviroscreen', { fips: f, tract });
   try {
     const res = await fetch(url, { method: 'GET', headers: { accept: 'application/json' } });
     return res.ok;
@@ -636,15 +674,73 @@ async function listFipsSurrounding(lat, lon, miles = 10) {
   if (lat == null || lon == null) return [];
   const url = buildApiUrl('/v1/fips/surrounding', { lat: String(lat), lon: String(lon), miles: String(miles) });
   const j = await fetchJsonRetryL(url, 'location', { retries: 1, timeoutMs: 15000 }).catch(() => null);
-  const arr = Array.isArray(j?.fips) ? j.fips.map(String) : [];
+  // New shape: { tracts: [{ fips, ...}] }
+  if (Array.isArray(j?.tracts)) {
+    return j.tracts.map((r) => String(r?.fips || '')).filter((s) => /^\d{11}$/.test(s));
+  }
+  // Back-compat: older shape returned { fips: [] } or array of objects
+  const arr = Array.isArray(j?.fips) ? j.fips.map(String) : Array.isArray(j) ? j.map((o) => String(o?.fips)).filter(Boolean) : [];
   return arr.filter((s) => /^\d{11}$/.test(s));
+}
+
+async function fetchSurroundingMeta(lat, lon, miles = 10, includeCity = true) {
+  if (lat == null || lon == null) return [];
+  const url = buildApiUrl('/v1/fips/surrounding', { lat: String(lat), lon: String(lon), miles: String(miles), include_city: includeCity ? 'true' : undefined });
+  const j = await fetchJsonRetryL(url, 'location', { retries: 1, timeoutMs: 20000 }).catch(() => null);
+  // New shape: { count, tracts: [{ fips, tract, county, city }] }
+  if (Array.isArray(j?.tracts)) {
+    return j.tracts.map((r) => ({
+      fips: r?.fips ? String(r.fips) : null,
+      tract: r?.tract != null ? String(r.tract) : null,
+      county: r?.county != null ? String(r.county) : null,
+      city: r?.city != null ? String(r.city) : null,
+    })).filter((r) => /^\d{11}$/.test(r.fips || ''));
+  }
+  if (Array.isArray(j)) {
+    return j.map((r) => ({
+      fips: r?.fips ? String(r.fips) : null,
+      tract: r?.tract != null ? String(r.tract) : null,
+      county: r?.county != null ? String(r.county) : null,
+      city: r?.city != null ? String(r.city) : null,
+    })).filter((r) => /^\d{11}$/.test(r.fips || ''));
+  }
+  // Back-compat minimal shape { fips: [] }
+  const arr = Array.isArray(j?.fips) ? j.fips.map(String) : [];
+  return arr.filter((s) => /^\d{11}$/.test(s)).map((f) => ({ fips: f, tract: null, county: null, city: null }));
+}
+
+async function fetchCountyFromSurrounding(lat, lon) {
+  const rows = await fetchSurroundingMeta(lat, lon, 0.1, false).catch(() => []);
+  for (const r of rows) {
+    if (r && r.county) return String(r.county);
+  }
+  return null;
 }
 async function listFipsWaterDistrict(lat, lon) {
   if (lat == null || lon == null) return [];
   const url = buildApiUrl('/v1/fips/water-district', { lat: String(lat), lon: String(lon) });
   const j = await fetchJsonRetryL(url, 'location', { retries: 1, timeoutMs: 15000 }).catch(() => null);
+  if (Array.isArray(j?.tracts)) {
+    return j.tracts.map((r) => String(r?.fips || '')).filter((s) => /^\d{11}$/.test(s));
+  }
   const arr = Array.isArray(j?.fips) ? j.fips.map(String) : [];
   return arr.filter((s) => /^\d{11}$/.test(s));
+}
+
+async function fetchWaterMeta(lat, lon) {
+  if (lat == null || lon == null) return [];
+  const url = buildApiUrl('/v1/fips/water-district', { lat: String(lat), lon: String(lon) });
+  const j = await fetchJsonRetryL(url, 'location', { retries: 1, timeoutMs: 20000 }).catch(() => null);
+  if (Array.isArray(j?.tracts)) {
+    return j.tracts.map((r) => ({
+      fips: r?.fips ? String(r.fips) : null,
+      tract: r?.tract != null ? String(r.tract) : null,
+      county: r?.county != null ? String(r.county) : null,
+      city: r?.city != null ? String(r.city) : null,
+    })).filter((r) => /^\d{11}$/.test(r.fips || ''));
+  }
+  const arr = Array.isArray(j?.fips) ? j.fips.map(String) : [];
+  return arr.filter((s) => /^\d{11}$/.test(s)).map((f) => ({ fips: f, tract: null, county: null, city: null }));
 }
 
 // POST aggregate demographics over a list of tracts (FIPS-11)
@@ -732,7 +828,7 @@ function toCensus(url) {
 }
 // Attempt to fill in missing city or census tract using public geocoders
 async function enrichLocation(data = {}) {
-  let { city, census_tract, lat, lon, state_fips, county_fips, tract_code } =
+  let { city, county, census_tract, lat, lon, state_fips, county_fips, tract_code } =
     data;
   let usedGeocoderFallback = false;
   let geocodeFallbackSource = null;
@@ -754,7 +850,7 @@ async function enrichLocation(data = {}) {
           const adminCounty = Array.isArray(j?.localityInfo?.administrative)
             ? j.localityInfo.administrative.find((a) => a.order === 6 || a.adminLevel === 6)?.name
             : null;
-          if (!data.county && adminCounty) data.county = adminCounty;
+          if (!county && adminCounty) county = adminCounty;
           // FIPS codes if available
           const sFips = j?.fips?.state;
           const cFips = j?.fips?.county;
@@ -770,6 +866,11 @@ async function enrichLocation(data = {}) {
       const j = await fetchJsonRetry(u, { retries: 1, timeoutMs: 10000 });
       const geos = j?.result?.geographies || {};
       let tract = null;
+      let countyNameCg = null;
+      try {
+        const counties = Array.isArray(geos?.Counties) ? geos.Counties : Array.isArray(geos?.counties) ? geos.counties : null;
+        if (counties && counties.length) countyNameCg = counties[0]?.NAME || counties[0]?.name || null;
+      } catch {}
       for (const [k, arr] of Object.entries(geos)) {
         if (/census\s*tract/i.test(k) && Array.isArray(arr) && arr.length) {
           tract = arr[0];
@@ -787,6 +888,7 @@ async function enrichLocation(data = {}) {
           county_fips: county,
           tract_code: tract6,
           census_tract: name || `${tract6.slice(0, 4)}.${tract6.slice(4)}`,
+          county: countyNameCg || undefined,
           source: 'census_geocoder',
         };
       }
@@ -913,13 +1015,43 @@ async function enrichLocation(data = {}) {
           lon = alt.lon;
         }
         if (alt.city && !city) city = alt.city;
+        if (alt.county && !county) county = alt.county;
       }
     })());
   }
   if (tasks.length) await Promise.all(tasks);
+  // If county still missing, prefer CalWEP FIPS meta (fast, DB-cached)
+  if (!county && lat != null && lon != null) {
+    try {
+      const c = await fetchCountyFromSurrounding(lat, lon);
+      if (c) county = c;
+    } catch {}
+  }
+  // Final county fallback using TIGERweb Counties layer if still missing
+  if (!county && lat != null && lon != null) {
+    try {
+      const countyUrl = toCensus(
+        "https://tigerweb.geo.census.gov/arcgis/rest/services/TIGERweb/Tracts_Blocks/MapServer/9/query",
+      );
+      const cparams = new URLSearchParams({
+        where: "1=1",
+        geometry: JSON.stringify({ x: Number(lon), y: Number(lat), spatialReference: { wkid: 4326 } }),
+        geometryType: "esriGeometryPoint",
+        inSR: "4326",
+        spatialRel: "esriSpatialRelIntersects",
+        outFields: "NAME,GEOID",
+        returnGeometry: "false",
+        f: "json",
+      });
+      const cj = await fetchJsonRetryL(`${countyUrl}?${cparams.toString()}`, 'location', { retries: 1, timeoutMs: 10000 });
+      const n = cj?.features?.[0]?.attributes?.NAME;
+      if (n) county = n;
+    } catch {}
+  }
   return {
     ...data,
     city,
+    county,
     census_tract,
     state_fips,
     county_fips,
@@ -1916,64 +2048,38 @@ async function enrichRegionHardships(data = {}) {
 async function enrichSurrounding(data = {}, categories = {}) {
   const { lat, lon, census_tract, surrounding_10_mile } = data || {};
   if (lat == null || lon == null) return data;
-  const radiusMeters = 1609.34 * 10; // 10 miles
   const s = { ...(surrounding_10_mile || {}) };
-  const tasks = [];
-  if (!Array.isArray(s.cities) || !s.cities.length) {
-    const query = `[out:json];(node[place=city](around:${radiusMeters},${lat},${lon});node[place=town](around:${radiusMeters},${lat},${lon}););out;`;
-    const url =
-      "https://overpass-api.de/api/interpreter?data=" +
-      encodeURIComponent(query);
-    tasks.push(
-      fetch(url)
-        .then((r) => r.json())
-        .then((j) => {
-          const names = (j.elements || [])
-            .map((e) => e.tags?.name)
-            .filter(Boolean);
-          s.cities = Array.from(new Set(names)).slice(0, 10);
-        })
-        .catch(() => {}),
-    );
+  // Prefer the new FIPS meta endpoint which returns tract labels, county, and optional city
+  try {
+    const rows = await fetchSurroundingMeta(lat, lon, 10, true);
+    const fips = [];
+    const names = [];
+    const map = {};
+    const cities = new Set(Array.isArray(s.cities) ? s.cities.map(String) : []);
+    const counties = new Set(Array.isArray(s.counties) ? s.counties.map(String) : []);
+    for (const r of rows) {
+      const f = String(r.fips);
+      if (/^\d{11}$/.test(f)) fips.push(f);
+      const labelRaw = r.tract != null ? String(r.tract) : null;
+      const label = labelRaw ? cleanTractName(labelRaw) : null;
+      if (label) {
+        names.push(label);
+        map[f] = label;
+      }
+      if (r.city) cities.add(String(r.city));
+      if (r.county) counties.add(String(r.county));
+    }
+    if (fips.length) s.census_tracts_fips = Array.from(new Set([...(s.census_tracts_fips || []), ...fips]));
+    if (names.length) s.census_tracts = Array.from(new Set([...(s.census_tracts || []), ...names]));
+    if (Object.keys(map).length) s.census_tract_map = { ...(s.census_tract_map || {}), ...map };
+    s.cities = Array.from(cities).slice(0, 10);
+    s.counties = Array.from(counties);
+  } catch {
+    // Keep previous best-effort values if endpoint fails
   }
-  const existingTracts = Array.isArray(s.census_tracts) ? s.census_tracts.map(String) : [];
-  const existingFips = Array.isArray(s.census_tracts_fips) ? s.census_tracts_fips.map(String) : [];
-  const existingMap = { ...(s.census_tract_map || {}) };
-  const tractUrl = toCensus(
-    "https://tigerweb.geo.census.gov/arcgis/rest/services/TIGERweb/Tracts_Blocks/MapServer/10/query",
-  ) +
-    `?where=1=1&geometry=${lon},${lat}&geometryType=esriGeometryPoint&inSR=4326&spatialRel=esriSpatialRelIntersects&distance=${radiusMeters}&units=esriSRUnit_Meter&outFields=NAME,GEOID&f=json`;
-  tasks.push(
-    fetch(tractUrl)
-      .then((r) => r.json())
-      .then((j) => {
-        const features = j.features || [];
-        const names = [];
-        const fips = [];
-        const map = {};
-        for (const f of features) {
-          const attrs = f.attributes || {};
-          let name = null;
-          if (attrs.NAME) {
-            name = attrs.NAME.replace(/^Census Tract\s+/i, "");
-            names.push(name);
-          }
-          if (attrs.GEOID) {
-            const geoid = String(attrs.GEOID);
-            fips.push(geoid);
-            if (name) map[geoid] = name;
-          }
-        }
-        s.census_tracts = Array.from(new Set([...existingTracts, ...names]));
-        s.census_tracts_fips = Array.from(new Set([...existingFips, ...fips]));
-        s.census_tract_map = { ...existingMap, ...map };
-      })
-      .catch(() => {}),
-  );
-  if (tasks.length) await Promise.all(tasks);
-  if (!Array.isArray(s.cities)) s.cities = [];
-  const tractSet = new Set(Array.isArray(s.census_tracts) ? s.census_tracts : []);
-  if (census_tract) tractSet.add(String(census_tract));
+  // Always include the local tract in the lists if known
+  const tractSet = new Set(Array.isArray(s.census_tracts) ? s.census_tracts.map((t) => cleanTractName(String(t))) : []);
+  if (census_tract) tractSet.add(cleanTractName(String(census_tract)));
   s.census_tracts = Array.from(tractSet);
   if (Array.isArray(s.census_tracts_fips)) {
     const fipsSet = new Set(s.census_tracts_fips);
@@ -1989,41 +2095,34 @@ async function enrichSurrounding(data = {}, categories = {}) {
   ) {
     try {
       const dacFips = await fetchDacFips(s.census_tracts_fips);
-      const names = [];
-      for (const f of dacFips) {
-        const name = (s.census_tract_map && s.census_tract_map[f]) || f;
-        names.push(name);
-      }
-      s.dac_tracts = names;
-      s.dac_tracts_fips = dacFips;
-      if (names.length) {
-        const set = new Set([...(s.census_tracts || []), ...names]);
-        s.census_tracts = Array.from(set);
-      }
-    } catch {
-      // ignore errors
-    }
-  }
-  if (
-    categories.dac &&
-    Array.isArray(s.census_tracts_fips) &&
-    s.census_tracts_fips.length
-  ) {
-    try {
-      const lookup = await fetchUnemploymentForTracts(s.census_tracts_fips);
-      let totalPop = 0;
-      let dacPop = 0;
-      const dacFips = new Set(s.dac_tracts_fips || []);
-      for (const f of s.census_tracts_fips) {
-        const info = lookup[f];
-        if (info && Number.isFinite(info.population)) {
-          totalPop += info.population;
-          if (dacFips.has(String(f))) dacPop += info.population;
+      if (Array.isArray(dacFips) && dacFips.length) {
+        const names = [];
+        for (const f of dacFips) {
+          const name = (s.census_tract_map && s.census_tract_map[f]) || f;
+          names.push(name);
         }
+        s.dac_tracts = names;
+        s.dac_tracts_fips = dacFips;
+        if (names.length) {
+          const set = new Set([...(s.census_tracts || []), ...names]);
+          s.census_tracts = Array.from(set);
+        }
+        // Only compute percentages from local sums when we have DAC FIPS
+        const lookup = await fetchUnemploymentForTracts(s.census_tracts_fips);
+        let totalPop = 0;
+        let dacPop = 0;
+        const dacSet = new Set(dacFips.map(String));
+        for (const f of s.census_tracts_fips) {
+          const info = lookup[f];
+          if (info && Number.isFinite(info.population)) {
+            totalPop += info.population;
+            if (dacSet.has(String(f))) dacPop += info.population;
+          }
+        }
+        if (totalPop > 0) s.dac_population_pct = (dacPop / totalPop) * 100;
+        if (s.census_tracts_fips.length > 0)
+          s.dac_tracts_pct = (dacSet.size / s.census_tracts_fips.length) * 100;
       }
-      if (totalPop > 0) s.dac_population_pct = (dacPop / totalPop) * 100;
-      if (s.census_tracts_fips.length > 0)
-        s.dac_tracts_pct = (dacFips.size / s.census_tracts_fips.length) * 100;
     } catch {
       // ignore errors
     }
@@ -2126,12 +2225,37 @@ async function enrichWaterDistrict(data = {}, address = "", categories = {}) {
 
   // Water district tract list should come from CalWEP API; external overlay removed
 
+  // Prefer new FIPS meta endpoint for water district to populate labels, counties, cities
+  try {
+    const rows = await fetchWaterMeta(lat, lon);
+    const fips = [];
+    const names = [];
+    const map = {};
+    const cities = new Set(Array.isArray(w.cities) ? w.cities.map(String) : []);
+    const counties = new Set(Array.isArray(w.counties) ? w.counties.map(String) : []);
+    for (const r of rows) {
+      const f = String(r.fips);
+      if (/^\d{11}$/.test(f)) fips.push(f);
+      const labelRaw = r.tract != null ? String(r.tract) : null;
+      const label = labelRaw ? cleanTractName(labelRaw) : null;
+      if (label) { names.push(label); map[f] = label; }
+      if (r.city) cities.add(String(r.city));
+      if (r.county) counties.add(String(r.county));
+    }
+    if (fips.length) w.census_tracts_fips = Array.from(new Set([...(w.census_tracts_fips || []), ...fips]));
+    if (names.length) w.census_tracts = Array.from(new Set([...(w.census_tracts || []), ...names]));
+    if (Object.keys(map).length) w.census_tract_map = { ...(w.census_tract_map || {}), ...map };
+    w.cities = Array.from(cities).slice(0, 10);
+    w.counties = Array.from(counties);
+  } catch {}
+
   let tracts = [];
   if (Array.isArray(w.census_tracts)) tracts = w.census_tracts.map(String);
   else if (typeof w.census_tracts === "string")
     tracts = w.census_tracts.split(/\s*,\s*/).filter(Boolean);
   if (census_tract) tracts.unshift(String(census_tract));
-  w.census_tracts = [...new Set(tracts)];
+  // Normalize and dedupe labels
+  w.census_tracts = Array.from(new Set(tracts.map((t) => cleanTractName(String(t)))));
 
   let fipsList = Array.isArray(w.census_tracts_fips)
     ? w.census_tracts_fips.map(String)
@@ -2158,42 +2282,34 @@ async function enrichWaterDistrict(data = {}, address = "", categories = {}) {
   ) {
     try {
       const dacFips = await fetchDacFips(w.census_tracts_fips);
-      const names = [];
-      for (const f of dacFips) {
-        const name = (w.census_tract_map && w.census_tract_map[f]) || f;
-        names.push(name);
-      }
-      w.dac_tracts = names;
-      w.dac_tracts_fips = dacFips;
-      if (names.length) {
-        const set = new Set([...(w.census_tracts || []), ...names]);
-        w.census_tracts = Array.from(set);
-      }
-    } catch {
-      // ignore errors
-    }
-  }
-  if (
-    categories.dac &&
-    Array.isArray(w.census_tracts_fips) &&
-    w.census_tracts_fips.length
-  ) {
-    try {
-      const lookup = await fetchUnemploymentForTracts(w.census_tracts_fips);
-      let totalPop = 0;
-      let dacPop = 0;
-      const dacFips = new Set(w.dac_tracts_fips || []);
-      for (const f of w.census_tracts_fips) {
-        const info = lookup[f];
-        if (info && Number.isFinite(info.population)) {
-          totalPop += info.population;
-          if (dacFips.has(String(f))) dacPop += info.population;
+      if (Array.isArray(dacFips) && dacFips.length) {
+        const names = [];
+        for (const f of dacFips) {
+          const name = (w.census_tract_map && w.census_tract_map[f]) || f;
+          names.push(name);
         }
+        w.dac_tracts = names;
+        w.dac_tracts_fips = dacFips;
+        if (names.length) {
+          const set = new Set([...(w.census_tracts || []), ...names]);
+          w.census_tracts = Array.from(set);
+        }
+        // Only compute percentages from local sums when we have DAC FIPS
+        const lookup = await fetchUnemploymentForTracts(w.census_tracts_fips);
+        let totalPop = 0;
+        let dacPop = 0;
+        const dacSet = new Set(dacFips.map(String));
+        for (const f of w.census_tracts_fips) {
+          const info = lookup[f];
+          if (info && Number.isFinite(info.population)) {
+            totalPop += info.population;
+            if (dacSet.has(String(f))) dacPop += info.population;
+          }
+        }
+        if (totalPop > 0) w.dac_population_pct = (dacPop / totalPop) * 100;
+        if (w.census_tracts_fips.length > 0)
+          w.dac_tracts_pct = (dacSet.size / w.census_tracts_fips.length) * 100;
       }
-      if (totalPop > 0) w.dac_population_pct = (dacPop / totalPop) * 100;
-      if (w.census_tracts_fips.length > 0)
-        w.dac_tracts_pct =
-          (dacFips.size / w.census_tracts_fips.length) * 100;
     } catch {
       // ignore errors
     }
@@ -2504,14 +2620,13 @@ function renderLoading(address, selections) {
   const makeRow = (title) =>
     buildComparisonRow(title, loadingCell, loadingCell, loadingCell, "", scopes);
   rows.push(makeRow("Location Summary"));
+  // Order to match UI categories: Demographics, Language, Housing & Education, Enviroscreen, DAC, Race & Ethnicity, Alerts
   if (categories.demographics) rows.push(makeRow("Population &amp; Income"));
   if (categories.language) rows.push(makeRow("Language"));
-  if (categories.race) rows.push(makeRow("Race &amp; Ethnicity"));
   if (categories.housing) rows.push(makeRow("Housing &amp; Education"));
+  if (categories.enviroscreen) rows.push(makeRow("Environmental Indicators"));
   if (categories.dac) rows.push(makeRow("Disadvantaged Community (DAC) Status"));
-  if (categories.enviroscreen) {
-    rows.push(makeRow("Environmental Indicators"));
-  }
+  if (categories.race) rows.push(makeRow("Race &amp; Ethnicity"));
   if (categories.alerts)
     rows.push(
       `<section class="section-block"><h3 class="section-header">Active Alerts</h3><p class="note">Loading…</p></section>`,
@@ -2681,7 +2796,7 @@ function renderResultOld(address, data, elapsedMs) {
       : "—";
   const mapImgHtml =
     lat != null && lon != null
-      ? `<img class="map-image" src="https://maps.googleapis.com/maps/api/staticmap?center=${lat},${lon}&zoom=13&size=600x300&markers=color:red|${lat},${lon}&key=${GOOGLE_MAPS_KEY}" alt="Map of location" />`
+            ? `<img class="map-image" loading="lazy" decoding="async" src="https://maps.googleapis.com/maps/api/staticmap?center=${lat},${lon}&zoom=13&size=600x300&markers=color:red|${lat},${lon}&key=${GOOGLE_MAPS_KEY}" alt="Map of location" />`
       : "";
 
   const raceSection = `
@@ -2946,82 +3061,8 @@ function renderResultOld(address, data, elapsedMs) {
       </span>
     </article>
   `;
-
-  // Initialize geometry maps for surrounding and water district
-  try { initGeometryMaps(data, scopes); } catch {}
 }
 
-// ---------- Inline Geometry Maps (Leaflet) ----------
-let LEAFLET_LOADING = null;
-function loadLeafletAssets() {
-  if (window.L) return Promise.resolve();
-  if (LEAFLET_LOADING) return LEAFLET_LOADING;
-  LEAFLET_LOADING = new Promise((resolve, reject) => {
-    try {
-      // CSS
-      if (!document.querySelector('link[data-leaflet]')) {
-        const link = document.createElement('link');
-        link.rel = 'stylesheet';
-        link.href = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.css';
-        link.integrity = 'sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=';
-        link.crossOrigin = '';
-        link.setAttribute('data-leaflet', '1');
-        document.head.appendChild(link);
-      }
-      // JS
-      const script = document.createElement('script');
-      script.src = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.js';
-      script.integrity = 'sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=';
-      script.crossOrigin = '';
-      script.defer = true;
-      script.onload = () => resolve();
-      script.onerror = (e) => reject(new Error('Failed to load Leaflet'));
-      document.head.appendChild(script);
-    } catch (e) {
-      reject(e);
-    }
-  });
-  return LEAFLET_LOADING;
-}
-
-async function renderGeoMapFromEndpoint(elId, url, styleOpts = {}) {
-  const el = document.getElementById(elId);
-  if (!el) return;
-  try {
-    await loadLeafletAssets();
-    const geo = await fetchJsonRetryL(url, 'location', { retries: 1, timeoutMs: 20000 });
-    if (!geo) return;
-    const map = L.map(elId, { zoomControl: true, attributionControl: true });
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-      maxZoom: 19,
-      attribution: '&copy; OpenStreetMap contributors'
-    }).addTo(map);
-    const layer = L.geoJSON(geo, {
-      style: Object.assign({ color: '#1d65a6', weight: 2, fillOpacity: 0.15 }, styleOpts),
-    }).addTo(map);
-    try {
-      const b = layer.getBounds();
-      if (b.isValid()) map.fitBounds(b, { padding: [8, 8] });
-    } catch {}
-  } catch {
-    // Ignore map errors to avoid blocking the rest of the report
-  }
-}
-
-function initGeometryMaps(data = {}, scopes = { tract: true, radius: true, water: true }) {
-  const { lat, lon } = data || {};
-  if (lat == null || lon == null) return;
-  // Surrounding 10-mile circle
-  if (scopes.radius && document.getElementById('geom-map-surrounding')) {
-    const sUrl = buildApiUrl('/v1/surrounding/geometry', { lat: String(lat), lon: String(lon), miles: '10', segments: '96' });
-    renderGeoMapFromEndpoint('geom-map-surrounding', sUrl, { color: '#1d65a6' });
-  }
-  // Water district polygon (simplified for performance)
-  if (scopes.water && document.getElementById('geom-map-water')) {
-    const wUrl = buildApiUrl('/v1/water-district/geometry', { lat: String(lat), lon: String(lon), simplify: '0.0005' });
-    renderGeoMapFromEndpoint('geom-map-water', wUrl, { color: '#0f766e' });
-  }
-}
 
 // New row-based renderer
 function renderResult(address, data, elapsedMs, selections) {
@@ -3081,24 +3122,30 @@ function renderResult(address, data, elapsedMs, selections) {
       : "—";
   const mapImgHtml =
     lat != null && lon != null
-      ? `<img class="map-image" src="https://maps.googleapis.com/maps/api/staticmap?center=${lat},${lon}&zoom=13&size=600x300&markers=color:red|${lat},${lon}&key=${GOOGLE_MAPS_KEY}" alt="Map of location" />`
+      ? `<img class="map-image" loading="lazy" decoding="async" src="https://maps.googleapis.com/maps/api/staticmap?center=${lat},${lon}&zoom=13&size=600x300&markers=color:red|${lat},${lon}&key=${GOOGLE_MAPS_KEY}" alt="Map of location" />`
       : "";
 
   const s = surrounding_10_mile || {};
   const w = water_district || {};
   // Environmental hardships section removed
   const sTracts = Array.isArray(s.census_tracts)
-    ? s.census_tracts.map(cleanTractName)
+    ? Array.from(new Set(s.census_tracts.map((t) => cleanTractName(String(t)))))
     : [];
   const sCities = Array.isArray(s.cities)
     ? s.cities.join(", ")
     : escapeHTML(s.cities) || "—";
+  const sCounties = Array.isArray(s.counties) && s.counties.length
+    ? Array.from(new Set(s.counties.map(String))).join(', ')
+    : (s.county ? escapeHTML(String(s.county)) : '—');
   const wTracts = Array.isArray(w.census_tracts)
-    ? w.census_tracts.map(cleanTractName)
+    ? Array.from(new Set(w.census_tracts.map((t) => cleanTractName(String(t)))))
     : [];
   const wCities = Array.isArray(w.cities)
     ? w.cities.join(", ")
     : escapeHTML(w.cities) || "—";
+  const wCounties = Array.isArray(w.counties) && w.counties.length
+    ? Array.from(new Set(w.counties.map(String))).join(', ')
+    : (w.county ? escapeHTML(String(w.county)) : '—');
 
   const locLocal = `
     <div class="kv">
@@ -3118,24 +3165,33 @@ function renderResult(address, data, elapsedMs, selections) {
     const short = `${shown} …`;
     return `<span id="${id}-tracts">${escapeHTML(short)}</span> <button class="link-button" data-expand="${id}" data-short="${escapeHTML(short)}" data-full="${escapeHTML(full)}">More…</button>`;
   }
+  function renderListWithToggle(arr, id, maxShown = 3) {
+    if (!Array.isArray(arr) || !arr.length) return '—';
+    const vals = Array.from(new Set(arr.map((v) => String(v))));
+    const full = vals.join(', ');
+    if (vals.length <= maxShown) return escapeHTML(full);
+    const shown = vals.slice(0, maxShown).join(', ');
+    const short = `${shown} …`;
+    return `<span id="${id}-tracts">${escapeHTML(short)}</span> <button class="link-button" data-expand="${id}" data-short="${escapeHTML(short)}" data-full="${escapeHTML(full)}">More…</button>`;
+  }
   const sFipsArr = Array.isArray(s.census_tracts_fips) ? s.census_tracts_fips.map(String) : [];
   const wFipsArr = Array.isArray(w.census_tracts_fips) ? w.census_tracts_fips.map(String) : [];
   const locSurround = `
     <div class="kv">
-      <div class="key">Cities</div><div class="val">${sCities}</div>
+      <div class="key">Cities</div><div class="val">${renderListWithToggle(Array.isArray(s.cities) ? s.cities : (s.cities ? [s.cities] : []), 'sCities', 3)}</div>
+      <div class="key">Counties</div><div class="val">${renderListWithToggle(Array.isArray(s.counties) ? s.counties : (s.county ? [s.county] : []), 'sCounties', 3)}</div>
       <div class="key">Census tracts</div><div class="val">${renderTractList(sTracts, 's')}</div>
       <div class="key">FIPS</div><div class="val">${sFipsArr.length ? renderTractList(sFipsArr, 'sF') : '—'}</div>
     </div>
-    <div id="geom-map-surrounding" class="geom-map" aria-label="10-mile surrounding area map"></div>
   `;
   const locDistrict = `
     <div class="kv">
       <div class="key">District</div><div class="val">${escapeHTML(w.name) || "—"}</div>
-      <div class="key">Cities</div><div class="val">${wCities}</div>
+      <div class="key">Cities</div><div class="val">${renderListWithToggle(Array.isArray(w.cities) ? w.cities : (w.cities ? [w.cities] : []), 'wCities', 3)}</div>
+      <div class="key">Counties</div><div class="val">${renderListWithToggle(Array.isArray(w.counties) ? w.counties : (w.county ? [w.county] : []), 'wCounties', 3)}</div>
       <div class="key">Census tracts</div><div class="val">${renderTractList(wTracts, 'w')}</div>
       <div class="key">FIPS</div><div class="val">${wFipsArr.length ? renderTractList(wFipsArr, 'wF') : '—'}</div>
     </div>
-    <div id="geom-map-water" class="geom-map" aria-label="Water district map"></div>
   `;
   const locDescBase = '<p class="section-description">This section lists basic geographic information for the census tract, surrounding 10&#8209;mile area, and water district, such as city, ZIP code, county, and coordinates.</p>' + renderSourceNotesGrouped('location', data._source_log);
   const fallbackName = geocode_fallback_source === 'tigerweb' ? 'Census TIGERweb' : (geocode_fallback_source === 'fcc' ? 'FCC Block API' : 'Census Geocoder');
@@ -3294,27 +3350,53 @@ function renderResult(address, data, elapsedMs, selections) {
     scopes,
   );
 
-  const dacCallout = (status, tracts, popPct, tractPct) => {
-    const yes = Array.isArray(tracts) ? tracts.length > 0 : !!status;
-    const border = yes ? "var(--success)" : "var(--border-strong)";
+  const dacCallout = (status, tracts, popPct, tractPct, fipsList, idPrefix) => {
+    const hasRegional = Number.isFinite(popPct) || Number.isFinite(tractPct) || Array.isArray(tracts);
+    let isMajority = !!status;
+    if (hasRegional) {
+      if (Number.isFinite(popPct)) isMajority = popPct >= 50;
+      else if (Number.isFinite(tractPct)) isMajority = tractPct >= 50;
+      else isMajority = Array.isArray(tracts) && tracts.length > 0; // fallback: any DAC present
+    }
+    const border = isMajority ? "var(--success)" : "var(--border-strong)";
+
+    const label = hasRegional
+      ? Number.isFinite(popPct)
+        ? "Majority DAC (population)"
+        : Number.isFinite(tractPct)
+          ? "Majority DAC (tracts)"
+          : "Any DAC tracts present"
+      : "Disadvantaged community";
 
     const lines = [
-      `Disadvantaged community: <strong>${yes ? "Yes" : "No"}</strong>`,
+      `${label}: <strong>${isMajority ? "Yes" : "No"}</strong>`,
     ];
 
     const stats = [];
     if (Number.isFinite(popPct))
-      stats.push(`<li><strong>${fmtPct(popPct)}</strong> of population</li>`);
+      stats.push(`<li><strong>${fmtPct(popPct)}</strong> of population in DAC tracts</li>`);
     if (Number.isFinite(tractPct))
-      stats.push(`<li><strong>${fmtPct(tractPct)}</strong> of tracts</li>`);
+      stats.push(`<li><strong>${fmtPct(tractPct)}</strong> of tracts are DAC</li>`);
     if (stats.length) lines.push(`<ul class="dac-stats">${stats.join("")}</ul>`);
 
-    if (Array.isArray(tracts) && tracts.length)
+    // Show DAC tracts with FIPS and a More/Less toggle if long
+    if (Array.isArray(fipsList) && fipsList.length) {
+      const pairs = fipsList.map((f, i) => {
+        const label = Array.isArray(tracts) && tracts[i] ? String(tracts[i]) : fipsToTractLabel(f);
+        return `${escapeHTML(label)} — ${escapeHTML(String(f))}`;
+      });
+      const maxShow = 6;
+      const full = pairs.join(", ");
+      const short = pairs.length > maxShow ? pairs.slice(0, maxShow).join(", ") + `, +${pairs.length - maxShow} more` : full;
+      const toggleId = `${idPrefix}-dac`;
       lines.push(
-        `<div class="dac-tracts">Tracts ${tracts
-          .map((t) => escapeHTML(t))
-          .join(", ")}</div>`,
+        `<div class="dac-tracts">DAC tracts: <span id="${toggleId}-tracts">${short}</span>${
+          pairs.length > maxShow
+            ? ` <button class="toggle-tracts" data-expand="${toggleId}" data-full="${escapeHTML(full)}" data-short="${escapeHTML(short)}">More…</button>`
+            : ""
+        }</div>`,
       );
+    }
 
     return `<div class="callout" style="border-left-color:${border}">${lines.join("")}</div>`;
   };
@@ -3322,9 +3404,9 @@ function renderResult(address, data, elapsedMs, selections) {
   const dacRow = buildComparisonRow(
     "Disadvantaged Community (DAC) Status",
     dacCallout(dac_status),
-    dacCallout(null, s.dac_tracts, s.dac_population_pct, s.dac_tracts_pct),
-    dacCallout(null, w.dac_tracts, w.dac_population_pct, w.dac_tracts_pct),
-    '<p class="section-description">This section indicates whether the selected area is designated as a Disadvantaged Community (DAC) using the California Department of Water Resources (DWR) mapping tool. DAC status is determined by household income and is shown as a simple yes/no outcome. This designation is important for identifying areas eligible for certain state and federal funding opportunities and for ensuring that equity considerations are included in outreach and program planning.</p>' + renderSourceNotesGrouped('dac', data._source_log),
+    dacCallout(null, s.dac_tracts, s.dac_population_pct, s.dac_tracts_pct, s.dac_tracts_fips, 'surrounding'),
+    dacCallout(null, w.dac_tracts, w.dac_population_pct, w.dac_tracts_pct, w.dac_tracts_fips, 'water'),
+    '<p class="section-description">This section summarizes Disadvantaged Community (DAC) status. For the selected census tract, we show whether the tract itself is designated DAC. For the 10‑mile radius and the water district, we show whether the region is <strong>Majority DAC</strong>, which means more than 50% of the population in the included tracts lives in DAC tracts. We also show the share of tracts that are DAC to provide additional context.</p>' + renderSourceNotesGrouped('dac', data._source_log),
     scopes,
   );
 
@@ -3356,14 +3438,13 @@ function renderResult(address, data, elapsedMs, selections) {
     </section>
   `;
   const rows = [locationRow];
+  // Order: Demographics, Language, Housing & Education, Enviroscreen, DAC, Race & Ethnicity, Alerts
   if (categories.demographics) rows.push(populationRow);
   if (categories.language) rows.push(languageRow);
-  if (categories.race) rows.push(raceRow);
   if (categories.housing) rows.push(housingRow);
+  if (categories.enviroscreen) rows.push(enviroscreenRow);
   if (categories.dac) rows.push(dacRow);
-  if (categories.enviroscreen) {
-    rows.push(enviroscreenRow);
-  }
+  if (categories.race) rows.push(raceRow);
   document.getElementById("result").innerHTML = `
     <article class="card">
       <div class="card__header">
@@ -3503,6 +3584,11 @@ async function lookup(opts = {}) {
       }
       return {};
     })());
+    // Populate surrounding (tract labels, counties, cities, FIPS) using new FIPS endpoint
+    primaryTasks.push(enrichSurrounding(data, categories));
+    // Populate water district (tract labels, counties, cities, FIPS) using water FIPS endpoint
+    primaryTasks.push(enrichWaterDistrict(data, address, categories));
+
   // Prefer DB endpoints over external TIGER/ArcGIS for surrounding and water
     // (Shape-based enrichers are skipped to avoid external dependencies)
 
@@ -3640,13 +3726,30 @@ async function lookup(opts = {}) {
         if (!sFips.length) sFips = await listFipsSurrounding(data.lat, data.lon, 10);
         const dacParams = sFips.length ? { fips: sFips.join(',') } : { lat: String(data.lat), lon: String(data.lon), miles: '10' };
         const dac = await fetchJsonRetryL(buildApiUrl('/v1/dac/surrounding', dacParams), 'dac', { retries: 1, timeoutMs: 20000 }).catch(() => ({}));
-        if (dac && typeof dac === 'object') {
-          let share = dac.share_dac;
-          if (Number.isFinite(Number(share))) {
-            const val = Number(share);
-            out.surrounding_10_mile = { ...(s2 || {}), dac_population_pct: val <= 1 ? val * 100 : val };
-          }
-        }
+    if (dac && typeof dac === 'object') {
+      const patch = {};
+      const share = Number(dac.share_dac);
+      if (Number.isFinite(share)) patch.dac_population_pct = share <= 1 ? share * 100 : share;
+      const shareTracts = Number(dac.share_tracts);
+      if (Number.isFinite(shareTracts)) patch.dac_tracts_pct = shareTracts <= 1 ? shareTracts * 100 : shareTracts;
+      // Capture DAC tracts list (FIPS) if provided
+      const list = (() => {
+        const cands = [dac.tracts_dac, dac.dac_tracts, dac.dac_fips, dac.tracts, dac.fips_dac];
+        for (const v of cands) if (Array.isArray(v) && v.length) return v.map(String);
+        return [];
+      })().filter((x) => /^\d{11}$/.test(x));
+      if (list.length) {
+        patch.dac_tracts_fips = Array.from(new Set(list));
+        const map = (s2 && s2.census_tract_map) || {};
+        patch.dac_tracts = patch.dac_tracts_fips.map((f) => map[f] || fipsToTractLabel(f));
+      }
+      const dCount = Number(dac.tracts_dac ?? dac.count_dac);
+      const tCount = Number(dac.tracts_total ?? dac.total_tracts ?? (Array.isArray(s2.census_tracts_fips) ? s2.census_tracts_fips.length : NaN));
+      if (!Number.isFinite(patch.dac_tracts_pct) && Number.isFinite(dCount) && Number.isFinite(tCount) && tCount > 0) {
+        patch.dac_tracts_pct = (dCount / tCount) * 100;
+      }
+      if (Object.keys(patch).length) out.surrounding_10_mile = { ...(s2 || {}), ...patch };
+    }
       }
       if (data.lat != null && data.lon != null && scopes.water) {
         const w2 = data.water_district || {};
@@ -3654,13 +3757,30 @@ async function lookup(opts = {}) {
         if (!wf.length) wf = await listFipsWaterDistrict(data.lat, data.lon);
         const dacParams = wf.length ? { fips: wf.join(',') } : { lat: String(data.lat), lon: String(data.lon) };
         const dac = await fetchJsonRetryL(buildApiUrl('/v1/dac/water-district', dacParams), 'dac', { retries: 1, timeoutMs: 20000 }).catch(() => ({}));
-        if (dac && typeof dac === 'object') {
-          let share = dac.share_dac;
-          if (Number.isFinite(Number(share))) {
-            const val = Number(share);
-            out.water_district = { ...(w2 || {}), dac_population_pct: val <= 1 ? val * 100 : val };
-          }
-        }
+    if (dac && typeof dac === 'object') {
+      const patch = {};
+      const share = Number(dac.share_dac);
+      if (Number.isFinite(share)) patch.dac_population_pct = share <= 1 ? share * 100 : share;
+      const shareTracts = Number(dac.share_tracts);
+      if (Number.isFinite(shareTracts)) patch.dac_tracts_pct = shareTracts <= 1 ? shareTracts * 100 : shareTracts;
+      // Capture DAC tracts list (FIPS) if provided
+      const list = (() => {
+        const cands = [dac.tracts_dac, dac.dac_tracts, dac.dac_fips, dac.tracts, dac.fips_dac];
+        for (const v of cands) if (Array.isArray(v) && v.length) return v.map(String);
+        return [];
+      })().filter((x) => /^\d{11}$/.test(x));
+      if (list.length) {
+        patch.dac_tracts_fips = Array.from(new Set(list));
+        const map = (w2 && w2.census_tract_map) || {};
+        patch.dac_tracts = patch.dac_tracts_fips.map((f) => map[f] || fipsToTractLabel(f));
+      }
+      const dCount = Number(dac.tracts_dac ?? dac.count_dac);
+      const tCount = Number(dac.tracts_total ?? dac.total_tracts ?? (Array.isArray(w2.census_tracts_fips) ? w2.census_tracts_fips.length : NaN));
+      if (!Number.isFinite(patch.dac_tracts_pct) && Number.isFinite(dCount) && Number.isFinite(tCount) && tCount > 0) {
+        patch.dac_tracts_pct = (dCount / tCount) * 100;
+      }
+      if (Object.keys(patch).length) out.water_district = { ...(w2 || {}), ...patch };
+    }
       }
       return out;
     })());
@@ -3739,11 +3859,17 @@ function debounce(fn, wait = 250) {
 
 function bindOptionToggles() {
   const handler = debounce(() => {
-    const input = document.getElementById("autocomplete");
-    const addr = (input?.value || "").trim();
+    // Persist the user's preference changes without re-querying the API.
     savePreferences();
-    if (addr.length >= 4) lookup({ force: true }).catch(console.error);
-  }, 200);
+    // If we have data already, just re-render the view using the existing results
+    // and the updated selections (no network requests).
+    try {
+      if (lastReport && lastReport.address && lastReport.data) {
+        const selections = getSelections();
+        renderResult(lastReport.address, lastReport.data, 0, selections);
+      }
+    } catch {}
+  }, 150);
   document
     .querySelectorAll('.scope-options input[type="checkbox"], .category-options input[type="checkbox"]')
     .forEach((el) => el.addEventListener("change", handler));
@@ -3771,9 +3897,11 @@ function bindExpanders() {
   });
 }
 
+let googleMapsRequested = false;
 function loadGoogleMaps() {
+  if (googleMapsRequested || typeof window.google?.maps !== 'undefined') return;
+  googleMapsRequested = true;
   const script = document.createElement("script");
-  // Add loading=async for best-practice and keep defer to avoid blocking
   script.src = `https://maps.googleapis.com/maps/api/js?key=${GOOGLE_MAPS_KEY}&libraries=places&loading=async&callback=initAutocomplete`;
   script.async = true;
   script.defer = true;
@@ -3786,10 +3914,23 @@ getLanguageMeta().catch(() => {});
 window.onload = () => {
   // Restore saved preferences before binding and lookup
   restorePreferences();
-  loadGoogleMaps();
+  // Defer Google Maps until idle or first intent
+  if ('requestIdleCallback' in window) {
+    try { window.requestIdleCallback(() => loadGoogleMaps(), { timeout: 3000 }); } catch { setTimeout(loadGoogleMaps, 1500); }
+  } else {
+    setTimeout(loadGoogleMaps, 1500);
+  }
   bindLookupTrigger();
   bindOptionToggles();
   bindExpanders();
+  // Load Maps immediately when user focuses/types in the search box
+  const input = document.getElementById("autocomplete");
+  if (input) {
+    const eagerLoad = () => loadGoogleMaps();
+    input.addEventListener('focus', eagerLoad, { passive: true, once: true });
+    input.addEventListener('keydown', eagerLoad, { once: true });
+    input.addEventListener('pointerdown', eagerLoad, { passive: true, once: true });
+  }
   const params = new URLSearchParams(window.location.search);
   const addr = params.get("address");
   if (addr) {
