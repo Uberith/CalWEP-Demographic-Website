@@ -2057,41 +2057,34 @@ async function enrichSurrounding(data = {}, categories = {}) {
   ) {
     try {
       const dacFips = await fetchDacFips(s.census_tracts_fips);
-      const names = [];
-      for (const f of dacFips) {
-        const name = (s.census_tract_map && s.census_tract_map[f]) || f;
-        names.push(name);
-      }
-      s.dac_tracts = names;
-      s.dac_tracts_fips = dacFips;
-      if (names.length) {
-        const set = new Set([...(s.census_tracts || []), ...names]);
-        s.census_tracts = Array.from(set);
-      }
-    } catch {
-      // ignore errors
-    }
-  }
-  if (
-    categories.dac &&
-    Array.isArray(s.census_tracts_fips) &&
-    s.census_tracts_fips.length
-  ) {
-    try {
-      const lookup = await fetchUnemploymentForTracts(s.census_tracts_fips);
-      let totalPop = 0;
-      let dacPop = 0;
-      const dacFips = new Set(s.dac_tracts_fips || []);
-      for (const f of s.census_tracts_fips) {
-        const info = lookup[f];
-        if (info && Number.isFinite(info.population)) {
-          totalPop += info.population;
-          if (dacFips.has(String(f))) dacPop += info.population;
+      if (Array.isArray(dacFips) && dacFips.length) {
+        const names = [];
+        for (const f of dacFips) {
+          const name = (s.census_tract_map && s.census_tract_map[f]) || f;
+          names.push(name);
         }
+        s.dac_tracts = names;
+        s.dac_tracts_fips = dacFips;
+        if (names.length) {
+          const set = new Set([...(s.census_tracts || []), ...names]);
+          s.census_tracts = Array.from(set);
+        }
+        // Only compute percentages from local sums when we have DAC FIPS
+        const lookup = await fetchUnemploymentForTracts(s.census_tracts_fips);
+        let totalPop = 0;
+        let dacPop = 0;
+        const dacSet = new Set(dacFips.map(String));
+        for (const f of s.census_tracts_fips) {
+          const info = lookup[f];
+          if (info && Number.isFinite(info.population)) {
+            totalPop += info.population;
+            if (dacSet.has(String(f))) dacPop += info.population;
+          }
+        }
+        if (totalPop > 0) s.dac_population_pct = (dacPop / totalPop) * 100;
+        if (s.census_tracts_fips.length > 0)
+          s.dac_tracts_pct = (dacSet.size / s.census_tracts_fips.length) * 100;
       }
-      if (totalPop > 0) s.dac_population_pct = (dacPop / totalPop) * 100;
-      if (s.census_tracts_fips.length > 0)
-        s.dac_tracts_pct = (dacFips.size / s.census_tracts_fips.length) * 100;
     } catch {
       // ignore errors
     }
@@ -2251,42 +2244,34 @@ async function enrichWaterDistrict(data = {}, address = "", categories = {}) {
   ) {
     try {
       const dacFips = await fetchDacFips(w.census_tracts_fips);
-      const names = [];
-      for (const f of dacFips) {
-        const name = (w.census_tract_map && w.census_tract_map[f]) || f;
-        names.push(name);
-      }
-      w.dac_tracts = names;
-      w.dac_tracts_fips = dacFips;
-      if (names.length) {
-        const set = new Set([...(w.census_tracts || []), ...names]);
-        w.census_tracts = Array.from(set);
-      }
-    } catch {
-      // ignore errors
-    }
-  }
-  if (
-    categories.dac &&
-    Array.isArray(w.census_tracts_fips) &&
-    w.census_tracts_fips.length
-  ) {
-    try {
-      const lookup = await fetchUnemploymentForTracts(w.census_tracts_fips);
-      let totalPop = 0;
-      let dacPop = 0;
-      const dacFips = new Set(w.dac_tracts_fips || []);
-      for (const f of w.census_tracts_fips) {
-        const info = lookup[f];
-        if (info && Number.isFinite(info.population)) {
-          totalPop += info.population;
-          if (dacFips.has(String(f))) dacPop += info.population;
+      if (Array.isArray(dacFips) && dacFips.length) {
+        const names = [];
+        for (const f of dacFips) {
+          const name = (w.census_tract_map && w.census_tract_map[f]) || f;
+          names.push(name);
         }
+        w.dac_tracts = names;
+        w.dac_tracts_fips = dacFips;
+        if (names.length) {
+          const set = new Set([...(w.census_tracts || []), ...names]);
+          w.census_tracts = Array.from(set);
+        }
+        // Only compute percentages from local sums when we have DAC FIPS
+        const lookup = await fetchUnemploymentForTracts(w.census_tracts_fips);
+        let totalPop = 0;
+        let dacPop = 0;
+        const dacSet = new Set(dacFips.map(String));
+        for (const f of w.census_tracts_fips) {
+          const info = lookup[f];
+          if (info && Number.isFinite(info.population)) {
+            totalPop += info.population;
+            if (dacSet.has(String(f))) dacPop += info.population;
+          }
+        }
+        if (totalPop > 0) w.dac_population_pct = (dacPop / totalPop) * 100;
+        if (w.census_tracts_fips.length > 0)
+          w.dac_tracts_pct = (dacSet.size / w.census_tracts_fips.length) * 100;
       }
-      if (totalPop > 0) w.dac_population_pct = (dacPop / totalPop) * 100;
-      if (w.census_tracts_fips.length > 0)
-        w.dac_tracts_pct =
-          (dacFips.size / w.census_tracts_fips.length) * 100;
     } catch {
       // ignore errors
     }
@@ -3143,12 +3128,21 @@ function renderResult(address, data, elapsedMs, selections) {
     const short = `${shown} …`;
     return `<span id="${id}-tracts">${escapeHTML(short)}</span> <button class="link-button" data-expand="${id}" data-short="${escapeHTML(short)}" data-full="${escapeHTML(full)}">More…</button>`;
   }
+  function renderListWithToggle(arr, id, maxShown = 3) {
+    if (!Array.isArray(arr) || !arr.length) return '—';
+    const vals = Array.from(new Set(arr.map((v) => String(v))));
+    const full = vals.join(', ');
+    if (vals.length <= maxShown) return escapeHTML(full);
+    const shown = vals.slice(0, maxShown).join(', ');
+    const short = `${shown} …`;
+    return `<span id="${id}-tracts">${escapeHTML(short)}</span> <button class="link-button" data-expand="${id}" data-short="${escapeHTML(short)}" data-full="${escapeHTML(full)}">More…</button>`;
+  }
   const sFipsArr = Array.isArray(s.census_tracts_fips) ? s.census_tracts_fips.map(String) : [];
   const wFipsArr = Array.isArray(w.census_tracts_fips) ? w.census_tracts_fips.map(String) : [];
   const locSurround = `
     <div class="kv">
-      <div class="key">Cities</div><div class="val">${sCities}</div>
-      <div class="key">Counties</div><div class="val">${sCounties}</div>
+      <div class="key">Cities</div><div class="val">${renderListWithToggle(Array.isArray(s.cities) ? s.cities : (s.cities ? [s.cities] : []), 'sCities', 3)}</div>
+      <div class="key">Counties</div><div class="val">${renderListWithToggle(Array.isArray(s.counties) ? s.counties : (s.county ? [s.county] : []), 'sCounties', 3)}</div>
       <div class="key">Census tracts</div><div class="val">${renderTractList(sTracts, 's')}</div>
       <div class="key">FIPS</div><div class="val">${sFipsArr.length ? renderTractList(sFipsArr, 'sF') : '—'}</div>
     </div>
@@ -3156,8 +3150,8 @@ function renderResult(address, data, elapsedMs, selections) {
   const locDistrict = `
     <div class="kv">
       <div class="key">District</div><div class="val">${escapeHTML(w.name) || "—"}</div>
-      <div class="key">Cities</div><div class="val">${wCities}</div>
-      <div class="key">Counties</div><div class="val">${wCounties}</div>
+      <div class="key">Cities</div><div class="val">${renderListWithToggle(Array.isArray(w.cities) ? w.cities : (w.cities ? [w.cities] : []), 'wCities', 3)}</div>
+      <div class="key">Counties</div><div class="val">${renderListWithToggle(Array.isArray(w.counties) ? w.counties : (w.county ? [w.county] : []), 'wCounties', 3)}</div>
       <div class="key">Census tracts</div><div class="val">${renderTractList(wTracts, 'w')}</div>
       <div class="key">FIPS</div><div class="val">${wFipsArr.length ? renderTractList(wFipsArr, 'wF') : '—'}</div>
     </div>
