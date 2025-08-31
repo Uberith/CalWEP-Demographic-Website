@@ -410,6 +410,13 @@ button:focus-visible {
   gap: var(--space-6);
   margin-top: var(--space-5);
 }
+.comparison-grid.column-headers {
+  margin-top: 0; /* no top margin for header row */
+  margin-bottom: 0; /* remove space below header labels */
+}
+.section-block .comparison-grid.column-headers + .comparison-grid {
+  margin-top: 0; /* remove gap between header labels and content boxes */
+}
 .comparison-grid .col {
   background: var(--accent-bg);
   border: 1px solid var(--border);
@@ -500,6 +507,25 @@ button:focus-visible {
   margin-top: var(--space-4);
   border-radius: var(--radius);
   box-shadow: var(--shadow-elev);
+}
+
+/* Inline geometry maps (Leaflet) */
+.geom-map {
+  width: 100%;
+  height: 240px;
+  border-radius: var(--radius);
+  border: 1px solid var(--border);
+  margin-top: var(--space-3);
+  overflow: hidden;
+}
+
+/* Tweak Leaflet default controls for compact cards */
+.leaflet-control-attribution {
+  font-size: 10px;
+}
+.leaflet-top.leaflet-left .leaflet-control-zoom {
+  margin-top: 8px;
+  margin-left: 8px;
 }
 
 .ces-badge {

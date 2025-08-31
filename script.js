@@ -17,7 +17,7 @@ function isCacheableUrl(url) {
     return (
       /api\.census\.gov$/i.test(u.hostname) ||
       (u.origin === window.location.origin && /^\/proxy\/(acs|geocoder)\b/.test(u.pathname)) ||
-      (u.origin === window.location.origin && /^(?:\/demographics|\/lookup|\/census-tracts)\b/.test(u.pathname))
+      (u.origin === window.location.origin && /^\/v1\//.test(u.pathname))
     );
   } catch {
     return false;
@@ -48,7 +48,7 @@ function sourceDomainLabel(u) {
     const isLocal = host === 'localhost' || host === '127.0.0.1' || host === '[::1]' || host === window.location.hostname;
     const path = url.pathname || '';
     if (isLocal) {
-      if (/^\/(demographics|lookup|census-tracts)/.test(path)) return 'api.calwep.org';
+      if (/^\/v1\//.test(path)) return 'api.calwep.org';
       return null;
     }
     return host;
@@ -117,6 +117,39 @@ function getSelections() {
     alerts: document.getElementById("cat-alerts")?.checked ?? true,
   };
   return { scopes, categories };
+}
+
+// Persist user selections across refresh
+const PREFS_KEY = 'calwep_prefs_v1';
+function savePreferences() {
+  try {
+    const { scopes, categories } = getSelections();
+    const prefs = { scopes, categories };
+    localStorage.setItem(PREFS_KEY, JSON.stringify(prefs));
+  } catch {}
+}
+function restorePreferences() {
+  try {
+    const raw = localStorage.getItem(PREFS_KEY);
+    if (!raw) return;
+    const prefs = JSON.parse(raw);
+    const apply = (id, val) => {
+      const el = document.getElementById(id);
+      if (el && typeof val === 'boolean') el.checked = val;
+    };
+    const s = prefs.scopes || {};
+    apply('scope-tract', s.tract);
+    apply('scope-radius', s.radius);
+    apply('scope-water', s.water);
+    const c = prefs.categories || {};
+    apply('cat-demographics', c.demographics);
+    apply('cat-language', c.language);
+    apply('cat-housing', c.housing);
+    apply('cat-enviroscreen', c.enviroscreen);
+    apply('cat-dac', c.dac);
+    apply('cat-race', c.race);
+    apply('cat-alerts', c.alerts);
+  } catch {}
 }
 
 function printReport() {
@@ -223,6 +256,64 @@ function fmtPct(n) {
 }
 function titleCase(str = "") {
   return str.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
+}
+
+// Remove the words "Census Tract" from a tract name for compact display
+function cleanTractName(value) {
+  if (value == null) return value;
+  return String(value).replace(/\bCensus\s*Tract\b\s*/gi, "").trim();
+}
+
+// Normalize CalEnviroScreen payloads to the renderer's expected shape
+function normalizeEnviroscreenData(data) {
+  if (!data || typeof data !== 'object') return null;
+  // Already in normalized shape
+  if (data.percentile != null || data.overall_percentiles) return data;
+  const hasFlat = (
+    data.ci_percentile != null ||
+    data.ci_score != null ||
+    'ozone_pct' in data || 'pm25_pct' in data
+  );
+  if (!hasFlat) return data;
+  const num = (v) => (v == null ? null : Number(v));
+  return {
+    score: num(data.ci_score),
+    percentile: num(data.ci_percentile),
+    overall_percentiles: {
+      calenviroscreen: num(data.ci_percentile),
+      pollution_burden: num(data.pollution_percentile),
+      population_characteristics: num(data.pop_char_percentile),
+    },
+    exposures: {
+      ozone: num(data.ozone_pct),
+      pm25: num(data.pm25_pct),
+      diesel: num(data.diesel_pct),
+      toxic_releases: num(data.toxic_releases_pct),
+      traffic: num(data.traffic_pct),
+      pesticides: num(data.pesticides_pct),
+      drinking_water: num(data.drinking_water_pct),
+      lead: num(data.lead_pct),
+    },
+    environmental_effects: {
+      cleanup_sites: num(data.cleanup_sites_pct),
+      groundwater_threats: num(data.groundwater_threats_pct),
+      hazardous_waste: num(data.hazardous_waste_pct),
+      impaired_waters: num(data.impaired_waters_pct),
+      solid_waste: num(data.solid_waste_pct),
+    },
+    sensitive_populations: {
+      asthma: num(data.asthma_pct),
+      low_birth_weight: num(data.low_birth_weight_pct),
+      cardiovascular_disease: num(data.cardiovascular_disease_pct),
+    },
+    socioeconomic_factors: {
+      education: num(data.education_pct),
+      linguistic_isolation: num(data.linguistic_isolation_pct),
+      poverty: num(data.poverty_pct),
+      unemployment: num(data.unemployment_pct),
+      housing_burden: num(data.housing_burden_pct),
+    },
+  };
 }
 
 function deepMerge(target = {}, ...sources) {
@@ -359,15 +450,22 @@ function withTimeout(promise, ms, fallbackValue, onTimeout) {
 
 async function fetchJsonWithDiagnostics(url, opts = {}) {
   const { timeoutMs = 15000, signal, headers = {} } = opts;
-  // Normalize dev/prod URL routing to avoid broken /proxy calls in production
+  // Normalize URL routing so static servers (no proxy) work
   function normalizeUrlForEnv(u) {
     try {
-      const isDev = isDevOrigin();
       const parsed = new URL(u, window.location.origin);
-      if (!isDev && parsed.origin === window.location.origin) {
-        if (parsed.pathname.startsWith('/proxy/acs')) {
-          return `https://api.calwep.org/v1/proxy/acs${parsed.pathname.replace(/^\/proxy\/acs/, '')}${parsed.search || ''}`;
-        }
+      const sameOrigin = parsed.origin === window.location.origin;
+      // Rewrite same-origin proxy paths to public API equivalents
+      if (sameOrigin && /^\/(proxy\/acs|api\/acs|acs)\b/.test(parsed.pathname)) {
+        const tail = parsed.pathname.replace(/^\/(proxy\/acs|api\/acs|acs)/, '');
+        return `https://api.calwep.org/acs${tail}${parsed.search || ''}`;
+      }
+      if (sameOrigin && /^\/geocoder\b/.test(parsed.pathname)) {
+        const tail = parsed.pathname.replace(/^\/geocoder/, '');
+        return `https://api.calwep.org/v1/api/geocoder${tail}${parsed.search || ''}`;
+      }
+      if (sameOrigin && /^\/tiger\b/.test(parsed.pathname)) {
+        return `https://api.calwep.org/v1/api${parsed.pathname}${parsed.search || ''}`;
       }
     } catch {}
     return u;
@@ -425,16 +523,27 @@ function extractLatLonCandidate(obj) {
 }
 async function dbEnviroscreenByFips(fips11) {
   if (!fips11 || String(fips11).length !== 11) return {};
-  const url = buildApiUrl('/v1/db/enviroscreen', { fips: String(fips11) });
+  const url = buildApiUrl('/v1/enviroscreen', { fips: String(fips11) });
   return fetchJsonRetryL(url, 'enviroscreen', { retries: 1, timeoutMs: 20000 }).catch(() => ({}));
 }
 async function dbEnviroscreenFetch(fips11) {
   if (!fips11 || String(fips11).length !== 11) return false;
-  const url = buildApiUrl('/v1/db/enviroscreen/fetch', { fips: String(fips11) });
+  const url = buildApiUrl('/v1/enviroscreen', { fips: String(fips11) });
   try {
-    const res = await fetch(url, { method: 'POST', headers: { accept: 'application/json' } });
+    const res = await fetch(url, { method: 'GET', headers: { accept: 'application/json' } });
     return res.ok;
   } catch { return false; }
+}
+
+async function enviroscreenSurrounding(lat, lon, miles = 10) {
+  if (lat == null || lon == null) return {};
+  const url = buildApiUrl('/v1/enviroscreen/surrounding', { lat: String(lat), lon: String(lon), miles: String(miles) });
+  return fetchJsonRetryL(url, 'enviroscreen', { retries: 1, timeoutMs: 20000 }).catch(() => ({}));
+}
+async function enviroscreenWaterDistrict(lat, lon) {
+  if (lat == null || lon == null) return {};
+  const url = buildApiUrl('/v1/enviroscreen/water-district', { lat: String(lat), lon: String(lon) });
+  return fetchJsonRetryL(url, 'enviroscreen', { retries: 1, timeoutMs: 20000 }).catch(() => ({}));
 }
 async function dbSurroundingAggregates(lat, lon, miles = 10) {
   if (lat == null || lon == null) return {};
@@ -454,7 +563,92 @@ async function dbTractsWithinRadius(lat, lon, miles = 10) {
   return fetchJsonRetryL(url, 'location', { retries: 1, timeoutMs: 20000 }).catch(() => ({}));
 }
 
+// ---------- Typed Endpoints: Population & Income ----------
+async function popIncomeByFips(fips11) {
+  if (!fips11 || String(fips11).length !== 11) return {};
+  const url = buildApiUrl('/v1/population-income', { fips: String(fips11) });
+  return fetchJsonRetryL(url, 'population', { retries: 1, timeoutMs: 20000 }).catch(() => ({}));
+}
+async function popIncomeSurrounding(lat, lon, miles = 10) {
+  if (lat == null || lon == null) return {};
+  const url = buildApiUrl('/v1/population-income/surrounding', { lat: String(lat), lon: String(lon), miles: String(miles) });
+  return fetchJsonRetryL(url, 'population', { retries: 1, timeoutMs: 20000 }).catch(() => ({}));
+}
+async function popIncomeWaterDistrict(lat, lon) {
+  if (lat == null || lon == null) return {};
+  const url = buildApiUrl('/v1/population-income/water-district', { lat: String(lat), lon: String(lon) });
+  return fetchJsonRetryL(url, 'population', { retries: 1, timeoutMs: 20000 }).catch(() => ({}));
+}
+
+// ---------- Typed Endpoints: Race & Ethnicity ----------
+async function raceByFips(fips11) {
+  if (!fips11 || String(fips11).length !== 11) return {};
+  const url = buildApiUrl('/v1/race-ethnicity', { fips: String(fips11) });
+  return fetchJsonRetryL(url, 'race', { retries: 1, timeoutMs: 20000 }).catch(() => ({}));
+}
+async function raceSurrounding(lat, lon, miles = 10) {
+  if (lat == null || lon == null) return {};
+  const url = buildApiUrl('/v1/race-ethnicity/surrounding', { lat: String(lat), lon: String(lon), miles: String(miles) });
+  return fetchJsonRetryL(url, 'race', { retries: 1, timeoutMs: 20000 }).catch(() => ({}));
+}
+async function raceWaterDistrict(lat, lon) {
+  if (lat == null || lon == null) return {};
+  const url = buildApiUrl('/v1/race-ethnicity/water-district', { lat: String(lat), lon: String(lon) });
+  return fetchJsonRetryL(url, 'race', { retries: 1, timeoutMs: 20000 }).catch(() => ({}));
+}
+
+// ---------- Typed Endpoints: Housing & Education ----------
+async function housingByFips(fips11) {
+  if (!fips11 || String(fips11).length !== 11) return {};
+  const url = buildApiUrl('/v1/housing-education', { fips: String(fips11) });
+  return fetchJsonRetryL(url, 'housing', { retries: 1, timeoutMs: 20000 }).catch(() => ({}));
+}
+async function housingSurrounding(lat, lon, miles = 10) {
+  if (lat == null || lon == null) return {};
+  const url = buildApiUrl('/v1/housing-education/surrounding', { lat: String(lat), lon: String(lon), miles: String(miles) });
+  return fetchJsonRetryL(url, 'housing', { retries: 1, timeoutMs: 20000 }).catch(() => ({}));
+}
+async function housingWaterDistrict(lat, lon) {
+  if (lat == null || lon == null) return {};
+  const url = buildApiUrl('/v1/housing-education/water-district', { lat: String(lat), lon: String(lon) });
+  return fetchJsonRetryL(url, 'housing', { retries: 1, timeoutMs: 20000 }).catch(() => ({}));
+}
+
+// ---------- Typed Endpoints: DAC ----------
+async function dacByFips(fips11) {
+  if (!fips11 || String(fips11).length !== 11) return {};
+  const url = buildApiUrl('/v1/dac', { fips: String(fips11) });
+  return fetchJsonRetryL(url, 'dac', { retries: 1, timeoutMs: 20000 }).catch(() => ({}));
+}
+async function dacSurrounding(lat, lon, miles = 10) {
+  if (lat == null || lon == null) return {};
+  const url = buildApiUrl('/v1/dac/surrounding', { lat: String(lat), lon: String(lon), miles: String(miles) });
+  return fetchJsonRetryL(url, 'dac', { retries: 1, timeoutMs: 20000 }).catch(() => ({}));
+}
+async function dacWaterDistrict(lat, lon) {
+  if (lat == null || lon == null) return {};
+  const url = buildApiUrl('/v1/dac/water-district', { lat: String(lat), lon: String(lon) });
+  return fetchJsonRetryL(url, 'dac', { retries: 1, timeoutMs: 20000 }).catch(() => ({}));
+}
+
+// ---------- Typed Endpoints: FIPS utilities ----------
+async function listFipsSurrounding(lat, lon, miles = 10) {
+  if (lat == null || lon == null) return [];
+  const url = buildApiUrl('/v1/fips/surrounding', { lat: String(lat), lon: String(lon), miles: String(miles) });
+  const j = await fetchJsonRetryL(url, 'location', { retries: 1, timeoutMs: 15000 }).catch(() => null);
+  const arr = Array.isArray(j?.fips) ? j.fips.map(String) : [];
+  return arr.filter((s) => /^\d{11}$/.test(s));
+}
+async function listFipsWaterDistrict(lat, lon) {
+  if (lat == null || lon == null) return [];
+  const url = buildApiUrl('/v1/fips/water-district', { lat: String(lat), lon: String(lon) });
+  const j = await fetchJsonRetryL(url, 'location', { retries: 1, timeoutMs: 15000 }).catch(() => null);
+  const arr = Array.isArray(j?.fips) ? j.fips.map(String) : [];
+  return arr.filter((s) => /^\d{11}$/.test(s));
+}
+
 // POST aggregate demographics over a list of tracts (FIPS-11)
+// Uses stable legacy endpoint at /v1/db/acs-profile/aggregate
 async function dbAcsProfileAggregate(fipsList = []) {
   const f = Array.isArray(fipsList) ? fipsList.map(String).filter((s) => /^\d{11}$/.test(s)) : [];
   if (!f.length) return {};
@@ -519,25 +713,19 @@ function toCensus(url) {
   try {
     const u = new URL(url);
     const pathAndQuery = u.pathname + (u.search || '');
-    // Route ACS calls through api.calwep.org proxy; use local /proxy in dev for same-origin
+    // Always route ACS through api.calwep.org browser-friendly alias
     if (u.hostname.endsWith('api.census.gov')) {
-      return isDevOrigin()
-        ? `${window.location.origin}/proxy/acs${pathAndQuery}`
-        : `https://api.calwep.org/v1/proxy/acs${pathAndQuery}`;
+      return `https://api.calwep.org/acs${pathAndQuery}`;
     }
     if (u.hostname === 'geocoding.geo.census.gov') {
       const tail = pathAndQuery.replace(/^(\/geocoder)+/, '');
-      return isDevOrigin()
-        ? `${window.location.origin}/geocoder${tail}`
-        : `https://api.calwep.org/v1/api/geocoder${tail}`;
+      return `https://api.calwep.org/v1/api/geocoder${tail}`;
     }
     if (u.hostname.endsWith('tigerweb.geo.census.gov')) {
       const m = u.pathname.match(/\/MapServer\/(.*)$/);
       const tail = m ? m[1] : '';
       const p = `/tiger/MapServer/${tail}` + (u.search || '');
-      return isDevOrigin()
-        ? `${window.location.origin}${p}`
-        : `https://api.calwep.org/v1/api${p}`;
+      return `https://api.calwep.org/v1/api${p}`;
     }
   } catch {}
   return url;
@@ -768,6 +956,27 @@ async function getLanguageMeta() {
 }
 
 async function aggregateLanguageForTracts(fipsList = []) {
+  const list = Array.isArray(fipsList) ? fipsList.map(String).filter((s) => /^\d{11}$/.test(s)) : [];
+  if (!list.length) return {};
+  // Prefer CalWEP API aggregate endpoint for languages
+  try {
+    const url = buildApiUrl('/v1/languages', { fips: list.join(',') });
+    const j = await fetchJsonRetryL(url, 'language', { retries: 1, timeoutMs: 20000 });
+    if (j && typeof j === 'object') {
+      const out = {};
+      if (j.primary_language != null) out.primary_language = j.primary_language;
+      if (j.secondary_language != null) out.secondary_language = j.secondary_language;
+      if (j.language_other_than_english_pct != null) out.language_other_than_english_pct = j.language_other_than_english_pct;
+      if (j.english_less_than_very_well_pct != null) out.english_less_than_very_well_pct = j.english_less_than_very_well_pct;
+      if (j.spanish_at_home_pct != null) out.spanish_at_home_pct = j.spanish_at_home_pct;
+      // If API includes additional helpful fields, pass them through as well
+      for (const k of Object.keys(j)) {
+        if (out[k] == null && /_language$|_pct$|_at_home$/.test(k)) out[k] = j[k];
+      }
+      return out;
+    }
+  } catch {}
+  // Fallback to direct ACS aggregation if API is unavailable
   const { codes, names } = await getLanguageMeta();
   if (!codes.length) return {};
   const groups = {};
@@ -1591,10 +1800,18 @@ async function enrichRegionLanguages(data = {}) {
   const { surrounding_10_mile, water_district } = data || {};
   const out = { ...data };
   const s = surrounding_10_mile || {};
-  if (
-    Array.isArray(s.census_tracts_fips) &&
-    s.census_tracts_fips.length
-  ) {
+  // Prefer typed endpoint by lat/lon for surrounding
+  if (out.lat != null && out.lon != null) {
+    try {
+      let sFips = Array.isArray(s.census_tracts_fips) ? s.census_tracts_fips.map(String) : [];
+      if (!sFips.length) sFips = await listFipsSurrounding(out.lat, out.lon, 10);
+      const params = { lat: String(out.lat), lon: String(out.lon), miles: '10' };
+      if (sFips.length) params.fips = sFips.join(',');
+      const lang = await fetchJsonRetryL(buildApiUrl('/v1/languages/surrounding', params), 'language', { retries: 1, timeoutMs: 20000 });
+      const d = s.demographics || {};
+      out.surrounding_10_mile = { ...s, demographics: { ...d, ...lang }, census_tracts_fips: sFips.length ? sFips : s.census_tracts_fips };
+    } catch {}
+  } else if (Array.isArray(s.census_tracts_fips) && s.census_tracts_fips.length) {
     const lang = await aggregateLanguageForTracts(s.census_tracts_fips);
     const d = s.demographics || {};
     out.surrounding_10_mile = { ...s, demographics: { ...d, ...lang } };
@@ -1603,7 +1820,18 @@ async function enrichRegionLanguages(data = {}) {
   const wFips = Array.isArray(w.census_tracts_fips)
     ? w.census_tracts_fips.map(String)
     : [];
-  if (wFips.length) {
+  // Prefer typed endpoint by lat/lon for water district
+  if (out.lat != null && out.lon != null) {
+    try {
+      let wf = wFips;
+      if (!wf.length) wf = await listFipsWaterDistrict(out.lat, out.lon);
+      const params = { lat: String(out.lat), lon: String(out.lon) };
+      if (wf.length) params.fips = wf.join(',');
+      const lang = await fetchJsonRetryL(buildApiUrl('/v1/languages/water-district', params), 'language', { retries: 1, timeoutMs: 20000 });
+      const d = w.demographics || {};
+      out.water_district = { ...w, demographics: { ...d, ...lang }, census_tracts_fips: wf.length ? wf : w.census_tracts_fips };
+    } catch {}
+  } else if (wFips.length) {
     const lang = await aggregateLanguageForTracts(wFips);
     const d = w.demographics || {};
     out.water_district = { ...w, demographics: { ...d, ...lang } };
@@ -1821,7 +2049,7 @@ async function enrichWaterDistrict(data = {}, address = "", categories = {}) {
 
   // Primary lookup using the NFT API (includes service-area shape info)
   if (address) {
-    const url = buildApiUrl("/lookup", { address });
+    const url = buildApiUrl("/v1/lookup", { address });
     tasks.push(
       fetchJsonWithDiagnostics(url)
         .then((j) => {
@@ -1885,7 +2113,7 @@ async function enrichWaterDistrict(data = {}, address = "", categories = {}) {
   // Fetch census tracts from the API if we have a name but no tract list
   if (w.name && (!Array.isArray(w.census_tracts) || !w.census_tracts.length)) {
     try {
-      const url = buildApiUrl("/census-tracts", { agency_name: w.name });
+      const url = buildApiUrl("/v1/census-tracts", { agency_name: w.name });
       const j = await fetchJsonWithDiagnostics(url);
       const tracts = j?.census_tracts;
       if (Array.isArray(tracts)) {
@@ -1971,45 +2199,7 @@ async function enrichWaterDistrict(data = {}, address = "", categories = {}) {
     }
   }
 
-  if (categories.enviroscreen) {
-    // Hard-coded CalEnviroScreen indicators for the water district region
-    w.environment = {
-      percentile: 48.5,
-      overall_percentiles: {
-        pollution_burden: 37.2,
-        population_characteristics: 56.5,
-      },
-      exposures: {
-        ozone: 98.8,
-        pm25: 34.0,
-        diesel: 24.2,
-        toxic_releases: 32.7,
-        traffic: 12.3,
-        pesticides: 22.7,
-        drinking_water: 61.8,
-        lead: 49.1,
-      },
-      environmental_effects: {
-        cleanup_sites: 25.2,
-        groundwater_threats: 20.4,
-        hazardous_waste: 27.8,
-        impaired_waters: 23.0,
-        solid_waste: 45.7,
-      },
-      sensitive_populations: {
-        asthma: 58.9,
-        low_birth_weight: 52.8,
-        cardiovascular_disease: 81.6,
-      },
-      socioeconomic_factors: {
-        education: 45.5,
-        linguistic_isolation: 17.0,
-        poverty: 54.5,
-        unemployment: 63.2,
-        housing_burden: 38.8,
-      },
-    };
-  }
+  // Enviroscreen for water district will be fetched by typed endpoint later in the pipeline
 
   return { ...data, water_district: w };
 }
@@ -2105,12 +2295,18 @@ async function enrichNwsAlerts(data = {}) {
     const j = await (async () => { try { const jj = await res.json(); logSource('alerts', url, true); return jj; } catch (e) { logSource('alerts', url, false, String(e)); throw e; } })();
     const alerts = Array.isArray(j?.features)
       ? j.features
-          .map((f) => f?.properties?.headline)
+          .map((f) => {
+            const p = f?.properties || {};
+            const event = p.event;
+            const head = p.headline;
+            return head || event || null;
+          })
           .filter(Boolean)
       : [];
-    return { ...data, alerts };
+    const meta = { title: j?.title || null, updated: j?.updated || null };
+    return { ...data, alerts, alerts_meta: meta };
   } catch {
-    return { ...data, alerts: [] };
+    return { ...data, alerts: [], alerts_meta: null };
   }
 }
 
@@ -2315,13 +2511,11 @@ function renderLoading(address, selections) {
   if (categories.dac) rows.push(makeRow("Disadvantaged Community (DAC) Status"));
   if (categories.enviroscreen) {
     rows.push(makeRow("Environmental Indicators"));
-    rows.push(makeRow("Environmental Hardships"));
   }
   if (categories.alerts)
     rows.push(
       `<section class="section-block"><h3 class="section-header">Active Alerts</h3><p class="note">Loading…</p></section>`,
     );
-  const columnHeaders = buildColumnHeaders(scopes);
   document.getElementById("result").innerHTML = `
     <div class="card">
       <div class="card__header">
@@ -2329,7 +2523,6 @@ function renderLoading(address, selections) {
         <span class="updated">Started ${nowStamp()}</span>
       </div>
       ${address ? `<p class="note">Address: <strong>${escapeHTML(address)}</strong></p>` : ""}
-      ${columnHeaders}
       ${rows.join("")}
       <p class="note">Elapsed: <span id="searchTimer">0m 00s</span></p>
     </div>
@@ -2367,35 +2560,38 @@ function buildComparisonRow(
   if (scopes.radius)
     cols.push(`<div class="col surrounding">${cell(surroundingHtml)}</div>`);
   if (scopes.water) cols.push(`<div class="col district">${cell(districtHtml)}</div>`);
+  // Per-section column headers
+  const headerCols = [];
+  if (scopes.tract) headerCols.push('<div class="col">Census tract</div>');
+  if (scopes.radius) headerCols.push('<div class="col">10 mile radius</div>');
+  if (scopes.water) headerCols.push('<div class="col">Water district</div>');
+  const headers = headerCols.length
+    ? `<div class="comparison-grid column-headers">${headerCols.join("")}</div>`
+    : "";
   return `
     <section class="section-block">
       <h3 class="section-header">${title}</h3>
       ${descriptionHtml}
+      ${headers}
       <div class="comparison-grid">${cols.join("")}</div>
     </section>
   `;
 }
 
-function buildColumnHeaders(scopes = { tract: true, radius: true, water: true }) {
-  const cols = [];
-  if (scopes.tract) cols.push('<div class="col">Census tract</div>');
-  if (scopes.radius) cols.push('<div class="col">10 mile radius</div>');
-  if (scopes.water) cols.push('<div class="col">Water district</div>');
-  if (!cols.length) return "";
-  return `<div class="comparison-grid column-headers">${cols.join("")}</div>`;
-}
+// No longer need a global column header; per-section headers are rendered above each section
 
 function renderEnviroscreenContent(data) {
-  if (!data || typeof data !== "object")
+  const norm = normalizeEnviroscreenData(data);
+  if (!norm || typeof norm !== "object")
     return "<p class=\"note\">No data</p>";
   const badge = (v) => {
     const { bg, fg } = cesColor(v);
     const val = Number.isFinite(Number(v)) ? Number(v).toFixed(1) : "—";
     return `<span class="ces-badge" style="background:${bg};color:${fg};">${val}</span>`;
   };
-  const overall = data.percentile;
-  const pb = data.overall_percentiles?.pollution_burden;
-  const pc = data.overall_percentiles?.population_characteristics;
+  const overall = norm.percentile;
+  const pb = norm.overall_percentiles?.pollution_burden;
+  const pc = norm.overall_percentiles?.population_characteristics;
   const renderGroup = (title, obj, order = []) => {
     if (!obj || typeof obj !== "object") return "";
     const entries = Object.entries(obj).sort(([a], [b]) => {
@@ -2422,10 +2618,10 @@ function renderEnviroscreenContent(data) {
       <div class="key">Pollution burden</div><div class="val">${badge(pb)}</div>
       <div class="key">Population characteristics</div><div class="val">${badge(pc)}</div>
     </div>
-    ${renderGroup("Exposures", data.exposures, CES_GROUP_ORDER.exposures)}
-    ${renderGroup("Environmental effects", data.environmental_effects, CES_GROUP_ORDER.environmental_effects)}
-    ${renderGroup("Sensitive populations", data.sensitive_populations, CES_GROUP_ORDER.sensitive_populations)}
-    ${renderGroup("Socioeconomic factors", data.socioeconomic_factors, CES_GROUP_ORDER.socioeconomic_factors)}
+    ${renderGroup("Exposures", norm.exposures, CES_GROUP_ORDER.exposures)}
+    ${renderGroup("Environmental effects", norm.environmental_effects, CES_GROUP_ORDER.environmental_effects)}
+    ${renderGroup("Sensitive populations", norm.sensitive_populations, CES_GROUP_ORDER.sensitive_populations)}
+    ${renderGroup("Socioeconomic factors", norm.socioeconomic_factors, CES_GROUP_ORDER.socioeconomic_factors)}
   `;
 }
 function renderResultOld(address, data, elapsedMs) {
@@ -2466,15 +2662,14 @@ function renderResultOld(address, data, elapsedMs) {
     high_school_or_higher_pct,
     bachelors_or_higher_pct,
     alerts,
+    alerts_meta,
     enviroscreen,
     surrounding_10_mile,
     water_district,
   } = data || {};
 
-  const hardshipList = Array.isArray(environmental_hardships)
-    ? Array.from(new Set(environmental_hardships))
-    : [];
   const alertList = Array.isArray(alerts) ? alerts : [];
+  const alertsUpdated = alerts_meta && alerts_meta.updated ? alerts_meta.updated : null;
   const cesSection = renderEnviroscreenSection(
     "Environmental Indicators (CalEPA Enviroscreen)",
     enviroscreen,
@@ -2488,13 +2683,6 @@ function renderResultOld(address, data, elapsedMs) {
     lat != null && lon != null
       ? `<img class="map-image" src="https://maps.googleapis.com/maps/api/staticmap?center=${lat},${lon}&zoom=13&size=600x300&markers=color:red|${lat},${lon}&key=${GOOGLE_MAPS_KEY}" alt="Map of location" />`
       : "";
-
-const hardshipSection = `
-    <section class="section-block">
-      <h3 class="section-header">Environmental hardships</h3>
-      ${hardshipList.length ? `<div class="stats">${hardshipList.map((h) => `<span class="pill">${escapeHTML(h)}</span>`).join("")}</div>` : `<p class="note">No environmental hardships recorded.</p>`}
-    </section>
-  `;
 
   const raceSection = `
     <section class="section-block">
@@ -2535,8 +2723,8 @@ const hardshipSection = `
     const d = s.demographics || {};
     if (Object.keys(d).length) {
       const tractList = Array.isArray(s.census_tracts)
-        ? s.census_tracts.join(", ")
-        : escapeHTML(s.census_tracts) || "—";
+        ? s.census_tracts.map(cleanTractName).join(", ")
+        : (s.census_tracts ? escapeHTML(cleanTractName(s.census_tracts)) : "—");
       const cityList = Array.isArray(s.cities)
         ? s.cities.join(", ")
         : escapeHTML(s.cities) || "—";
@@ -2561,7 +2749,6 @@ const hardshipSection = `
           <div class="key">Second most common</div><div class="val">${escapeHTML(d.secondary_language) || "—"}</div>
           <div class="key">People who speak a language other than English at home</div><div class="val">${fmtPct(d.language_other_than_english_pct)}</div>
           <div class="key">People who speak English less than \"very well\"</div><div class="val">${fmtPct(d.english_less_than_very_well_pct)}</div>
-          <div class="key">People who speak Spanish at home</div><div class="val">${fmtPct(d.spanish_at_home_pct)}</div>
           <div class="key">White</div><div class="val">${fmtPct(d.white_pct)}</div>
           <div class="key">Black or African American</div><div class="val">${fmtPct(d.black_pct)}</div>
           <div class="key">American Indian / Alaska Native</div><div class="val">${fmtPct(d.native_pct)}</div>
@@ -2588,8 +2775,8 @@ const hardshipSection = `
     let html = "";
     const d = w.demographics || {};
     const tractList = Array.isArray(w.census_tracts)
-      ? w.census_tracts.join(", ")
-      : escapeHTML(w.census_tracts) || "—";
+      ? w.census_tracts.map(cleanTractName).join(", ")
+      : (w.census_tracts ? escapeHTML(cleanTractName(w.census_tracts)) : "—");
     const cityList = Array.isArray(w.cities)
       ? w.cities.join(", ")
       : escapeHTML(w.cities) || "—";
@@ -2623,7 +2810,6 @@ const hardshipSection = `
           <div class="key">Primary language</div><div class="val">${escapeHTML(d.primary_language) || "—"}</div>
           <div class="key">Second most common</div><div class="val">${escapeHTML(d.secondary_language) || "—"}</div>
           <div class="key">People who speak a language other than English at home</div><div class="val">${fmtPct(d.language_other_than_english_pct)}</div>
-          <div class="key">People who speak Spanish at home</div><div class="val">${fmtPct(d.spanish_at_home_pct)}</div>
           <div class="key">Speak English less than \"very well\"</div><div class="val">${fmtPct(d.english_less_than_very_well_pct)}</div>
           <div class="key">White</div><div class="val">${fmtPct(d.white_pct)}</div>
           <div class="key">Black or African American</div><div class="val">${fmtPct(d.black_pct)}</div>
@@ -2694,7 +2880,6 @@ const hardshipSection = `
         <div class="key">Second most common</div><div class="val">${escapeHTML(secondary_language) || "—"}</div>
         <div class="key">People who speak a language other than English at home</div><div class="val">${fmtPct(language_other_than_english_pct)}</div>
         <div class="key">People who speak English less than \"very well\"</div><div class="val">${fmtPct(english_less_than_very_well_pct)}</div>
-        <div class="key">People who speak Spanish at home</div><div class="val">${fmtPct(spanish_at_home_pct)}</div>
       </div>
       <p class="note">Source: Latest ACS 5-Year Estimates<br>Data Profiles/Social Characteristics</p>
     </section>
@@ -2712,7 +2897,6 @@ const hardshipSection = `
     </section>
 
     ${cesSection}
-    ${hardshipSection}
     <section class="section-block">
       <h3 class="section-header">Active Alerts (National Weather Service)</h3>
       <p class="section-description">This section displays any current weather alerts issued by the National Weather Service (NWS) for the selected location. Alerts may include warnings for extreme heat, flooding, wildfire smoke, or other hazardous conditions. Having this information alongside demographic and environmental data helps staff anticipate safety concerns for events, tailor outreach, and ensure programs are responsive to current community conditions.</p>
@@ -2762,6 +2946,81 @@ const hardshipSection = `
       </span>
     </article>
   `;
+
+  // Initialize geometry maps for surrounding and water district
+  try { initGeometryMaps(data, scopes); } catch {}
+}
+
+// ---------- Inline Geometry Maps (Leaflet) ----------
+let LEAFLET_LOADING = null;
+function loadLeafletAssets() {
+  if (window.L) return Promise.resolve();
+  if (LEAFLET_LOADING) return LEAFLET_LOADING;
+  LEAFLET_LOADING = new Promise((resolve, reject) => {
+    try {
+      // CSS
+      if (!document.querySelector('link[data-leaflet]')) {
+        const link = document.createElement('link');
+        link.rel = 'stylesheet';
+        link.href = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.css';
+        link.integrity = 'sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=';
+        link.crossOrigin = '';
+        link.setAttribute('data-leaflet', '1');
+        document.head.appendChild(link);
+      }
+      // JS
+      const script = document.createElement('script');
+      script.src = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.js';
+      script.integrity = 'sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=';
+      script.crossOrigin = '';
+      script.defer = true;
+      script.onload = () => resolve();
+      script.onerror = (e) => reject(new Error('Failed to load Leaflet'));
+      document.head.appendChild(script);
+    } catch (e) {
+      reject(e);
+    }
+  });
+  return LEAFLET_LOADING;
+}
+
+async function renderGeoMapFromEndpoint(elId, url, styleOpts = {}) {
+  const el = document.getElementById(elId);
+  if (!el) return;
+  try {
+    await loadLeafletAssets();
+    const geo = await fetchJsonRetryL(url, 'location', { retries: 1, timeoutMs: 20000 });
+    if (!geo) return;
+    const map = L.map(elId, { zoomControl: true, attributionControl: true });
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      maxZoom: 19,
+      attribution: '&copy; OpenStreetMap contributors'
+    }).addTo(map);
+    const layer = L.geoJSON(geo, {
+      style: Object.assign({ color: '#1d65a6', weight: 2, fillOpacity: 0.15 }, styleOpts),
+    }).addTo(map);
+    try {
+      const b = layer.getBounds();
+      if (b.isValid()) map.fitBounds(b, { padding: [8, 8] });
+    } catch {}
+  } catch {
+    // Ignore map errors to avoid blocking the rest of the report
+  }
+}
+
+function initGeometryMaps(data = {}, scopes = { tract: true, radius: true, water: true }) {
+  const { lat, lon } = data || {};
+  if (lat == null || lon == null) return;
+  // Surrounding 10-mile circle
+  if (scopes.radius && document.getElementById('geom-map-surrounding')) {
+    const sUrl = buildApiUrl('/v1/surrounding/geometry', { lat: String(lat), lon: String(lon), miles: '10', segments: '96' });
+    renderGeoMapFromEndpoint('geom-map-surrounding', sUrl, { color: '#1d65a6' });
+  }
+  // Water district polygon (simplified for performance)
+  if (scopes.water && document.getElementById('geom-map-water')) {
+    const wUrl = buildApiUrl('/v1/water-district/geometry', { lat: String(lat), lon: String(lon), simplify: '0.0005' });
+    renderGeoMapFromEndpoint('geom-map-water', wUrl, { color: '#0f766e' });
+  }
 }
 
 // New row-based renderer
@@ -2805,6 +3064,7 @@ function renderResult(address, data, elapsedMs, selections) {
     high_school_or_higher_pct,
     bachelors_or_higher_pct,
     alerts,
+    alerts_meta,
     enviroscreen,
     surrounding_10_mile,
     water_district,
@@ -2826,21 +3086,16 @@ function renderResult(address, data, elapsedMs, selections) {
 
   const s = surrounding_10_mile || {};
   const w = water_district || {};
-  const sHardships = Array.isArray(s.environmental_hardships)
-    ? Array.from(new Set(s.environmental_hardships))
-    : [];
-  const wHardships = Array.isArray(w.environmental_hardships)
-    ? Array.from(new Set(w.environmental_hardships))
-    : [];
+  // Environmental hardships section removed
   const sTracts = Array.isArray(s.census_tracts)
-    ? s.census_tracts
-    : escapeHTML(s.census_tracts) || "—";
+    ? s.census_tracts.map(cleanTractName)
+    : [];
   const sCities = Array.isArray(s.cities)
     ? s.cities.join(", ")
     : escapeHTML(s.cities) || "—";
   const wTracts = Array.isArray(w.census_tracts)
-    ? w.census_tracts
-    : escapeHTML(w.census_tracts) || "—";
+    ? w.census_tracts.map(cleanTractName)
+    : [];
   const wCities = Array.isArray(w.cities)
     ? w.cities.join(", ")
     : escapeHTML(w.cities) || "—";
@@ -2848,7 +3103,7 @@ function renderResult(address, data, elapsedMs, selections) {
   const locLocal = `
     <div class="kv">
       <div class="key">City</div><div class="val">${escapeHTML(city) || "—"}</div>
-      <div class="key">Census tract</div><div class="val">${escapeHTML(census_tract) || "—"}</div>
+      <div class="key">Census tract</div><div class="val">${escapeHTML(cleanTractName(census_tract)) || "—"}</div>
       <div class="key">ZIP code</div><div class="val">${escapeHTML(zip) || "—"}</div>
       <div class="key">County</div><div class="val">${escapeHTML(county) || "—"}</div>
       <div class="key">Coordinates</div><div class="val">${coords}</div>
@@ -2863,18 +3118,24 @@ function renderResult(address, data, elapsedMs, selections) {
     const short = `${shown} …`;
     return `<span id="${id}-tracts">${escapeHTML(short)}</span> <button class="link-button" data-expand="${id}" data-short="${escapeHTML(short)}" data-full="${escapeHTML(full)}">More…</button>`;
   }
+  const sFipsArr = Array.isArray(s.census_tracts_fips) ? s.census_tracts_fips.map(String) : [];
+  const wFipsArr = Array.isArray(w.census_tracts_fips) ? w.census_tracts_fips.map(String) : [];
   const locSurround = `
     <div class="kv">
       <div class="key">Cities</div><div class="val">${sCities}</div>
       <div class="key">Census tracts</div><div class="val">${renderTractList(sTracts, 's')}</div>
+      <div class="key">FIPS</div><div class="val">${sFipsArr.length ? renderTractList(sFipsArr, 'sF') : '—'}</div>
     </div>
+    <div id="geom-map-surrounding" class="geom-map" aria-label="10-mile surrounding area map"></div>
   `;
   const locDistrict = `
     <div class="kv">
       <div class="key">District</div><div class="val">${escapeHTML(w.name) || "—"}</div>
       <div class="key">Cities</div><div class="val">${wCities}</div>
       <div class="key">Census tracts</div><div class="val">${renderTractList(wTracts, 'w')}</div>
+      <div class="key">FIPS</div><div class="val">${wFipsArr.length ? renderTractList(wFipsArr, 'wF') : '—'}</div>
     </div>
+    <div id="geom-map-water" class="geom-map" aria-label="Water district map"></div>
   `;
   const locDescBase = '<p class="section-description">This section lists basic geographic information for the census tract, surrounding 10&#8209;mile area, and water district, such as city, ZIP code, county, and coordinates.</p>' + renderSourceNotesGrouped('location', data._source_log);
   const fallbackName = geocode_fallback_source === 'tigerweb' ? 'Census TIGERweb' : (geocode_fallback_source === 'fcc' ? 'FCC Block API' : 'Census Geocoder');
@@ -2930,7 +3191,6 @@ function renderResult(address, data, elapsedMs, selections) {
         'People who speak English less than "very well"',
         fmtPct(d.english_less_than_very_well_pct),
       ],
-      ["People who speak Spanish at home", fmtPct(d.spanish_at_home_pct)],
     ];
     return `<div class="kv">${entries
       .map(([k, v]) => `<div class="key">${k}</div><div class="val">${v}</div>`)
@@ -2943,7 +3203,6 @@ function renderResult(address, data, elapsedMs, selections) {
       secondary_language,
       language_other_than_english_pct,
       english_less_than_very_well_pct,
-      spanish_at_home_pct,
     }),
     languageFields(s.demographics || {}),
     languageFields(w.demographics || {}),
@@ -2987,23 +3246,40 @@ function renderResult(address, data, elapsedMs, selections) {
   );
 
   const housingContent = (d = {}) => {
+    // Normalize possible field name variants from aggregate API
+    const dh = { ...d };
+    if (dh.housing_units_total == null && dh.total_housing_units != null) dh.housing_units_total = dh.total_housing_units;
+    if (dh.housing_units_occupied == null && dh.occupied_units != null) dh.housing_units_occupied = dh.occupied_units;
+    if (dh.housing_units_vacant == null && dh.vacant_units != null) dh.housing_units_vacant = dh.vacant_units;
+    if (dh.less_than_hs_pct == null && dh.less_than_high_school_pct != null) dh.less_than_hs_pct = dh.less_than_high_school_pct;
+    if (dh.hs_grad_pct == null && dh.high_school_graduate_pct != null) dh.hs_grad_pct = dh.high_school_graduate_pct;
+    if (dh.some_college_or_assoc_pct == null) {
+      if (dh.some_college_or_associates_pct != null) dh.some_college_or_assoc_pct = dh.some_college_or_associates_pct;
+      else if (dh.some_college_no_degree_pct != null || dh.associates_degree_pct != null) {
+        const a = Number(dh.some_college_no_degree_pct) || 0;
+        const b = Number(dh.associates_degree_pct) || 0;
+        dh.some_college_or_assoc_pct = a + b;
+      }
+    }
+    if (dh.bachelors_pct == null && dh.bachelors_degree_pct != null) dh.bachelors_pct = dh.bachelors_degree_pct;
+    if (dh.grad_prof_pct == null && dh.graduate_or_professional_degree_pct != null) dh.grad_prof_pct = dh.graduate_or_professional_degree_pct;
     const entries = [
-      ["Total housing units", fmtInt(d.housing_units_total)],
-      ["Occupied units", fmtInt(d.housing_units_occupied)],
-      ["Vacant units", fmtInt(d.housing_units_vacant)],
-      ["Vacancy rate", fmtPct(d.vacancy_rate_pct)],
-      ["Occupancy rate", fmtPct(d.occupancy_rate_pct)],
-      ["Owner occupied", fmtPct(d.owner_occupied_pct)],
-      ["Renter occupied", fmtPct(d.renter_occupied_pct)],
-      ["Median home value", fmtCurrency(d.median_home_value)],
-      ["Median gross rent", fmtCurrency(d.median_gross_rent)],
-      ["High school or higher", fmtPct(d.high_school_or_higher_pct)],
-      ["Bachelor's degree or higher", fmtPct(d.bachelors_or_higher_pct)],
-      ["Less than high school", fmtPct(d.less_than_hs_pct)],
-      ["High school graduate (incl. equivalency)", fmtPct(d.hs_grad_pct)],
-      ["Some college or associate's", fmtPct(d.some_college_or_assoc_pct)],
-      ["Bachelor's degree", fmtPct(d.bachelors_pct)],
-      ["Graduate or professional degree", fmtPct(d.grad_prof_pct)],
+      ["Total housing units", fmtInt(dh.housing_units_total)],
+      ["Occupied units", fmtInt(dh.housing_units_occupied)],
+      ["Vacant units", fmtInt(dh.housing_units_vacant)],
+      ["Vacancy rate", fmtPct(dh.vacancy_rate_pct)],
+      ["Occupancy rate", fmtPct(dh.occupancy_rate_pct)],
+      ["Owner occupied", fmtPct(dh.owner_occupied_pct)],
+      ["Renter occupied", fmtPct(dh.renter_occupied_pct)],
+      ["Median home value", fmtCurrency(dh.median_home_value)],
+      ["Median gross rent", fmtCurrency(dh.median_gross_rent)],
+      ["High school or higher", fmtPct(dh.high_school_or_higher_pct)],
+      ["Bachelor's degree or higher", fmtPct(dh.bachelors_or_higher_pct)],
+      ["Less than high school", fmtPct(dh.less_than_hs_pct)],
+      ["High school graduate (incl. equivalency)", fmtPct(dh.hs_grad_pct)],
+      ["Some college or associate's", fmtPct(dh.some_college_or_assoc_pct)],
+      ["Bachelor's degree", fmtPct(dh.bachelors_pct)],
+      ["Graduate or professional degree", fmtPct(dh.grad_prof_pct)],
     ];
     return `<div class="kv">${entries
       .map(([k, v]) => `<div class="key">${k}</div><div class="val">${v}</div>`)
@@ -3011,24 +3287,7 @@ function renderResult(address, data, elapsedMs, selections) {
   };
   const housingRow = buildComparisonRow(
     "Housing &amp; Education (ACS)",
-    housingContent({
-      housing_units_total: data.housing_units_total,
-      housing_units_occupied: data.housing_units_occupied,
-      housing_units_vacant: data.housing_units_vacant,
-      vacancy_rate_pct: data.vacancy_rate_pct,
-      occupancy_rate_pct: data.occupancy_rate_pct,
-      owner_occupied_pct: data.owner_occupied_pct,
-      renter_occupied_pct: data.renter_occupied_pct,
-      median_home_value: data.median_home_value,
-      median_gross_rent: data.median_gross_rent,
-      high_school_or_higher_pct: data.high_school_or_higher_pct,
-      bachelors_or_higher_pct: data.bachelors_or_higher_pct,
-      less_than_hs_pct: data.less_than_hs_pct,
-      hs_grad_pct: data.hs_grad_pct,
-      some_college_or_assoc_pct: data.some_college_or_assoc_pct,
-      bachelors_pct: data.bachelors_pct,
-      grad_prof_pct: data.grad_prof_pct,
-    }),
+    housingContent(data || {}),
     housingContent(s.demographics || {}),
     housingContent(w.demographics || {}),
     '<p class="section-description">This section combines information on housing and educational attainment in the community. It includes the percentage of owner&#8209;occupied and renter&#8209;occupied homes, median home value, and levels of education such as high school completion and bachelor’s degree or higher. These indicators provide insight into community stability, affordability, and educational opportunities, helping inform outreach strategies and program planning.</p><p class="section-description"><em>Values for the surrounding 10-mile area and water district are population-weighted averages.</em></p>' + renderSourceNotesGrouped('housing', data._source_log),
@@ -3063,50 +3322,30 @@ function renderResult(address, data, elapsedMs, selections) {
   const dacRow = buildComparisonRow(
     "Disadvantaged Community (DAC) Status",
     dacCallout(dac_status),
-    Array.isArray(s.dac_tracts)
-      ? dacCallout(null, s.dac_tracts, s.dac_population_pct, s.dac_tracts_pct)
-      : "",
-    Array.isArray(w.dac_tracts)
-      ? dacCallout(null, w.dac_tracts, w.dac_population_pct, w.dac_tracts_pct)
-      : "",
+    dacCallout(null, s.dac_tracts, s.dac_population_pct, s.dac_tracts_pct),
+    dacCallout(null, w.dac_tracts, w.dac_population_pct, w.dac_tracts_pct),
     '<p class="section-description">This section indicates whether the selected area is designated as a Disadvantaged Community (DAC) using the California Department of Water Resources (DWR) mapping tool. DAC status is determined by household income and is shown as a simple yes/no outcome. This designation is important for identifying areas eligible for certain state and federal funding opportunities and for ensuring that equity considerations are included in outreach and program planning.</p>' + renderSourceNotesGrouped('dac', data._source_log),
     scopes,
   );
 
+  // Normalize local enviroscreen source: accept either `enviroscreen` or `environment`
+  const localEnv = (data && (data.enviroscreen || data.environment)) || enviroscreen;
   const enviroscreenRow = buildComparisonRow(
     "Environmental Indicators (CalEPA Enviroscreen)",
-    renderEnviroscreenContent(enviroscreen),
+    renderEnviroscreenContent(localEnv),
     renderEnviroscreenContent(s.environment),
     renderEnviroscreenContent(w.environment),
     '<p class="section-description">This section shows environmental and community health indicators from California’s Enviroscreen tool. Results are presented as percentiles, with higher numbers (and darker colors) indicating greater environmental burdens compared to other areas in the state. These measures include factors such as air quality, traffic pollution, and access to safe drinking water.</p><p class="section-description">Staff can use this information to understand potential environmental challenges facing a neighborhood, strengthen grant applications that require equity or environmental justice considerations, and design outreach that addresses local concerns. For example, if an event is planned in an area with a high Enviroscreen percentile, staff may want to highlight programs or benefits related to clean water, pollution reduction, or community health.</p><p class="section-description"><strong>How to Read This</strong><br>Green = Low burden (fewer environmental and health challenges)<br>Yellow/Orange = Moderate burden<br>Red = High burden (greater environmental and health challenges)<br>Percentile score shows how the community compares to others across California.</p>' + renderSourceNotesGrouped('enviroscreen', data._source_log),
     scopes,
   );
 
-  const hardshipRow = buildComparisonRow(
-    "Environmental Hardships",
-    hardshipList.length
-      ? `<div class="stats">${hardshipList
-          .map((h) => `<span class="pill">${escapeHTML(h)}</span>`)
-          .join("")}</div>`
-      : "",
-    sHardships.length
-      ? `<div class="stats">${sHardships
-          .map((h) => `<span class="pill">${escapeHTML(h)}</span>`)
-          .join("")}</div>`
-      : "",
-    wHardships.length
-      ? `<div class="stats">${wHardships
-          .map((h) => `<span class="pill">${escapeHTML(h)}</span>`)
-          .join("")}</div>`
-      : "",
-    '<p class="section-description">This section lists environmental hardships reported for the selected location, highlighting challenges that may affect residents and program planning.</p>',
-    scopes,
-  );
+  
 
   const alertsRow = `
     <section class="section-block">
       <h3 class="section-header">Active Alerts (National Weather Service)</h3>
       <p class="section-description">This section displays any current weather alerts issued by the National Weather Service (NWS) for the selected location. Alerts may include warnings for extreme heat, flooding, wildfire smoke, or other hazardous conditions. Having this information alongside demographic and environmental data helps staff anticipate safety concerns for events, tailor outreach, and ensure programs are responsive to current community conditions.</p>
+      ${(alerts_meta && alerts_meta.updated) ? `<p class="note">Updated: ${escapeHTML(alerts_meta.updated)}</p>` : ''}
       ${
         alertList.length
           ? `<div class="stats">${alertList
@@ -3116,7 +3355,6 @@ function renderResult(address, data, elapsedMs, selections) {
       }
     </section>
   `;
-  const columnHeaders = buildColumnHeaders(scopes);
   const rows = [locationRow];
   if (categories.demographics) rows.push(populationRow);
   if (categories.language) rows.push(languageRow);
@@ -3125,7 +3363,6 @@ function renderResult(address, data, elapsedMs, selections) {
   if (categories.dac) rows.push(dacRow);
   if (categories.enviroscreen) {
     rows.push(enviroscreenRow);
-    rows.push(hardshipRow);
   }
   document.getElementById("result").innerHTML = `
     <article class="card">
@@ -3141,7 +3378,6 @@ function renderResult(address, data, elapsedMs, selections) {
         </div>
         <span class="updated">Updated ${nowStamp()}</span>
       </div>
-      ${columnHeaders}
       ${rows.join("")}
       ${categories.alerts ? alertsRow : ""}
       <p class="note">Search took ${formatDuration(elapsedMs)}.</p>
@@ -3203,10 +3439,20 @@ async function lookup(opts = {}) {
     // Prefer API lookup to resolve service area context; fall back to geocoders
     let data = {};
     try {
-      const lu = buildApiUrl('/lookup', { address });
+      const lu = buildApiUrl('/v1/lookup', { address });
       const j = await fetchJsonRetryL(lu, 'location', { timeoutMs: 30000, signal });
       if (j && typeof j === 'object') {
         data = { ...data, ...j };
+        // Map DAC status from lookup → local flag used by renderer
+        if (data.dac_status == null && j.is_disadvantaged_community != null) {
+          data.dac_status = Boolean(j.is_disadvantaged_community);
+        }
+        // Seed water district display name from lookup agency info
+        const agency = j.agency || {};
+        const agencyDisplay = agency.display_name || agency.agency_name || agency.name || null;
+        if (agencyDisplay) {
+          data.water_district = { ...(data.water_district || {}), name: agencyDisplay };
+        }
         // Try to extract lat/lon from common response shapes
         const candidates = [j, j.location, j.point, j.coords, j.coordinate, j.center, j.centroid, j.result?.point, j.agency?.center, j.agency?.centroid];
         for (const c of candidates) {
@@ -3221,23 +3467,38 @@ async function lookup(opts = {}) {
     // Start enrichment tasks, but do not block initial render beyond a short budget
     // Primary tasks (local + discover surrounding/district context)
     const primaryTasks = [];
-    // Fetch DB-backed tract demographics and enviroscreen once we have FIPS (plus ACS profile)
+    // Fetch typed endpoints for the local tract (respect category toggles)
     primaryTasks.push((async () => {
       const { state_fips, county_fips, tract_code } = data || {};
       if (state_fips && county_fips && tract_code) {
         const fips = `${state_fips}${county_fips}${tract_code}`;
-        let [demo, env, prof] = await Promise.all([
-          dbDemographicsByFips(fips),
-          dbEnviroscreenByFips(fips),
-          dbAcsProfileByFips(fips),
-        ]);
+        const popP = categories.demographics ? popIncomeByFips(fips) : Promise.resolve({});
+        const raceP = categories.race ? raceByFips(fips) : Promise.resolve({});
+        const housingP = categories.housing ? housingByFips(fips) : Promise.resolve({});
+        const envP = categories.enviroscreen ? dbEnviroscreenByFips(fips) : Promise.resolve({});
+        const langP = categories.language ? aggregateLanguageForTracts([fips]).catch(() => ({})) : Promise.resolve({});
+        const dacP = categories.dac ? dacByFips(fips).catch(() => ({})) : Promise.resolve({});
+        let [popInc, race, housing, env, lang, dac] = await Promise.all([popP, raceP, housingP, envP, langP, dacP]);
         if (!env || !Object.keys(env).length) {
-          const ok = await dbEnviroscreenFetch(fips);
-          if (ok) { try { env = await dbEnviroscreenByFips(fips); } catch {} }
+          if (categories.enviroscreen) {
+            const ok = await dbEnviroscreenFetch(fips);
+            if (ok) { try { env = await dbEnviroscreenByFips(fips); } catch {} }
+          }
         }
-        const merged = { ...demo };
-        if (prof && typeof prof === 'object') Object.assign(merged, prof);
-        if (env && Object.keys(env).length) merged.enviroscreen = env;
+        const merged = { ...popInc, ...race, ...housing, ...lang };
+        if (categories.enviroscreen && env && Object.keys(env).length) merged.enviroscreen = env;
+        // Map DAC result to dac_status if provided
+        if (categories.dac && dac && typeof dac === 'object') {
+          if (merged.dac_status == null) {
+            const share = dac.share_dac;
+            let status = Boolean(dac.is_majority_dac);
+            if (!status && Number.isFinite(Number(share))) {
+              const val = Number(share);
+              status = val > 0 && (val > 1 ? val : val * 100) >= 50 ? true : status;
+            }
+            merged.dac_status = status;
+          }
+        }
         return merged;
       }
       return {};
@@ -3245,51 +3506,7 @@ async function lookup(opts = {}) {
   // Prefer DB endpoints over external TIGER/ArcGIS for surrounding and water
     // (Shape-based enrichers are skipped to avoid external dependencies)
 
-    // Surrounding tracts list (DB): populate census_tracts and census_tracts_fips
-    primaryTasks.push(scopes.radius ? (async () => {
-      const { lat, lon } = data || {};
-      if (lat != null && lon != null) {
-        const res = await dbTractsWithinRadius(lat, lon, 10);
-        const out = {};
-        if (res && Array.isArray(res.tracts)) {
-          const names = [];
-          const fips = [];
-          const map = {};
-          for (const t of res.tracts) {
-            const f = String(t.fips11 || t.fips || '').trim();
-            const n = String(t.tract || '').trim();
-            if (f) fips.push(f);
-            if (n) names.push(n);
-            if (f && n) map[f] = n;
-          }
-          out.surrounding_10_mile = {
-            census_tracts: Array.from(new Set(names)),
-            census_tracts_fips: Array.from(new Set(fips)),
-            census_tract_map: map,
-          };
-        }
-        return out;
-      }
-      return {};
-    })() : Promise.resolve({}));
-
-    // Aggregates: surrounding radius and water district from DB (merge into objects)
-    primaryTasks.push(scopes.radius ? (async () => {
-      const { lat, lon } = data || {};
-      if (lat != null && lon != null) {
-        const agg = await dbSurroundingAggregates(lat, lon, 10);
-        return { surrounding_10_mile: agg };
-      }
-      return {};
-    })() : Promise.resolve({}));
-    primaryTasks.push(scopes.water ? (async () => {
-      const { lat, lon } = data || {};
-      if (lat != null && lon != null) {
-        const agg = await dbWaterDistrictAggregates(lat, lon);
-        return { water_district: agg };
-      }
-      return {};
-    })() : Promise.resolve({}));
+    // Note: Do not call legacy DB aggregate endpoints. Typed endpoints below will populate regions.
     primaryTasks.push(categories.alerts ? enrichNwsAlerts(data) : Promise.resolve({}));
     
     // Phase 1: wait briefly for quick results, then render
@@ -3304,8 +3521,9 @@ async function lookup(opts = {}) {
     const locUrl = new URL(window.location);
     locUrl.searchParams.set("address", address);
     window.history.replaceState(null, "", locUrl.toString());
-    elapsed = stopSearchTimer();
-    renderResult(address, data, elapsed, selections);
+    // Do not stop the timer yet; keep spinner counter running during background work
+    const soFar = searchTimerStart ? Date.now() - searchTimerStart : 0;
+    renderResult(address, data, soFar, selections);
 
     // Phase 2: finish remaining primary tasks and re-render when done (unless aborted)
     const allPrimary = await Promise.allSettled(primaryTasks);
@@ -3313,24 +3531,50 @@ async function lookup(opts = {}) {
     const finalPrimary = allPrimary.map((r) => (r.status === 'fulfilled' ? r.value || {} : {}));
     deepMerge(data, ...finalPrimary);
 
-    // Region aggregations via DB aggregate-by-FIPS endpoint
+    // Region aggregations via typed endpoints (respect scope + category toggles)
     const regionTasks = [];
+    // Surrounding population/race/housing
     regionTasks.push((async () => {
-      const s = data.surrounding_10_mile || {};
-      const fips = Array.isArray(s.census_tracts_fips) ? s.census_tracts_fips.map(String) : [];
-      if (!fips.length) return {};
-      const agg = await dbAcsProfileAggregate(fips);
-      const demo = agg && agg.demographics ? agg.demographics : null;
-      if (demo) return { surrounding_10_mile: { ...s, demographics: demo } };
+      if (data.lat != null && data.lon != null && scopes.radius) {
+        const s = data.surrounding_10_mile || {};
+        let sFips = Array.isArray(s.census_tracts_fips) ? s.census_tracts_fips.map(String) : [];
+        if (!sFips.length) sFips = await listFipsSurrounding(data.lat, data.lon, 10);
+        const fipsParam = sFips.length ? { fips: sFips.join(',') } : {};
+        const popP = categories.demographics
+          ? fetchJsonRetryL(buildApiUrl('/v1/population-income/surrounding', { lat: String(data.lat), lon: String(data.lon), miles: '10', ...fipsParam }), 'population', { retries: 1, timeoutMs: 20000 })
+          : Promise.resolve({});
+        const raceP = categories.race
+          ? fetchJsonRetryL(buildApiUrl('/v1/race-ethnicity/surrounding', { lat: String(data.lat), lon: String(data.lon), miles: '10', ...fipsParam }), 'race', { retries: 1, timeoutMs: 20000 })
+          : Promise.resolve({});
+        const houseP = categories.housing
+          ? fetchJsonRetryL(buildApiUrl('/v1/housing-education/surrounding', { lat: String(data.lat), lon: String(data.lon), miles: '10', ...fipsParam }), 'housing', { retries: 1, timeoutMs: 20000 })
+          : Promise.resolve({});
+        const [pop, raceD, house] = await Promise.all([popP, raceP, houseP]);
+        const d = { ...(s.demographics || {}), ...pop, ...raceD, ...house };
+        return { surrounding_10_mile: { ...s, demographics: d, census_tracts_fips: sFips.length ? sFips : s.census_tracts_fips } };
+      }
       return {};
     })());
+    // Water-district population/race/housing
     regionTasks.push((async () => {
-      const w = data.water_district || {};
-      const fips = Array.isArray(w.census_tracts_fips) ? w.census_tracts_fips.map(String) : [];
-      if (!fips.length) return {};
-      const agg = await dbAcsProfileAggregate(fips);
-      const demo = agg && agg.demographics ? agg.demographics : null;
-      if (demo) return { water_district: { ...w, demographics: demo } };
+      if (data.lat != null && data.lon != null && scopes.water) {
+        const w = data.water_district || {};
+        let wf = Array.isArray(w.census_tracts_fips) ? w.census_tracts_fips.map(String) : [];
+        if (!wf.length) wf = await listFipsWaterDistrict(data.lat, data.lon);
+        const fipsParam = wf.length ? { fips: wf.join(',') } : {};
+        const popP = categories.demographics
+          ? fetchJsonRetryL(buildApiUrl('/v1/population-income/water-district', { lat: String(data.lat), lon: String(data.lon), ...fipsParam }), 'population', { retries: 1, timeoutMs: 20000 })
+          : Promise.resolve({});
+        const raceP = categories.race
+          ? fetchJsonRetryL(buildApiUrl('/v1/race-ethnicity/water-district', { lat: String(data.lat), lon: String(data.lon), ...fipsParam }), 'race', { retries: 1, timeoutMs: 20000 })
+          : Promise.resolve({});
+        const houseP = categories.housing
+          ? fetchJsonRetryL(buildApiUrl('/v1/housing-education/water-district', { lat: String(data.lat), lon: String(data.lon), ...fipsParam }), 'housing', { retries: 1, timeoutMs: 20000 })
+          : Promise.resolve({});
+        const [pop, raceD, house] = await Promise.all([popP, raceP, houseP]);
+        const d = { ...(w.demographics || {}), ...pop, ...raceD, ...house };
+        return { water_district: { ...w, demographics: d, census_tracts_fips: wf.length ? wf : w.census_tracts_fips } };
+      }
       return {};
     })());
 
@@ -3343,7 +3587,114 @@ async function lookup(opts = {}) {
     renderResult(address, data, elapsed, selections);
 
     // Finalize region
-    // Add derived counts/rent enrichment late to leverage upstream + region merges
+    // Enviroscreen (typed endpoints) for surrounding (respect category toggle)
+    if (categories.enviroscreen) regionTasks.push((async () => {
+      if (data.lat != null && data.lon != null && scopes.radius) {
+        const s2 = data.surrounding_10_mile || {};
+        let sFips = Array.isArray(s2.census_tracts_fips) ? s2.census_tracts_fips.map(String) : [];
+        if (!sFips.length) sFips = await listFipsSurrounding(data.lat, data.lon, 10);
+        // Prefer FIPS-only call for Enviroscreen if we have them (backend aggregates & weights by population)
+        let env;
+        if (sFips.length) {
+          env = await fetchJsonRetryL(
+            buildApiUrl('/v1/enviroscreen/surrounding', { fips: sFips.join(',') }),
+            'enviroscreen',
+            { retries: 1, timeoutMs: 20000 },
+          ).catch(() => ({}));
+        } else {
+          env = await fetchJsonRetryL(
+            buildApiUrl('/v1/enviroscreen/surrounding', { lat: String(data.lat), lon: String(data.lon), miles: '10' }),
+            'enviroscreen',
+            { retries: 1, timeoutMs: 20000 },
+          ).catch(() => ({}));
+        }
+        const out = { ...s2, environment: env, census_tracts_fips: sFips.length ? sFips : s2.census_tracts_fips };
+        return { surrounding_10_mile: out };
+      }
+      return {};
+    })());
+    // Enviroscreen (typed endpoints) for water (respect category toggle)
+    if (categories.enviroscreen) regionTasks.push((async () => {
+      if (data.lat != null && data.lon != null && scopes.water) {
+        const w2 = data.water_district || {};
+        let wf = Array.isArray(w2.census_tracts_fips) ? w2.census_tracts_fips.map(String) : [];
+        if (!wf.length) wf = await listFipsWaterDistrict(data.lat, data.lon);
+        // Prefer FIPS-only call when available
+        let env;
+        if (wf.length) {
+          env = await fetchJsonRetryL(buildApiUrl('/v1/enviroscreen/water-district', { fips: wf.join(',') }), 'enviroscreen', { retries: 1, timeoutMs: 20000 }).catch(() => ({}));
+        } else {
+          env = await fetchJsonRetryL(buildApiUrl('/v1/enviroscreen/water-district', { lat: String(data.lat), lon: String(data.lon) }), 'enviroscreen', { retries: 1, timeoutMs: 20000 }).catch(() => ({}));
+        }
+        const out = { ...w2, environment: env, census_tracts_fips: wf.length ? wf : w2.census_tracts_fips };
+        return { water_district: out };
+      }
+      return {};
+    })());
+    // DAC (respect category toggle)
+    if (categories.dac) regionTasks.push((async () => {
+      const out = {};
+      if (data.lat != null && data.lon != null && scopes.radius) {
+        const s2 = data.surrounding_10_mile || {};
+        let sFips = Array.isArray(s2.census_tracts_fips) ? s2.census_tracts_fips.map(String) : [];
+        if (!sFips.length) sFips = await listFipsSurrounding(data.lat, data.lon, 10);
+        const dacParams = sFips.length ? { fips: sFips.join(',') } : { lat: String(data.lat), lon: String(data.lon), miles: '10' };
+        const dac = await fetchJsonRetryL(buildApiUrl('/v1/dac/surrounding', dacParams), 'dac', { retries: 1, timeoutMs: 20000 }).catch(() => ({}));
+        if (dac && typeof dac === 'object') {
+          let share = dac.share_dac;
+          if (Number.isFinite(Number(share))) {
+            const val = Number(share);
+            out.surrounding_10_mile = { ...(s2 || {}), dac_population_pct: val <= 1 ? val * 100 : val };
+          }
+        }
+      }
+      if (data.lat != null && data.lon != null && scopes.water) {
+        const w2 = data.water_district || {};
+        let wf = Array.isArray(w2.census_tracts_fips) ? w2.census_tracts_fips.map(String) : [];
+        if (!wf.length) wf = await listFipsWaterDistrict(data.lat, data.lon);
+        const dacParams = wf.length ? { fips: wf.join(',') } : { lat: String(data.lat), lon: String(data.lon) };
+        const dac = await fetchJsonRetryL(buildApiUrl('/v1/dac/water-district', dacParams), 'dac', { retries: 1, timeoutMs: 20000 }).catch(() => ({}));
+        if (dac && typeof dac === 'object') {
+          let share = dac.share_dac;
+          if (Number.isFinite(Number(share))) {
+            const val = Number(share);
+            out.water_district = { ...(w2 || {}), dac_population_pct: val <= 1 ? val * 100 : val };
+          }
+        }
+      }
+      return out;
+    })());
+    // Language aggregates via typed API (respect category toggle)
+    if (categories.language) {
+      // Surrounding languages
+      regionTasks.push((async () => {
+        if (data.lat != null && data.lon != null && scopes.radius) {
+          const s = data.surrounding_10_mile || {};
+          let sFips = Array.isArray(s.census_tracts_fips) ? s.census_tracts_fips.map(String) : [];
+          if (!sFips.length) sFips = await listFipsSurrounding(data.lat, data.lon, 10);
+          const params = { lat: String(data.lat), lon: String(data.lon), miles: '10' };
+          if (sFips.length) params.fips = sFips.join(',');
+          const lang = await fetchJsonRetryL(buildApiUrl('/v1/languages/surrounding', params), 'language', { retries: 1, timeoutMs: 20000 }).catch(() => ({}));
+          const d = s.demographics || {};
+          return { surrounding_10_mile: { ...s, demographics: { ...d, ...lang }, census_tracts_fips: sFips.length ? sFips : s.census_tracts_fips } };
+        }
+        return {};
+      })());
+      // Water languages
+      regionTasks.push((async () => {
+        if (data.lat != null && data.lon != null && scopes.water) {
+          const w = data.water_district || {};
+          let wf = Array.isArray(w.census_tracts_fips) ? w.census_tracts_fips.map(String) : [];
+          if (!wf.length) wf = await listFipsWaterDistrict(data.lat, data.lon);
+          const params = { lat: String(data.lat), lon: String(data.lon) };
+          if (wf.length) params.fips = wf.join(',');
+          const lang = await fetchJsonRetryL(buildApiUrl('/v1/languages/water-district', params), 'language', { retries: 1, timeoutMs: 20000 }).catch(() => ({}));
+          const d = w.demographics || {};
+          return { water_district: { ...w, demographics: { ...d, ...lang }, census_tracts_fips: wf.length ? wf : w.census_tracts_fips } };
+        }
+        return {};
+      })());
+    }
     regionTasks.push(enrichDerivedCountsAndRent(data));
     const allRegion = await Promise.allSettled(regionTasks);
     if (signal.aborted) return;
@@ -3353,6 +3704,8 @@ async function lookup(opts = {}) {
     data._source_log = CURRENT_SOURCE_LOG;
     lastReport = { address, data };
     lookupCache.set(cacheKey, data);
+    // Stop the timer now that all work is complete and render final elapsed
+    elapsed = stopSearchTimer();
     renderResult(address, data, elapsed, selections);
   } catch (err) {
     if (!elapsed) elapsed = stopSearchTimer();
@@ -3388,6 +3741,7 @@ function bindOptionToggles() {
   const handler = debounce(() => {
     const input = document.getElementById("autocomplete");
     const addr = (input?.value || "").trim();
+    savePreferences();
     if (addr.length >= 4) lookup({ force: true }).catch(console.error);
   }, 200);
   document
@@ -3430,6 +3784,8 @@ function loadGoogleMaps() {
 getLanguageMeta().catch(() => {});
 
 window.onload = () => {
+  // Restore saved preferences before binding and lookup
+  restorePreferences();
   loadGoogleMaps();
   bindLookupTrigger();
   bindOptionToggles();
