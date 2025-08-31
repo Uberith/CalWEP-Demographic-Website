@@ -770,6 +770,11 @@ async function enrichLocation(data = {}) {
       const j = await fetchJsonRetry(u, { retries: 1, timeoutMs: 10000 });
       const geos = j?.result?.geographies || {};
       let tract = null;
+      let countyNameCg = null;
+      try {
+        const counties = Array.isArray(geos?.Counties) ? geos.Counties : Array.isArray(geos?.counties) ? geos.counties : null;
+        if (counties && counties.length) countyNameCg = counties[0]?.NAME || counties[0]?.name || null;
+      } catch {}
       for (const [k, arr] of Object.entries(geos)) {
         if (/census\s*tract/i.test(k) && Array.isArray(arr) && arr.length) {
           tract = arr[0];
@@ -787,6 +792,7 @@ async function enrichLocation(data = {}) {
           county_fips: county,
           tract_code: tract6,
           census_tract: name || `${tract6.slice(0, 4)}.${tract6.slice(4)}`,
+          county: countyNameCg || undefined,
           source: 'census_geocoder',
         };
       }
@@ -3020,6 +3026,7 @@ function drawGeoJSONOnMap(elId, geo, styleOpts = {}) {
     const b = layer.getBounds();
     if (b.isValid()) map.fitBounds(b, { padding: [8, 8] });
   } catch {}
+  try { setTimeout(() => map.invalidateSize(), 0); } catch {}
   return true;
 }
 
