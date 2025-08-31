@@ -3341,18 +3341,32 @@ function renderResult(address, data, elapsedMs, selections) {
   );
 
   const dacCallout = (status, tracts, popPct, tractPct) => {
-    const yes = Array.isArray(tracts) ? tracts.length > 0 : !!status;
-    const border = yes ? "var(--success)" : "var(--border-strong)";
+    const hasRegional = Number.isFinite(popPct) || Number.isFinite(tractPct) || Array.isArray(tracts);
+    let isMajority = !!status;
+    if (hasRegional) {
+      if (Number.isFinite(popPct)) isMajority = popPct >= 50;
+      else if (Number.isFinite(tractPct)) isMajority = tractPct >= 50;
+      else isMajority = Array.isArray(tracts) && tracts.length > 0; // fallback: any DAC present
+    }
+    const border = isMajority ? "var(--success)" : "var(--border-strong)";
+
+    const label = hasRegional
+      ? Number.isFinite(popPct)
+        ? "Majority DAC (population)"
+        : Number.isFinite(tractPct)
+          ? "Majority DAC (tracts)"
+          : "Any DAC tracts present"
+      : "Disadvantaged community";
 
     const lines = [
-      `Disadvantaged community: <strong>${yes ? "Yes" : "No"}</strong>`,
+      `${label}: <strong>${isMajority ? "Yes" : "No"}</strong>`,
     ];
 
     const stats = [];
     if (Number.isFinite(popPct))
-      stats.push(`<li><strong>${fmtPct(popPct)}</strong> of population</li>`);
+      stats.push(`<li><strong>${fmtPct(popPct)}</strong> of population in DAC tracts</li>`);
     if (Number.isFinite(tractPct))
-      stats.push(`<li><strong>${fmtPct(tractPct)}</strong> of tracts</li>`);
+      stats.push(`<li><strong>${fmtPct(tractPct)}</strong> of tracts are DAC</li>`);
     if (stats.length) lines.push(`<ul class="dac-stats">${stats.join("")}</ul>`);
 
     if (Array.isArray(tracts) && tracts.length)
@@ -3370,7 +3384,7 @@ function renderResult(address, data, elapsedMs, selections) {
     dacCallout(dac_status),
     dacCallout(null, s.dac_tracts, s.dac_population_pct, s.dac_tracts_pct),
     dacCallout(null, w.dac_tracts, w.dac_population_pct, w.dac_tracts_pct),
-    '<p class="section-description">This section indicates whether the selected area is designated as a Disadvantaged Community (DAC) using the California Department of Water Resources (DWR) mapping tool. DAC status is determined by household income and is shown as a simple yes/no outcome. This designation is important for identifying areas eligible for certain state and federal funding opportunities and for ensuring that equity considerations are included in outreach and program planning.</p>' + renderSourceNotesGrouped('dac', data._source_log),
+    '<p class="section-description">This section summarizes Disadvantaged Community (DAC) status. For the selected census tract, we show whether the tract itself is designated DAC. For the 10‑mile radius and the water district, we show whether the region is <strong>Majority DAC</strong>, which means more than 50% of the population in the included tracts lives in DAC tracts. We also show the share of tracts that are DAC to provide additional context.</p>' + renderSourceNotesGrouped('dac', data._source_log),
     scopes,
   );
 
