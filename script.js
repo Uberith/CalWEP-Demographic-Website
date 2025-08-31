@@ -3665,11 +3665,17 @@ async function lookup(opts = {}) {
         const dacParams = sFips.length ? { fips: sFips.join(',') } : { lat: String(data.lat), lon: String(data.lon), miles: '10' };
         const dac = await fetchJsonRetryL(buildApiUrl('/v1/dac/surrounding', dacParams), 'dac', { retries: 1, timeoutMs: 20000 }).catch(() => ({}));
         if (dac && typeof dac === 'object') {
-          let share = dac.share_dac;
-          if (Number.isFinite(Number(share))) {
-            const val = Number(share);
-            out.surrounding_10_mile = { ...(s2 || {}), dac_population_pct: val <= 1 ? val * 100 : val };
+          const patch = {};
+          const share = Number(dac.share_dac);
+          if (Number.isFinite(share)) patch.dac_population_pct = share <= 1 ? share * 100 : share;
+          const shareTracts = Number(dac.share_tracts);
+          if (Number.isFinite(shareTracts)) patch.dac_tracts_pct = shareTracts <= 1 ? shareTracts * 100 : shareTracts;
+          const dCount = Number(dac.tracts_dac ?? dac.count_dac);
+          const tCount = Number(dac.tracts_total ?? dac.total_tracts ?? (Array.isArray(s2.census_tracts_fips) ? s2.census_tracts_fips.length : NaN));
+          if (!Number.isFinite(patch.dac_tracts_pct) && Number.isFinite(dCount) && Number.isFinite(tCount) && tCount > 0) {
+            patch.dac_tracts_pct = (dCount / tCount) * 100;
           }
+          if (Object.keys(patch).length) out.surrounding_10_mile = { ...(s2 || {}), ...patch };
         }
       }
       if (data.lat != null && data.lon != null && scopes.water) {
@@ -3679,11 +3685,17 @@ async function lookup(opts = {}) {
         const dacParams = wf.length ? { fips: wf.join(',') } : { lat: String(data.lat), lon: String(data.lon) };
         const dac = await fetchJsonRetryL(buildApiUrl('/v1/dac/water-district', dacParams), 'dac', { retries: 1, timeoutMs: 20000 }).catch(() => ({}));
         if (dac && typeof dac === 'object') {
-          let share = dac.share_dac;
-          if (Number.isFinite(Number(share))) {
-            const val = Number(share);
-            out.water_district = { ...(w2 || {}), dac_population_pct: val <= 1 ? val * 100 : val };
+          const patch = {};
+          const share = Number(dac.share_dac);
+          if (Number.isFinite(share)) patch.dac_population_pct = share <= 1 ? share * 100 : share;
+          const shareTracts = Number(dac.share_tracts);
+          if (Number.isFinite(shareTracts)) patch.dac_tracts_pct = shareTracts <= 1 ? shareTracts * 100 : shareTracts;
+          const dCount = Number(dac.tracts_dac ?? dac.count_dac);
+          const tCount = Number(dac.tracts_total ?? dac.total_tracts ?? (Array.isArray(w2.census_tracts_fips) ? w2.census_tracts_fips.length : NaN));
+          if (!Number.isFinite(patch.dac_tracts_pct) && Number.isFinite(dCount) && Number.isFinite(tCount) && tCount > 0) {
+            patch.dac_tracts_pct = (dCount / tCount) * 100;
           }
+          if (Object.keys(patch).length) out.water_district = { ...(w2 || {}), ...patch };
         }
       }
       return out;
