@@ -227,11 +227,12 @@ function shareReport() {
 
 // ---------- Config ----------
 const API_BASE = (() => {
+  // In local dev, use same-origin so the dev server can proxy and set CORS.
+  if (isDevOrigin()) return 'self';
   const meta = document.querySelector('meta[name="api-base"]')?.content || 'https://api.calwep.org';
   try {
     const u = new URL(meta, window.location.origin);
-    // Always use api.calwep.org for app endpoints (even in local dev)
-    if (u.hostname === 'api.calwep.org') return u.origin;
+    return u.origin;
   } catch {}
   return 'https://api.calwep.org';
 })();
@@ -455,8 +456,10 @@ function stopSearchTimer() {
   return elapsed;
 }
 function buildApiUrl(path, params = {}) {
-  const base = API_BASE.endsWith("/") ? API_BASE : API_BASE + "/";
-  const url = new URL(path.replace(/^\//, ""), base);
+  const baseOrigin = (API_BASE === 'self')
+    ? (window.location.origin + '/')
+    : (API_BASE.endsWith('/') ? API_BASE : API_BASE + '/');
+  const url = new URL(path.replace(/^\//, ""), baseOrigin);
   for (const [k, v] of Object.entries(params)) {
     if (v !== undefined && v !== null && String(v).length)
       url.searchParams.set(k, v);
@@ -485,6 +488,8 @@ async function fetchJsonWithDiagnostics(url, opts = {}) {
     try {
       const parsed = new URL(u, window.location.origin);
       const sameOrigin = parsed.origin === window.location.origin;
+      // In local dev, prefer same-origin endpoints that the dev server proxies.
+      if (isDevOrigin()) return parsed.toString();
       // Rewrite same-origin proxy paths to public API equivalents
       if (sameOrigin && /^\/(proxy\/acs|api\/acs|acs)\b/.test(parsed.pathname)) {
         const tail = parsed.pathname.replace(/^\/(proxy\/acs|api\/acs|acs)/, '');
@@ -811,19 +816,36 @@ function toCensus(url) {
   try {
     const u = new URL(url);
     const pathAndQuery = u.pathname + (u.search || '');
-    // Always route ACS through api.calwep.org browser-friendly alias
-    if (u.hostname.endsWith('api.census.gov')) {
-      return `https://api.calwep.org/acs${pathAndQuery}`;
-    }
-    if (u.hostname === 'geocoding.geo.census.gov') {
-      const tail = pathAndQuery.replace(/^(\/geocoder)+/, '');
-      return `https://api.calwep.org/v1/api/geocoder${tail}`;
-    }
-    if (u.hostname.endsWith('tigerweb.geo.census.gov')) {
-      const m = u.pathname.match(/\/MapServer\/(.*)$/);
-      const tail = m ? m[1] : '';
-      const p = `/tiger/MapServer/${tail}` + (u.search || '');
-      return `https://api.calwep.org/v1/api${p}`;
+    // In local dev, route via same-origin proxies served by dev-server.
+    if (isDevOrigin()) {
+      if (u.hostname.endsWith('api.census.gov')) {
+        return `/proxy/acs${pathAndQuery}`;
+      }
+      if (u.hostname === 'geocoding.geo.census.gov') {
+        const tail = pathAndQuery.replace(/^(\/geocoder)+/, '');
+        return `/geocoder${tail}`;
+      }
+      if (u.hostname.endsWith('tigerweb.geo.census.gov')) {
+        const m = u.pathname.match(/\/MapServer\/(.*)$/);
+        const tail = m ? m[1] : '';
+        const p = `/tiger/MapServer/${tail}` + (u.search || '');
+        return `/v1/api${p}`;
+      }
+    } else {
+      // In production, route through api.calwep.org browser-friendly aliases
+      if (u.hostname.endsWith('api.census.gov')) {
+        return `https://api.calwep.org/acs${pathAndQuery}`;
+      }
+      if (u.hostname === 'geocoding.geo.census.gov') {
+        const tail = pathAndQuery.replace(/^(\/geocoder)+/, '');
+        return `https://api.calwep.org/v1/api/geocoder${tail}`;
+      }
+      if (u.hostname.endsWith('tigerweb.geo.census.gov')) {
+        const m = u.pathname.match(/\/MapServer\/(.*)$/);
+        const tail = m ? m[1] : '';
+        const p = `/tiger/MapServer/${tail}` + (u.search || '');
+        return `https://api.calwep.org/v1/api${p}`;
+      }
     }
   } catch {}
   return url;
