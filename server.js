@@ -2,7 +2,7 @@ const express = require('express');
 const app = express();
 
 const DEV_ALLOWED = [/^localhost$/i, /^127\.0\.0\.1$/i, /^\[::1\]$/i];
-const DEFAULT_ALLOWED = [/\.calwep\.org$/i, /\.cyberwiz\.io$/i];
+const DEFAULT_ALLOWED = [/\.calwep\.org$/i];
 const EXTRA_ALLOWED = (process.env.ALLOW_ORIGINS || '')
   .split(',')
   .map((s) => s.trim())
