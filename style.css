@@ -138,6 +138,26 @@ h1 {
   text-decoration: underline;
 }
 
+/* Footer logo + text alignment */
+.page-footer p {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 6px;
+}
+.page-footer .logo-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+.page-footer .logo-link img {
+  display: inline-block;
+  width: 20px;
+  height: 20px;
+  border-radius: 4px;
+  vertical-align: middle;
+}
+
 .quick-instructions ol {
   margin-top: var(--space-2);
   padding-left: var(--space-5);
