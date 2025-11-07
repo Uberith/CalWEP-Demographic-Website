@@ -8,6 +8,21 @@
 const express = require('express');
 const path = require('path');
 
+const FRAME_ALLOWED_ORIGINS = [
+  'https://calwep.org',
+  'https://www.calwep.org',
+  'https://insights.calwep.org',
+  'https://cyberwiz.io',
+  'https://www.cyberwiz.io',
+  'https://demographics.cyberwiz.io',
+];
+
+function applyFrameHeaders(res) {
+  const frameAncestors = `frame-ancestors 'self' ${FRAME_ALLOWED_ORIGINS.join(' ')};`;
+  res.setHeader('Content-Security-Policy', frameAncestors);
+  res.setHeader('X-Frame-Options', FRAME_ALLOWED_ORIGINS.map((origin) => `ALLOW-FROM ${origin}`));
+}
+
 function parseAllowedOrigins() {
   const raw = process.env.ALLOW_ORIGINS;
   if (!raw) return [/^localhost$/i, /^127\.0\.0\.1$/i, /^\[::1\]$/i];
@@ -26,6 +41,10 @@ function createServer(options = {}) {
     const compression = require('compression');
     app.use(compression());
   } catch {}
+  app.use((req, res, next) => {
+    applyFrameHeaders(res);
+    next();
+  });
   const port = Number(process.env.PORT || options.port || 5173);
   const staticDir = path.resolve(process.env.STATIC_DIR || options.staticDir || '.');
   const apiBase = String(process.env.API_BASE || options.apiBase || 'https://api.calwep.org');
@@ -76,12 +95,13 @@ function createServer(options = {}) {
       });
       // Reflect upstream headers, skipping hop-by-hop and size-specific headers
       upstream.headers.forEach((value, key) => {
-        if (/^(connection|transfer-encoding|content-length|content-encoding)$/i.test(key)) return;
+        if (/^(connection|transfer-encoding|content-length|content-encoding|x-frame-options|content-security-policy)$/i.test(key)) return;
         res.setHeader(key, value);
       });
       res.status(upstream.status);
       // Use arrayBuffer to support all content types reliably in Node
       const buf = await upstream.arrayBuffer();
+      applyFrameHeaders(res);
       res.send(Buffer.from(buf));
     } catch (err) {
       // eslint-disable-next-line no-console
@@ -156,10 +176,11 @@ function createServer(options = {}) {
       const buf = Buffer.from(await upstream.arrayBuffer());
       const headers = {};
       upstream.headers.forEach((value, key) => {
-        if (/^(connection|transfer-encoding|content-length|content-encoding)$/i.test(key)) return;
+        if (/^(connection|transfer-encoding|content-length|content-encoding|x-frame-options|content-security-policy)$/i.test(key)) return;
         headers[key] = value;
         res.setHeader(key, value);
       });
+      applyFrameHeaders(res);
       res.status(upstream.status).send(buf);
       if (upstream.ok && buf.length && ACS_TTL_MS > 0) acsCacheSet(key, { status: upstream.status, headers, body: buf });
     } catch (e) {
