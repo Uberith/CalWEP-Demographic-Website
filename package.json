@@ -17,7 +17,7 @@
   },
   "dependencies": {
     "compression": "^1.7.4",
-    "express": "^4.19.2"
+    "express": "^4.22.1"
   },
   "devDependencies": {
     "jest": "^29.7.0",
