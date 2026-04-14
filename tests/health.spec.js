@@ -5,7 +5,7 @@ describe('dev-server', () => {
   let server;
 
   beforeAll(async () => {
-    const { start } = createServer({ port: 0 }); // random port
+    const { start } = createServer({ port: 0, host: '127.0.0.1' }); // random local-only port
     server = await start();
   });
 
@@ -21,4 +21,3 @@ describe('dev-server', () => {
     expect(body).toEqual({ status: 'ok' });
   });
 });
-

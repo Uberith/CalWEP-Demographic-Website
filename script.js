@@ -279,6 +279,12 @@ function titleCase(str = "") {
   return str.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
 }
 
+const buildAgencyDisplayData =
+  window.AgencyUtils?.buildAgencyDisplayData ||
+  ((agency = {}) => ({
+    name: agency.display_name || agency.agency_name || agency.name || "",
+  }));
+
 // Remove the words "Census Tract" from a tract name for compact display
 function cleanTractName(value) {
   if (value == null) return value;
@@ -2177,12 +2183,15 @@ async function enrichWaterDistrict(data = {}, address = "", categories = {}) {
     tasks.push(
       fetchJsonWithDiagnostics(url)
         .then((j) => {
-          w.name =
-            j?.agency?.agency_name ||
-            j?.agency?.name ||
-            j?.agency_name ||
-            j?.name ||
-            w.name;
+          const agencyMeta = buildAgencyDisplayData(j?.agency || {});
+          for (const [key, value] of Object.entries(agencyMeta)) {
+            if (Array.isArray(value)) {
+              if (value.length) w[key] = value;
+              continue;
+            }
+            if (value !== "" && value != null) w[key] = value;
+          }
+          w.name = agencyMeta.name || j?.agency_name || j?.name || w.name;
           const tracts =
             j?.agency?.service_area_tracts ||
             j?.service_area_tracts ||
@@ -3217,6 +3226,9 @@ function renderResult(address, data, elapsedMs, selections) {
       <div class="key">Counties</div><div class="val">${renderListWithToggle(Array.isArray(w.counties) ? w.counties : (w.county ? [w.county] : []), 'wCounties', 3)}</div>
       <div class="key">Census tracts</div><div class="val">${renderTractList(wTracts, 'w')}</div>
       <div class="key">FIPS</div><div class="val">${wFipsArr.length ? renderTractList(wFipsArr, 'wF') : '—'}</div>
+      <div class="key">Commercial rebate</div><div class="val">${w.has_commercial_rebate == null ? "—" : (w.has_commercial_rebate ? "Yes" : "No")}</div>
+      <div class="key">Rebate amount</div><div class="val">${escapeHTML(w.rebate_sqft_label) || "—"}</div>
+      <div class="key">Rebate program</div><div class="val">${w.rebate_url ? `<a href="${escapeHTML(w.rebate_url)}" target="_blank" rel="noopener noreferrer">View rebate details</a>` : "—"}</div>
     </div>
   `;
   const locDescBase = '<p class="section-description">This section lists basic geographic information for the census tract, surrounding 10&#8209;mile area, and water district, such as city, ZIP code, county, and coordinates.</p>' + renderSourceNotesGrouped('location', data._source_log);
@@ -3554,11 +3566,19 @@ async function lookup(opts = {}) {
         if (data.dac_status == null && j.is_disadvantaged_community != null) {
           data.dac_status = Boolean(j.is_disadvantaged_community);
         }
-        // Seed water district display name from lookup agency info
-        const agency = j.agency || {};
-        const agencyDisplay = agency.display_name || agency.agency_name || agency.name || null;
-        if (agencyDisplay) {
-          data.water_district = { ...(data.water_district || {}), name: agencyDisplay };
+        // Seed water district summary fields from the lookup agency payload.
+        const agencyMeta = buildAgencyDisplayData(j.agency || {});
+        const nextWaterDistrict = { ...(data.water_district || {}) };
+        for (const [key, value] of Object.entries(agencyMeta)) {
+          if (Array.isArray(value)) {
+            if (value.length) nextWaterDistrict[key] = value;
+            continue;
+          }
+          if (value !== "" && value != null) nextWaterDistrict[key] = value;
+        }
+        if (agencyMeta.name) nextWaterDistrict.name = agencyMeta.name;
+        if (Object.keys(nextWaterDistrict).length) {
+          data.water_district = nextWaterDistrict;
         }
         // Try to extract lat/lon from common response shapes
         const candidates = [j, j.location, j.point, j.coords, j.coordinate, j.center, j.centroid, j.result?.point, j.agency?.center, j.agency?.centroid];

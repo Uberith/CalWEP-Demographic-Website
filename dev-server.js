@@ -45,7 +45,8 @@ function createServer(options = {}) {
     applyFrameHeaders(res);
     next();
   });
-  const port = Number(process.env.PORT || options.port || 5173);
+  const port = Number(options.port ?? process.env.PORT ?? 5173);
+  const host = options.host ?? process.env.HOST ?? null;
   const staticDir = path.resolve(process.env.STATIC_DIR || options.staticDir || '.');
   const apiBase = String(process.env.API_BASE || options.apiBase || 'https://api.calwep.org');
   const allowed = parseAllowedOrigins();
@@ -218,11 +219,14 @@ function createServer(options = {}) {
   });
 
   const start = () => new Promise((resolve) => {
-    const server = app.listen(port, () => {
+    const onListen = () => {
       // eslint-disable-next-line no-console
-      console.log(`Dev server: http://localhost:${server.address().port}`);
+      const address = server.address();
+      const hostLabel = typeof address === 'object' && address && address.address ? address.address : 'localhost';
+      console.log(`Dev server: http://${hostLabel}:${server.address().port}`);
       resolve(server);
-    });
+    };
+    const server = host ? app.listen(port, host, onListen) : app.listen(port, onListen);
   });
 
   return { app, start };

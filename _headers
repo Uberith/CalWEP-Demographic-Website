@@ -1,7 +1,8 @@
 /*
-  Content-Security-Policy: frame-ancestors 'self' https://calwep.org https://www.calwep.org https://insights.calwep.org https://cyberwiz.io https://www.cyberwiz.io
+  Content-Security-Policy: frame-ancestors 'self' https://calwep.org https://www.calwep.org https://insights.calwep.org https://cyberwiz.io https://www.cyberwiz.io https://demographics.cyberwiz.io
   X-Frame-Options: ALLOW-FROM https://calwep.org
   X-Frame-Options: ALLOW-FROM https://www.calwep.org
   X-Frame-Options: ALLOW-FROM https://insights.calwep.org
   X-Frame-Options: ALLOW-FROM https://cyberwiz.io
   X-Frame-Options: ALLOW-FROM https://www.cyberwiz.io
+  X-Frame-Options: ALLOW-FROM https://demographics.cyberwiz.io
