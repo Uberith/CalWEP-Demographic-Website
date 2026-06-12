@@ -2679,6 +2679,7 @@ function renderLoading(address, selections) {
   `;
 }
 function renderError(message, address, elapsedMs) {
+  const apiBaseLabel = API_BASE === 'self' ? window.location.origin : API_BASE;
   document.getElementById("result").innerHTML = `
     <div class="card" role="alert">
       <div class="card__header">
@@ -2690,7 +2691,7 @@ function renderError(message, address, elapsedMs) {
         ${escapeHTML(message || "Please try again with a different address.")}
       </div>
       <p class="note">Search took ${formatDuration(elapsedMs)}.</p>
-      <p class="note">API base: <code>${escapeHTML(API_BASE)}</code>. If your API has a prefix, adjust <code>API_PATH</code>.</p>
+      <p class="note">API base: <code>${escapeHTML(apiBaseLabel)}</code>. If this is local development, run <code>npm run dev</code> so API requests are proxied through the dev server.</p>
     </div>
   `;
 }
@@ -3948,7 +3949,13 @@ function loadGoogleMaps() {
   if (googleMapsRequested || typeof window.google?.maps !== 'undefined') return;
   googleMapsRequested = true;
   const script = document.createElement("script");
-  script.src = `https://maps.googleapis.com/maps/api/js?key=${GOOGLE_MAPS_KEY}&libraries=places&loading=async&callback=initAutocomplete`;
+  const params = new URLSearchParams({
+    key: GOOGLE_MAPS_KEY,
+    libraries: "places",
+    loading: "async",
+    callback: "initAutocomplete",
+  });
+  script.src = `https://maps.googleapis.com/maps/api/js?${params.toString()}`;
   script.async = true;
   script.defer = true;
   document.head.appendChild(script);

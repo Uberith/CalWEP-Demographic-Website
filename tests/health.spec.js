@@ -20,4 +20,14 @@ describe('dev-server', () => {
     const body = await res.json();
     expect(body).toEqual({ status: 'ok' });
   });
+
+  test('injects same-origin API base for dev HTML', async () => {
+    const { port } = server.address();
+    const res = await fetch(`http://127.0.0.1:${port}/`, {
+      headers: { accept: 'text/html' },
+    });
+    expect(res.ok).toBe(true);
+    const html = await res.text();
+    expect(html).toContain('<meta name="api-base" content="self">');
+  });
 });

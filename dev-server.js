@@ -194,7 +194,7 @@ function createServer(options = {}) {
   // Static assets (no aggressive caching in dev)
   app.use(express.static(staticDir, { etag: true, lastModified: true, index: false, cacheControl: false }));
 
-  // SPA fallback to index.html; keep api-base pointed at api.calwep.org
+  // SPA fallback to index.html; keep app API calls same-origin so this dev server can proxy them.
   const fs = require('fs');
   app.get('*', (req, res, next) => {
     if (!req.headers.accept || !req.headers.accept.includes('text/html')) return next();
@@ -202,9 +202,8 @@ function createServer(options = {}) {
     fs.readFile(indexPath, 'utf8', (err, html) => {
       if (err) return next();
       try {
-        // Replace or inject the meta api-base to point at api.calwep.org for all environments
         let out = html;
-        const desired = '<meta name="api-base" content="https://api.calwep.org">';
+        const desired = '<meta name="api-base" content="self">';
         if (out.includes('meta name="api-base"')) {
           out = out.replace(/<meta[^>]*name=["']api-base["'][^>]*>/i, desired);
         } else {
